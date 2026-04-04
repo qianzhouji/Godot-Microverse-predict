@@ -601,6 +601,60 @@ func make_decision():
 			ability_list.append("注意力" + str(ability["attention_span"]))
 		prompt += "、".join(PackedStringArray(ability_list))
 	
+	# ========== 添加认知计算机制参数（MVT模型）==========
+	if personality.has("cognitive_mechanism"):
+		var cm = personality["cognitive_mechanism"]
+		prompt += "\n\n【努力导向决策的认知计算机制 - 基线参数】"
+		prompt += "\n这些参数基于边际价值定理(MVT)，决定你在不同情境下的停留时间和行为选择："
+		
+		if cm.has("p_base"):
+			var p_base = cm["p_base"]
+			prompt += "\n- 离开阈值 (p_base)：%.0f%%" % (p_base * 100)
+			if p_base > 0.6:
+				prompt += "【你对环境奖赏率估计较高，倾向于在活动中停留更久】"
+			elif p_base < 0.4:
+				prompt += "【你对环境奖赏率估计较低，容易提前离开活动】"
+			else:
+				prompt += "【正常水平】"
+		
+		if cm.has("eta_s"):
+			var eta_s = cm["eta_s"]
+			prompt += "\n- 初始奖赏感知权重 (η_s)：%.0f%%" % (eta_s * 100)
+			if eta_s > 0.6:
+				prompt += "【你对情境初始丰富度很敏感，第一印象对你的停留时间影响很大】"
+			elif eta_s < 0.4:
+				prompt += "【你对初始奖赏不太敏感，更多考虑长期收益】"
+			else:
+				prompt += "【正常水平】"
+		
+		if cm.has("eta_a"):
+			var eta_a = cm["eta_a"]
+			prompt += "\n- 衰减率感知权重 (η_a)：%.0f%%" % (eta_a * 100)
+			if eta_a > 0.6:
+				prompt += "【你对奖赏消耗速度很敏感，能准确感知奖赏的衰减，倾向于提前离开】"
+			elif eta_a < 0.4:
+				prompt += "【你对奖赏衰减不够敏感，可能在收益已经很低时仍继续停留】"
+			else:
+				prompt += "【正常水平】"
+		
+		if cm.has("beta_effort"):
+			var beta_effort = cm["beta_effort"]
+			prompt += "\n- 努力敏感性 (β_effort)：%.0f%%" % (beta_effort * 100)
+			if beta_effort > 0.7:
+				prompt += "【高努力敏感性（抑郁风险特征）：努力成本会显著降低你的参与意愿，你倾向于回避需要付出努力的活动，即使这些活动可能带来回报】"
+			elif beta_effort > 0.5:
+				prompt += "【中等努力敏感性：你会考虑努力成本，但不会因此完全回避活动】"
+			elif beta_effort < 0.3:
+				prompt += "【低努力敏感性：你不太在意付出的努力成本，愿意为了目标付出较多努力】"
+			else:
+				prompt += "【正常水平】"
+		
+		prompt += "\n\n【认知计算机制对你行为的影响】"
+		prompt += "\n根据MVT理论，你在某个情境中的最优停留时间 T 满足："
+		prompt += "\nlog(T) = log[η_s · log(S) − log(p_base) − β_effort · effort] − η_a · log(a)"
+		prompt += "\n其中 S 是初始收益率，a 是收益衰减率，effort 是努力水平。"
+		prompt += "\n你的参数组合意味着你在高努力、低初始收益、快衰减的情境中停留时间较短。"
+	
 	# 添加动态特质信息（运行时变化的心理特质）
 	prompt += DynamicPersonality.get_traits_for_prompt(character)
 	

@@ -67,15 +67,29 @@ static func apply_event_effect(character: Node, event_type: String, event_data: 
 
 # 获取默认特质值
 static func _get_default_traits(character_name: String) -> Dictionary:
-	# 所有角色使用相同的默认特质基础值
-	# 具体的特质变化由外部系统根据角色状态动态调整
-	return {
+	# 从 CharacterPersonality 获取角色的基线认知机制参数
+	var personality = CharacterPersonality.get_personality(character_name)
+	var base_traits = {
 		"daily_depression_level": 0.5,
 		"p_base": 0.5,
 		"eta_s": 0.5,
 		"eta_a": 0.5,
 		"beta_effort": 0.5
 	}
+	
+	# 如果角色配置中有认知机制参数，使用配置值作为初始值
+	if personality.has("cognitive_mechanism"):
+		var cm = personality["cognitive_mechanism"]
+		if cm.has("p_base"):
+			base_traits["p_base"] = cm["p_base"]
+		if cm.has("eta_s"):
+			base_traits["eta_s"] = cm["eta_s"]
+		if cm.has("eta_a"):
+			base_traits["eta_a"] = cm["eta_a"]
+		if cm.has("beta_effort"):
+			base_traits["beta_effort"] = cm["beta_effort"]
+	
+	return base_traits
 
 # 获取特质的显示名称
 static func _get_trait_display_name(trait_name: String) -> String:
