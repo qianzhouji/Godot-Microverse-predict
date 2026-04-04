@@ -33,6 +33,13 @@ var decision_timer: Timer
 # 添加新的感知相关变量
 @onready var room_manager = get_node("/root/School/RoomManager")
 
+# 体验采样相关变量
+var current_room_start_time: float = 0.0  # 进入当前房间的时间
+var last_sample_time: float = 0.0         # 上次采样的时间
+var experience_timer: Timer               # 体验采样定时器
+const SAMPLE_INTERVAL: float = 5.0        # 每5秒采样一次
+const UPDATE_THRESHOLD: int = 3           # 3个样本后更新信念
+
 func _ready():
 	# 创建并配置决策定时器
 	decision_timer = Timer.new()
@@ -42,12 +49,23 @@ func _ready():
 	decision_timer.timeout.connect(_on_decision_timer_timeout)
 	decision_timer.start()
 	
+	# 创建体验采样定时器
+	experience_timer = Timer.new()
+	experience_timer.wait_time = SAMPLE_INTERVAL
+	experience_timer.one_shot = false
+	add_child(experience_timer)
+	experience_timer.timeout.connect(_on_experience_sample)
+	
 	# 创建一个一次性定时器，等待10秒后再开始第一次决策
 	var initial_delay = Timer.new()
 	initial_delay.wait_time = 10.0
 	initial_delay.one_shot = true
 	add_child(initial_delay)
 	initial_delay.timeout.connect(func(): make_decision())
+	
+	# 初始化当前房间时间
+	current_room_start_time = Time.get_unix_time_from_system()
+	last_sample_time = current_room_start_time
 	initial_delay.start()
 
 # 切换玩家控制状态
@@ -158,27 +176,16 @@ func get_room_characters(room: RoomData) -> Array:
 	
 	return room_characters
 
-# 获取房间的情境参数（MVT模型参数）
+# 获取房间的情境参数（使用感知系统，隐藏客观参数）
 func _get_room_situation_params(room_name: String) -> String:
-	var params_desc = ""
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
 	
-	# 查找对应的 RoomArea 节点
-	var room_areas = get_tree().get_nodes_in_group("room_area")
-	for area in room_areas:
-		if area.room_name == room_name:
-			# 检查是否有情境参数方法
-			if area.has_method("get_situation_params_description"):
-				params_desc = area.get_situation_params_description()
-			else:
-				# 直接读取导出变量
-				params_desc = "\n【当前情境参数】"
-				params_desc += "\n- 初始收益率：%.0f%%" % (area.initial_reward_rate * 100)
-				params_desc += "\n- 收益衰减率：%.0f%%" % (area.reward_decay_rate * 100)
-				params_desc += "\n- 努力水平：%.0f%%" % (area.effort_level * 100)
-				
-				if area.activity_types.size() > 0:
-					params_desc += "\n- 适合的活动类型：" + ", ".join(area.activity_types)
-			break
+	# 使用感知系统获取Agent对情境的主观感知
+	var params_desc = PerceptionSystem.get_belief_description(character.name, room_name, is_depression)
+	
+	# 添加效用参数说明
+	params_desc += UtilitySystem.get_utility_params_description(personality)
 	
 	return params_desc
 
@@ -2391,3 +2398,107 @@ func _cleanup_tracking_timer(tracking_timer: Timer):
 	if tracking_timer and is_instance_valid(tracking_timer):
 		tracking_timer.stop()
 		tracking_timer.queue_free()
+
+# ========== 体验采样和信念更新 ==========
+
+# 体验采样回调（每SAMPLE_INTERVAL秒调用）
+func _on_experience_sample():
+	# 获取当前房间
+	var current_room = room_manager.get_current_room(room_manager.rooms, character.global_position)
+	if not current_room:
+		return
+	
+	var room_name = current_room.name
+	var current_time = Time.get_unix_time_from_system()
+	var time_in_room = current_time - current_room_start_time
+	
+	# 获取角色参数
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	var cm = personality.get("cognitive_mechanism", {})
+	var eta_s = cm.get("eta_s", 0.5)
+	var eta_a = cm.get("eta_a", 0.5)
+	
+	# 查找RoomArea获取客观收益
+	var actual_gain = _get_actual_gain_from_room(room_name, time_in_room)
+	
+	# 添加样本到感知系统
+	PerceptionSystem.add_sample(character.name, room_name, time_in_room, 
+								actual_gain, eta_s, eta_a, is_depression)
+	
+	last_sample_time = current_time
+
+# 从RoomArea获取客观收益
+func _get_actual_gain_from_room(room_name: String, time: float) -> float:
+	var room_areas = get_tree().get_nodes_in_group("room_area")
+	for area in room_areas:
+		if area.room_name == room_name:
+			var S = area.initial_reward_rate
+			var a = area.reward_decay_rate
+			if a < 0.01:
+				a = 0.01
+			# G(t) = (S/a)[1 - exp(-at)]
+			var gain = (S / a) * (1.0 - exp(-a * time))
+			return clamp(gain, 0.0, 1.0)
+	return 0.5  # 默认值
+
+# 当Agent进入新房间时调用
+func _on_enter_new_room(new_room_name: String):
+	# 重置房间计时
+	current_room_start_time = Time.get_unix_time_from_system()
+	last_sample_time = current_room_start_time
+	
+	# 启动体验采样定时器
+	if experience_timer and not experience_timer.is_stopped():
+		experience_timer.start()
+	
+	print("[AIAgent] %s 进入新房间：%s，开始体验采样" % [character.name, new_room_name])
+
+# 当Agent离开房间时调用
+func _on_leave_room(room_name: String):
+	# 停止体验采样
+	if experience_timer:
+		experience_timer.stop()
+	
+	# 强制更新信念（如果有未处理的样本）
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	var belief = PerceptionSystem.get_belief(character.name, room_name, is_depression)
+	
+	if belief.samples.size() > 0:
+		PerceptionSystem._update_beliefs(character.name, room_name)
+		print("[AIAgent] %s 离开房间 %s，更新信念：S=%.2f, a=%.2f" % [
+			character.name, room_name, belief.S_mean, belief.a_mean
+		])
+
+# 获取感知到的最优停留时间（用于决策）
+func _get_perceived_optimal_time(room_name: String) -> float:
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	
+	# 获取感知参数
+	var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
+	var perceived_S = perceived.S
+	var perceived_a = perceived.a
+	
+	# 获取效用参数
+	var utility_params = UtilitySystem.get_agent_utility_params(personality)
+	var alpha = utility_params.alpha
+	var beta_effort = utility_params.beta_effort
+	
+	# 获取努力成本（从RoomArea）
+	var effort = 0.5
+	var room_areas = get_tree().get_nodes_in_group("room_area")
+	for area in room_areas:
+		if area.room_name == room_name:
+			effort = area.effort_level
+			break
+	
+	# 获取p_base
+	var p_base = 0.5
+	if personality.has("cognitive_mechanism"):
+		p_base = personality["cognitive_mechanism"].get("p_base", 0.5)
+	
+	# 计算最优时间
+	return UtilitySystem.calculate_optimal_time(perceived_S, perceived_a, effort, 
+											  alpha, beta_effort, p_base)
