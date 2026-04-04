@@ -1,0 +1,220 @@
+extends Node
+
+class_name PerceptionSystem
+
+# 贝叶斯感知系统
+# 负责管理Agent对情境参数的感知推断
+
+# 先验分布参数
+const PRIOR_S_MEAN = 0.5
+const PRIOR_S_VAR = 0.25  # Uniform(0,1)的方差
+const PRIOR_A_MEAN = 0.5
+const PRIOR_A_VAR = 0.25
+
+# 抑郁风险Agent的悲观先验
+const DEPRESSION_PRIOR_S_MEAN = 0.3
+const DEPRESSION_PRIOR_S_VAR = 0.15
+const DEPRESSION_PRIOR_A_MEAN = 0.6
+const DEPRESSION_PRIOR_A_VAR = 0.15
+
+# 感知噪声基准
+const BASE_PERCEPTION_NOISE = 0.1
+
+# 每个Agent对每个情境的信念缓存
+# 结构: {agent_name: {room_name: BeliefState}}
+static var agent_beliefs: Dictionary = {}
+
+# 信念状态类
+class BeliefState:
+	var S_mean: float      # 对初始收益率的后验均值
+	var S_var: float       # 对初始收益率的后验方差
+	var a_mean: float      # 对衰减率的后验均值
+	var a_var: float       # 对衰减率的后验方差
+	var samples: Array     # 观测样本缓存 [{time, gain}]
+	var last_update_time: int  # 上次更新时间
+	
+	func _init(is_depression_risk: bool = false):
+		if is_depression_risk:
+			# 抑郁Agent：悲观先验
+			S_mean = DEPRESSION_PRIOR_S_MEAN
+			S_var = DEPRESSION_PRIOR_S_VAR
+			a_mean = DEPRESSION_PRIOR_A_MEAN
+			a_var = DEPRESSION_PRIOR_A_VAR
+		else:
+			# 健康Agent：中性先验
+			S_mean = PRIOR_S_MEAN
+			S_var = PRIOR_S_VAR
+			a_mean = PRIOR_A_MEAN
+			a_var = PRIOR_A_VAR
+		
+		samples = []
+		last_update_time = 0
+
+# 获取或创建Agent对某情境的信念
+static func get_belief(agent_name: String, room_name: String, is_depression_risk: bool = false) -> BeliefState:
+	if not agent_beliefs.has(agent_name):
+		agent_beliefs[agent_name] = {}
+	
+	if not agent_beliefs[agent_name].has(room_name):
+		agent_beliefs[agent_name][room_name] = BeliefState.new(is_depression_risk)
+	
+	return agent_beliefs[agent_name][room_name]
+
+# 感知收益（添加噪声）
+static func perceive_gain(actual_gain: float, eta_s: float, eta_a: float) -> float:
+	# 感知精度由eta_s和eta_a共同决定
+	# 高eta → 低噪声（更精确）
+	var avg_eta = (eta_s + eta_a) / 2.0
+	var noise_std = BASE_PERCEPTION_NOISE * (1.0 - avg_eta * 0.5)
+	
+	# 添加高斯噪声
+	var noise = randfn(0.0, noise_std)
+	var perceived = actual_gain + noise
+	
+	# 确保在合理范围内
+	return clamp(perceived, 0.0, 1.0)
+
+# 添加观测样本
+static func add_sample(agent_name: String, room_name: String, time: float, actual_gain: float, 
+					   eta_s: float, eta_a: float, is_depression_risk: bool = false) -> void:
+	var belief = get_belief(agent_name, room_name, is_depression_risk)
+	var perceived_gain = perceive_gain(actual_gain, eta_s, eta_a)
+	
+	belief.samples.append({
+		"time": time,
+		"gain": perceived_gain
+	})
+	
+	# 样本数量达到阈值时更新信念
+	if belief.samples.size() >= 3:
+		_update_beliefs(agent_name, room_name)
+
+# 贝叶斯更新信念（简化版）
+static func _update_beliefs(agent_name: String, room_name: String) -> void:
+	var belief = agent_beliefs[agent_name][room_name]
+	
+	if belief.samples.size() < 2:
+		return
+	
+	# 从样本中估计
+	var times = []
+	var gains = []
+	for sample in belief.samples:
+		times.append(sample.time)
+		gains.append(sample.gain)
+	
+	# 简化：用线性回归估计初始收益和衰减趋势
+	# 实际应该用非线性回归拟合 G(t) = (S/a)[1 - exp(-at)]
+	
+	# 估计初始收益（第一个样本）
+	var observed_S = gains[0]
+	
+	# 估计衰减（收益下降速度）
+	var decay_estimate = 0.0
+	if gains.size() >= 2:
+		var gain_change = gains[-1] - gains[0]
+		var time_elapsed = times[-1] - times[0]
+		if time_elapsed > 0:
+			decay_estimate = -gain_change / time_elapsed  # 正值表示衰减
+		decay_estimate = clamp(decay_estimate, 0.0, 1.0)
+	
+	# 贝叶斯更新（共轭先验简化）
+	# 后验 = 先验 × 似然
+	
+	# 更新S的信念
+	var prior_precision_S = 1.0 / belief.S_var
+	var likelihood_precision_S = 1.0 / 0.05  # 观测噪声方差假设为0.05
+	var posterior_var_S = 1.0 / (prior_precision_S + likelihood_precision_S)
+	var posterior_mean_S = posterior_var_S * (
+		prior_precision_S * belief.S_mean + 
+		likelihood_precision_S * observed_S
+	)
+	
+	belief.S_mean = clamp(posterior_mean_S, 0.0, 1.0)
+	belief.S_var = clamp(posterior_var_S, 0.01, 0.25)
+	
+	# 更新a的信念
+	var prior_precision_a = 1.0 / belief.a_var
+	var likelihood_precision_a = 1.0 / 0.05
+	var posterior_var_a = 1.0 / (prior_precision_a + likelihood_precision_a)
+	var posterior_mean_a = posterior_var_a * (
+		prior_precision_a * belief.a_mean + 
+		likelihood_precision_a * decay_estimate
+	)
+	
+	belief.a_mean = clamp(posterior_mean_a, 0.0, 1.0)
+	belief.a_var = clamp(posterior_var_a, 0.01, 0.25)
+	
+	belief.last_update_time = Time.get_ticks_msec()
+	
+	# 清空样本缓存（可选：保留最近N个）
+	belief.samples.clear()
+
+# 获取感知到的情境参数
+static func get_perceived_params(agent_name: String, room_name: String, 
+								 is_depression_risk: bool = false) -> Dictionary:
+	var belief = get_belief(agent_name, room_name, is_depression_risk)
+	
+	return {
+		"S": belief.S_mean,           # 感知到的初始收益率
+		"a": belief.a_mean,           # 感知到的衰减率
+		"S_uncertainty": sqrt(belief.S_var),  # 不确定性
+		"a_uncertainty": sqrt(belief.a_var),
+		"confidence": 1.0 - (belief.S_var + belief.a_var)  # 总体置信度
+	}
+
+# 计算感知收益（用信念预测未来收益）
+static func predict_gain(agent_name: String, room_name: String, time: float,
+						 is_depression_risk: bool = false) -> float:
+	var belief = get_belief(agent_name, room_name, is_depression_risk)
+	var S = belief.S_mean
+	var a = belief.a_mean
+	
+	if a < 0.01:
+		a = 0.01  # 避免除零
+	
+	# G(t) = (S/a)[1 - exp(-at)]
+	var predicted = (S / a) * (1.0 - exp(-a * time))
+	return clamp(predicted, 0.0, 1.0)
+
+# 格式化信念状态为prompt文本
+static func get_belief_description(agent_name: String, room_name: String,
+								   is_depression_risk: bool = false) -> String:
+	var belief = get_belief(agent_name, room_name, is_depression_risk)
+	var params = get_perceived_params(agent_name, room_name, is_depression_risk)
+	
+	var desc = "\n\n【你对当前情境的感知】"
+	desc += "\n（基于你的经验和观察，你对这个情境有以下判断）"
+	
+	# 初始收益率感知
+	var S_desc = "中等"
+	if belief.S_mean >= 0.7:
+		S_desc = "较高"
+	elif belief.S_mean <= 0.3:
+		S_desc = "较低"
+	desc += "\n- 你觉得这个情境一开始能获得的收益：%.0f%%（%s）" % [belief.S_mean * 100, S_desc]
+	
+	# 衰减率感知
+	var a_desc = "中等"
+	if belief.a_mean >= 0.6:
+		a_desc = "较快"
+	elif belief.a_mean <= 0.3:
+		a_desc = "较慢"
+	desc += "\n- 你觉得收益消耗的速度：%.0f%%（%s）" % [belief.a_mean * 100, a_desc]
+	
+	# 不确定性
+	if params.confidence < 0.5:
+		desc += "\n- 你对这个情境还不太熟悉，判断可能不太准确"
+	elif params.confidence > 0.8:
+		desc += "\n- 你对这个情境已经比较熟悉了"
+	
+	return desc
+
+# 清空所有信念（用于重置模拟）
+static func reset_all_beliefs() -> void:
+	agent_beliefs.clear()
+
+# 清空特定Agent的信念
+static func reset_agent_beliefs(agent_name: String) -> void:
+	if agent_beliefs.has(agent_name):
+		agent_beliefs.erase(agent_name)

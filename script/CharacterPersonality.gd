@@ -95,7 +95,8 @@ const PERSONALITY_CONFIG = {
 			"p_base": 0.4,
 			"eta_s": 0.6,
 			"eta_a": 0.7,
-			"beta_effort": 0.8
+			"beta_effort": 0.8,
+			"alpha": 0.55
 		}
 	},
 	
@@ -149,7 +150,8 @@ const PERSONALITY_CONFIG = {
 			"p_base": 0.6,
 			"eta_s": 0.7,
 			"eta_a": 0.5,
-			"beta_effort": 0.4
+			"beta_effort": 0.4,
+			"alpha": 0.8
 		}
 	},
 	
@@ -202,7 +204,8 @@ const PERSONALITY_CONFIG = {
 			"p_base": 0.55,
 			"eta_s": 0.6,
 			"eta_a": 0.55,
-			"beta_effort": 0.5
+			"beta_effort": 0.5,
+			"alpha": 0.75
 		}
 	}
 }
