@@ -513,7 +513,13 @@ func make_decision():
 	var task_info = get_character_task_info(character)
 	
 	# 构建prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。你的工作职责是：%s。你的工作习惯是：%s。" % [
+	var role_type = personality.get("role_type", "student")
+	var role_description = "学生"
+	if role_type == "teacher":
+		role_description = "教师"
+	
+	var prompt = "你是一个%s，名字是%s。你的身份是：%s。你的性格是：%s。你的说话风格是：%s。你的主要职责是：%s。你的行为特点是：%s。" % [
+		role_description,
 		character.name,
 		personality["position"],
 		personality["personality"],
@@ -763,16 +769,22 @@ func make_conversation_decision():
 	var task_info = get_character_task_info(character)
 	
 	# 构建聊天决策prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+	var role_type = personality.get("role_type", "student")
+	var role_description = "学生"
+	if role_type == "teacher":
+		role_description = "教师"
+	
+	var prompt = "你是一个%s，名字是%s。你的身份是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+		role_description,
 		character.name,
 		personality["position"],
 		personality["personality"],
 		personality["speaking_style"]
 	]
 	
-	# 添加公司基本信息和员工名单信息
-	prompt += get_company_basic_info()
-	prompt += get_company_employees_info()
+	# 添加学校情境信息
+	prompt += "\n\n你在一所中学里，周围有同学、老师，以及各种校园活动。"
+	prompt += "\n你的行为应该符合一个%s的行为模式。" % role_description
 	prompt += status_info
 	prompt += task_info
 	
