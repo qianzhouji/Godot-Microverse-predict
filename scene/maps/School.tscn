@@ -1,4 +1,4 @@
-[gd_scene load_steps=72 format=4 uid="uid://nhba2jdtsjsx"]
+[gd_scene format=4 uid="uid://bwvjk6usckyt3"]
 
 [ext_resource type="Texture2D" uid="uid://bg7vxkearntad" path="res://asset/maps/interiors/3_Bathroom_32x32.png" id="1_xsptx"]
 [ext_resource type="Texture2D" uid="uid://u2qghko6a2k2" path="res://asset/maps/interiors/Room_Builder_32x32.png" id="2_0ao8h"]
@@ -16967,7 +16967,15 @@ position = Vector2(120, 512)
 [node name="RoomArea" type="Node2D" parent="."]
 visible = false
 
-[node name="MeetingRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.7
+reward_decay_rate = 0.3
+effort_level = 0.6
+activity_types = ["小组合作", "竞选", "课堂发言"]
+initial_reward_rate = 0.7
+reward_decay_rate = 0.3
+effort_level = 0.6
+activity_types = ["小组合作", "竞选", "课堂发言"]
 script = ExtResource("30_yhhlg")
 room_name = "教室（小组讨论区）"
 room_desc = "教室的南侧是小组讨论区，有四张课桌，适合课堂发言、小组合作和竞选活动"
@@ -16976,7 +16984,11 @@ room_desc = "教室的南侧是小组讨论区，有四张课桌，适合课堂�
 position = Vector2(526.5, 516)
 shape = SubResource("RectangleShape2D_f7hqq")
 
-[node name="HrOfficeRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.5
+reward_decay_rate = 0.5
+effort_level = 0.5
+activity_types = ["自习", "阅读"]
 script = ExtResource("30_yhhlg")
 room_name = "图书馆"
 room_desc = "图书馆有安静的阅读座位，适合自习和阅读，图书管理员在入口处"
@@ -16985,7 +16997,11 @@ room_desc = "图书馆有安静的阅读座位，适合自习和阅读，图书�
 position = Vector2(176, 132.75)
 shape = SubResource("RectangleShape2D_yhhlg")
 
-[node name="ToiletRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.2
+reward_decay_rate = 0.5
+effort_level = 0.1
+activity_types = []
 script = ExtResource("30_yhhlg")
 room_name = "洗手间"
 room_desc = "洗手间门口有洗漱台，里面有隔间"
@@ -16994,7 +17010,11 @@ room_desc = "洗手间门口有洗漱台，里面有隔间"
 position = Vector2(480, 54)
 shape = SubResource("RectangleShape2D_8h615")
 
-[node name="BossOfficeRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.6
+reward_decay_rate = 0.4
+effort_level = 0.5
+activity_types = ["师生交流", "寻求帮助"]
 script = ExtResource("30_yhhlg")
 room_name = "教师办公室"
 room_desc = "教师办公室有班主任和校长的办公桌，是学生寻求帮助和交流的地方"
@@ -17003,7 +17023,11 @@ room_desc = "教师办公室有班主任和校长的办公桌，是学生寻求�
 position = Vector2(944, 516.5)
 shape = SubResource("RectangleShape2D_loaku")
 
-[node name="OfficeRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.5
+reward_decay_rate = 0.7
+effort_level = 0.8
+activity_types = ["课堂发言", "课外活动"]
 script = ExtResource("30_yhhlg")
 room_name = "教室（主教学区）"
 room_desc = "教室的北侧是主教学区，有多个课桌，用于日常课堂教学和课外活动"
@@ -17012,7 +17036,11 @@ room_desc = "教室的北侧是主教学区，有多个课桌，用于日常课�
 position = Vector2(896, 213.5)
 shape = SubResource("RectangleShape2D_rryi1")
 
-[node name="GymRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.8
+reward_decay_rate = 0.7
+effort_level = 0.8
+activity_types = ["体育活动"]
 script = ExtResource("30_yhhlg")
 room_name = "体育馆"
 room_desc = "体育馆内有运动场地和器材，适合体育活动和锻炼"
@@ -17021,7 +17049,11 @@ room_desc = "体育馆内有运动场地和器材，适合体育活动和锻炼"
 position = Vector2(479.5, 324.5)
 shape = SubResource("RectangleShape2D_qy4lc")
 
-[node name="TeaRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.8
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = ["同伴互动", "用餐"]
 script = ExtResource("30_yhhlg")
 room_name = "食堂"
 room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、饮水机和多个座位"
@@ -17030,7 +17062,11 @@ room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、�
 position = Vector2(480, 166)
 shape = SubResource("RectangleShape2D_10dvn")
 
-[node name="ReceptionRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.4
+reward_decay_rate = 0.5
+effort_level = 0.3
+activity_types = ["咨询", "登记"]
 script = ExtResource("30_yhhlg")
 room_name = "学校前台"
 room_desc = "学校前台是访客登记和学生咨询的地方"
@@ -17039,7 +17075,11 @@ room_desc = "学校前台是访客登记和学生咨询的地方"
 position = Vector2(176, 516)
 shape = SubResource("RectangleShape2D_jkaac")
 
-[node name="WaitingHallRoomArea" type="Area2D" parent="RoomArea" groups=["room_area"]]
+
+initial_reward_rate = 0.3
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = ["偶遇互动", "走动"]
 script = ExtResource("30_yhhlg")
 room_name = "走廊"
 room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的地方"

@@ -31,7 +31,7 @@ var decision_timer: Timer
 @onready var api_manager = get_node("/root/APIManager")
 
 # 添加新的感知相关变量
-@onready var room_manager = get_node("/root/Office/RoomManager")
+@onready var room_manager = get_node("/root/School/RoomManager")
 
 func _ready():
 	# 创建并配置决策定时器
@@ -74,6 +74,9 @@ func generate_scene_description() -> String:
 	if current_room:
 		description += "你现在在" + current_room.name + "。"
 		description += "\n" + current_room.description
+		
+		# 添加情境参数（MVT模型参数）
+		description += _get_room_situation_params(current_room.name)
 	
 	# 获取环境信息
 	var environment_info = get_environment_info()
@@ -154,6 +157,30 @@ func get_room_characters(room: RoomData) -> Array:
 			room_characters.append(char)
 	
 	return room_characters
+
+# 获取房间的情境参数（MVT模型参数）
+func _get_room_situation_params(room_name: String) -> String:
+	var params_desc = ""
+	
+	# 查找对应的 RoomArea 节点
+	var room_areas = get_tree().get_nodes_in_group("room_area")
+	for area in room_areas:
+		if area.room_name == room_name:
+			# 检查是否有情境参数方法
+			if area.has_method("get_situation_params_description"):
+				params_desc = area.get_situation_params_description()
+			else:
+				# 直接读取导出变量
+				params_desc = "\n【当前情境参数】"
+				params_desc += "\n- 初始收益率：%.0f%%" % (area.initial_reward_rate * 100)
+				params_desc += "\n- 收益衰减率：%.0f%%" % (area.reward_decay_rate * 100)
+				params_desc += "\n- 努力水平：%.0f%%" % (area.effort_level * 100)
+				
+				if area.activity_types.size() > 0:
+					params_desc += "\n- 适合的活动类型：" + ", ".join(area.activity_types)
+			break
+	
+	return params_desc
 
 # 获取方向描述
 func get_direction_description(from_pos: Vector2, to_pos: Vector2) -> String:
