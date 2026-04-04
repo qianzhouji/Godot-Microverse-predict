@@ -522,6 +522,88 @@ func make_decision():
 		personality["work_habits"]
 	]
 	
+	# ========== 添加心理学特质字段 ==========
+	# 人口学信息
+	if personality.has("demographics"):
+		var demo = personality["demographics"]
+		prompt += "\n你的基本信息："
+		if demo.has("age"):
+			prompt += str(demo["age"]) + "岁"
+		if demo.has("gender"):
+			prompt += demo["gender"] + "生"
+		if demo.has("grade"):
+			prompt += "，" + demo["grade"]
+		if demo.has("family_structure"):
+			prompt += "，家庭结构：" + demo["family_structure"]
+		if demo.has("socioeconomic_status"):
+			prompt += "，家庭经济状况：" + demo["socioeconomic_status"]
+		if demo.has("only_child"):
+			prompt += "，" + ("独生子女" if demo["only_child"] else "非独生子女")
+	
+	# 大五人格
+	if personality.has("big_five"):
+		var big_five = personality["big_five"]
+		prompt += "\n你的大五人格特质（0-100分）："
+		prompt += "开放性" + str(big_five.get("openness", 50)) + "、"
+		prompt += "尽责性" + str(big_five.get("conscientiousness", 50)) + "、"
+		prompt += "外向性" + str(big_five.get("extraversion", 50)) + "、"
+		prompt += "宜人性" + str(big_five.get("agreeableness", 50)) + "、"
+		prompt += "神经质" + str(big_five.get("neuroticism", 50))
+	
+	# 初始抑郁状态
+	if personality.has("initial_depression"):
+		var depression = personality["initial_depression"]
+		prompt += "\n你的心理健康状况："
+		if depression.has("phq9_baseline"):
+			prompt += "PHQ-9基线分数" + str(depression["phq9_baseline"])
+		if depression.has("severity_level"):
+			prompt += "（" + depression["severity_level"] + "抑郁）"
+		if depression.has("symptom_duration_weeks"):
+			prompt += "，症状持续" + str(depression["symptom_duration_weeks"]) + "周"
+		if depression.has("key_symptoms"):
+			prompt += "，主要症状：" + ", ".join(PackedStringArray(depression["key_symptoms"]))
+	
+	# 功能水平
+	if personality.has("functioning_level"):
+		var func_level = personality["functioning_level"]
+		prompt += "\n你的功能水平（0-100分）："
+		if func_level.has("academic_functioning"):
+			prompt += "学业功能" + str(func_level["academic_functioning"]) + "、"
+		if func_level.has("social_functioning"):
+			prompt += "社交功能" + str(func_level["social_functioning"]) + "、"
+		if func_level.has("daily_living"):
+			prompt += "日常生活" + str(func_level["daily_living"]) + "、"
+		if func_level.has("peer_relationships"):
+			prompt += "同伴关系" + str(func_level["peer_relationships"]) + "、"
+		if func_level.has("teacher_relationships"):
+			prompt += "师生关系" + str(func_level["teacher_relationships"])
+	
+	# 专能性
+	if personality.has("specific_ability"):
+		var ability = personality["specific_ability"]
+		prompt += "\n你的能力特长（0-100分）："
+		var ability_list = []
+		if ability.has("mathematics"):
+			ability_list.append("数学" + str(ability["mathematics"]))
+		if ability.has("verbal_expression"):
+			ability_list.append("语言表达" + str(ability["verbal_expression"]))
+		if ability.has("visual_spatial"):
+			ability_list.append("视觉空间" + str(ability["visual_spatial"]))
+		if ability.has("physical_coordination"):
+			ability_list.append("身体协调" + str(ability["physical_coordination"]))
+		if ability.has("creative_thinking"):
+			ability_list.append("创造性思维" + str(ability["creative_thinking"]))
+		if ability.has("problem_solving"):
+			ability_list.append("问题解决" + str(ability["problem_solving"]))
+		if ability.has("memory"):
+			ability_list.append("记忆力" + str(ability["memory"]))
+		if ability.has("attention_span"):
+			ability_list.append("注意力" + str(ability["attention_span"]))
+		prompt += "、".join(PackedStringArray(ability_list))
+	
+	# 添加动态特质信息（运行时变化的心理特质）
+	prompt += DynamicPersonality.get_traits_for_prompt(character)
+	
 	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
@@ -537,6 +619,8 @@ func make_decision():
 	prompt += "\n- 你对其他同事的情感关系会影响你是否愿意与他们互动"
 	prompt += "\n- 你应该优先考虑完成渴望程度高的任务"
 	prompt += "\n- 你的行动应该与当前最重要的任务相关"
+	prompt += "\n- 你的心理学特质（大五人格、抑郁状态、功能水平、专能性）会深刻影响你的选择和行为模式"
+	prompt += "\n- 你的认知计算机制（离开阈值、奖赏感知权重、努力敏感性）会直接影响你的决策过程"
 	prompt += "\n\n根据以上所有信息，你想要采取什么行动？请从以下选项中选择一个："
 	prompt += "\n1. 调整任务（重新安排或修改当前的任务优先级）"
 	prompt += "\n2. 继续当前任务（执行当前最重要的任务）"
@@ -1589,6 +1673,9 @@ func _complete_task(target_character, current_task):
 	
 	# 添加完成任务的记忆
 	_add_memory(target_character, "你成功完成了任务：%s。感觉很有成就感！" % current_task.description)
+	
+	# 更新动态特质 - 任务成功
+	DynamicPersonality.apply_event_effect(target_character, "task_success")
 	
 	print("[AIAgent] %s 完成了任务：%s" % [target_character.name, current_task.description])
 

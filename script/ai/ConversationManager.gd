@@ -14,6 +14,7 @@ var chat_history_scene = preload("res://scene/ChatHistory.tscn")
 # AI相关脚本引用
 var MemoryManager = preload("res://script/ai/memory/MemoryManager.gd")
 var BackgroundStoryManager = preload("res://script/ai/background_story/BackgroundStoryManager.gd")
+var DynamicPersonality = preload("res://script/ai/DynamicPersonality.gd")
 
 # HTTP请求对象
 var http_request: HTTPRequest
@@ -140,6 +141,52 @@ func build_dialog_prompt(speaker_personality: Dictionary, listener_personality: 
 		speaker_personality["speaking_style"]
 	]
 	
+	# ========== 添加说话者心理学特质 ==========
+	if speaker_personality.has("thinking_style"):
+		prompt += "\n你的思维方式是：" + speaker_personality["thinking_style"]
+	
+	if speaker_personality.has("attribution_style"):
+		prompt += "\n你的归因风格是：" + speaker_personality["attribution_style"]
+	
+	if speaker_personality.has("decision_style"):
+		prompt += "\n你的决策风格是：" + speaker_personality["decision_style"]
+	
+	if speaker_personality.has("cognitive_bias"):
+		prompt += "\n你可能受到以下认知偏误影响：" + str(speaker_personality["cognitive_bias"])
+	
+	if speaker_personality.has("emotional_intelligence"):
+		prompt += "\n你的情商水平（1-10分）：" + str(speaker_personality["emotional_intelligence"])
+	
+	if speaker_personality.has("stress_response"):
+		prompt += "\n你在压力下的反应模式是：" + speaker_personality["stress_response"]
+	
+	if speaker_personality.has("motivation_type"):
+		prompt += "\n你的主要动机类型是：" + speaker_personality["motivation_type"]
+	
+	if speaker_personality.has("mbti_type"):
+		prompt += "\n你的MBTI性格类型是：" + speaker_personality["mbti_type"]
+	
+	if speaker_personality.has("big_five"):
+		var big_five = speaker_personality["big_five"]
+		prompt += "\n你的大五人格特质（0-100分）："
+		prompt += "开放性" + str(big_five.get("openness", 50)) + "、"
+		prompt += "尽责性" + str(big_five.get("conscientiousness", 50)) + "、"
+		prompt += "外向性" + str(big_five.get("extraversion", 50)) + "、"
+		prompt += "宜人性" + str(big_five.get("agreeableness", 50)) + "、"
+		prompt += "神经质" + str(big_five.get("neuroticism", 50))
+	
+	if speaker_personality.has("defense_mechanisms"):
+		prompt += "\n你的心理防御机制包括：" + str(speaker_personality["defense_mechanisms"])
+	
+	if speaker_personality.has("core_beliefs"):
+		prompt += "\n你的核心信念包括：" + str(speaker_personality["core_beliefs"])
+	
+	if speaker_personality.has("attachment_style"):
+		prompt += "\n你的依恋风格是：" + speaker_personality["attachment_style"]
+	
+	if speaker_personality.has("communication_style"):
+		prompt += "\n你的沟通风格是：" + speaker_personality["communication_style"]
+	
 	# 添加故事背景和社会规则
 	if not background_prompt.is_empty():
 		prompt += "\n\n" + background_prompt
@@ -170,11 +217,12 @@ func build_dialog_prompt(speaker_personality: Dictionary, listener_personality: 
 		prompt += "\n\n你们之前的对话记录：\n" + chat_history
 	
 	# 添加对话指导
-	prompt += "\n\n请根据你的性格、当前状态、心情、任务和与对方的关系，生成一段自然的对话。"
+	prompt += "\n\n请根据你的性格、心理学特质、当前状态、心情、任务和与对方的关系，生成一段自然的对话。"
 	prompt += "\n注意："
 	prompt += "\n- 体现出你的性格特点和说话风格"
+	prompt += "\n- 你的心理学特质（思维方式、归因风格、沟通风格、依恋风格等）会深刻影响你的表达方式和内容"
 	prompt += "\n- 考虑你当前的心情和健康状况"
-	prompt += "\n- 根据你们的关系程度调整亲密度"
+	prompt += "\n- 根据你们的关系程度调整亲密度（受依恋风格影响）"
 	prompt += "\n- 如果有相关记忆，可以提及"
 	prompt += "\n- 可以结合你的当前任务来聊天,当前突发的记忆优先级大于任务。"
 	prompt += "\n- 保持对话自然流畅，不要过于正式"
