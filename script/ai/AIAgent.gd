@@ -31,7 +31,27 @@ var decision_timer: Timer
 @onready var api_manager = get_node("/root/APIManager")
 
 # 添加新的感知相关变量
-@onready var room_manager = get_node("/root/School/RoomManager")
+# 尝试多种路径获取RoomManager（支持School和Office场景）
+@onready var room_manager = _get_room_manager()
+
+func _get_room_manager():
+	# 尝试School场景路径
+	var rm = get_node_or_null("/root/School/RoomManager")
+	if rm:
+		return rm
+	
+	# 尝试Office场景路径
+	rm = get_node_or_null("/root/Office/RoomManager")
+	if rm:
+		return rm
+	
+	# 尝试直接通过AutoLoad获取
+	rm = get_node_or_null("/root/RoomManager")
+	if rm:
+		return rm
+	
+	push_error("[AIAgent] 无法找到RoomManager，请确保场景正确配置")
+	return null
 
 # 体验采样相关变量
 var current_room_start_time: float = 0.0  # 进入当前房间的时间
