@@ -15,20 +15,20 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Microverse"
-run/main_scene="uid://nhba2jdtsjsx"
+run/main_scene="uid://bwvjk6usckyt3"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
 SettingsManager="*res://script/ui/SettingsManager.gd"
-DialogManager="*res://script/ai/DialogManager.gd"
-CharacterManager="*res://script/CharacterManager.gd"
+RewardSystem="*res://script/system/RewardSystem.gd"
 APIManager="*res://script/ai/APIManager.gd"
+MemoryManager="*res://script/ai/memory/MemoryManager.gd"
+CharacterManager="*res://script/CharacterManager.gd"
+DialogManager="*res://script/ai/DialogManager.gd"
 GameSaveManager="*res://script/GameSaveManager.gd"
 SaveLoadUIManager="*res://scene/ui/SaveLoadUIManager.tscn"
-MemoryManager="*res://script/ai/memory/MemoryManager.gd"
-RewardSystem="*res://script/system/RewardSystem.gd"
 
 [display]
 

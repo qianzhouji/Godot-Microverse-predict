@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=12 format=3 uid="uid://xn0cilaavrhp"]
+[gd_resource type="Theme" format=3 uid="uid://xn0cilaavrhp"]
 
 [ext_resource type="FontFile" uid="uid://bh5v7skmp36yr" path="res://asset/fonts/fusion-pixel-12px-proportional-zh_hans.otf" id="1_us5hv"]
 [ext_resource type="StyleBox" uid="uid://cfhtxeru3m75x" path="res://asset/ui/theme/hover_button.tres" id="2_s7wwj"]

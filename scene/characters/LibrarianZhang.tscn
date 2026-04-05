@@ -1,4 +1,4 @@
-[gd_scene load_steps=84 format=3 uid="uid://8108640367af4"]
+[gd_scene format=3 uid="uid://c4rbhon3olad0"]
 
 [ext_resource type="Script" uid="uid://bh7pwihb61whq" path="res://script/CharacterController.gd" id="1_ssp2r"]
 [ext_resource type="Texture2D" uid="uid://ceqyq2ubvfud1" path="res://asset/characters/body/Leax32.png" id="2_oabcv"]

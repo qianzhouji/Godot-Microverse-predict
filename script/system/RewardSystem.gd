@@ -19,7 +19,7 @@ static var instance: RewardSystem
 # gain: 客观收益值（0-1）
 # effort: 情境的努力成本（0-1）
 signal reward_distributed(agent_name: String, room_name: String, 
-                          time: float, gain: float, effort: float)
+						  time: float, gain: float, effort: float)
 
 func _ready():
 	instance = self

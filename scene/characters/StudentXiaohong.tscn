@@ -1,4 +1,4 @@
-[gd_scene load_steps=84 format=3 uid="uid://d76a23c3b0284"]
+[gd_scene format=3 uid="uid://drfh1ftqs7id"]
 
 [ext_resource type="Script" uid="uid://bh7pwihb61whq" path="res://script/CharacterController.gd" id="1_wxfil"]
 [ext_resource type="Texture2D" uid="uid://bhxnlpgp5jno6" path="res://asset/characters/body/Gracex32.png" id="2_x1fy7"]

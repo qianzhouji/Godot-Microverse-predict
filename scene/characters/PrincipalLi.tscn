@@ -1,4 +1,4 @@
-[gd_scene load_steps=94 format=3 uid="uid://920cb48813d34"]
+[gd_scene format=3 uid="uid://bch0myyyaia8"]
 
 [ext_resource type="Script" uid="uid://bh7pwihb61whq" path="res://script/CharacterController.gd" id="1_0v1r8"]
 [ext_resource type="Texture2D" uid="uid://c8ln2x38pryiq" path="res://asset/characters/body/Joex32.png" id="2_ab3wy"]

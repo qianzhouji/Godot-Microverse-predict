@@ -1,4 +1,4 @@
-[gd_scene load_steps=84 format=3 uid="uid://d9ec56d6b02d4"]
+[gd_scene format=3 uid="uid://eyhk4gwqs6md"]
 
 [ext_resource type="Script" uid="uid://bh7pwihb61whq" path="res://script/CharacterController.gd" id="1_it8k8"]
 [ext_resource type="Texture2D" uid="uid://b87kbnx5yevdw" path="res://asset/characters/body/Alicex32.png" id="2_7ksxw"]
