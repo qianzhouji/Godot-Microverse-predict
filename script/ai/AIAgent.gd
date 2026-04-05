@@ -506,7 +506,9 @@ func _refresh_daily_tasks(character_node):
 			incomplete_tasks.append(task)
 	
 	# 检查是否是周末
-	var is_weekend = day_night_system and day_night_system.is_weekend()
+	var is_weekend = false
+	if day_night_system != null:
+		is_weekend = day_night_system.is_weekend()
 	var target_task_count = 10 if is_weekend else 3  # 周末生成10个任务，平时3个
 	
 	# 生成新任务直到达到目标数量
@@ -550,7 +552,9 @@ func _generate_random_task(character_node):
 	var tasks_pool = []
 	
 	# 检查是否是上学日
-	var is_school_day = day_night_system and day_night_system.is_school_day
+	var is_school_day = false
+	if day_night_system != null:
+		is_school_day = day_night_system.is_school_day
 	var role_type = personality.get("role_type", "")
 	
 	if is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
