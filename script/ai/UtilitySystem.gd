@@ -132,7 +132,7 @@ static func get_utility_params_description(personality: Dictionary) -> String:
 	]
 	
 	if example_utility < 0:
-		desc += "\n→ 效用为负，你会觉得这个活动"不值得"参与"
+		desc += "\n→ 效用为负，你会觉得这个活动不值得参与"
 	else:
 		desc += "\n→ 效用为正，你可能会考虑参与"
 	
@@ -179,7 +179,7 @@ static func get_decision_analysis(current_room_params: Dictionary,
 	desc += "\n- 主观效用：%.2f" % current_utility
 	
 	if current_utility < 0:
-		desc += "\n→ 效用为负，继续停留会让你感到"不值""
+		desc += "\n→ 效用为负，继续停留会让你感到不值得"
 	elif current_utility < 0.2:
 		desc += "\n→ 效用较低，你可能会考虑离开"
 	else:

@@ -1791,7 +1791,7 @@ func _complete_task(target_character, current_task):
 	_add_memory(target_character, "你成功完成了任务：%s。感觉很有成就感！" % current_task.description)
 	
 	# 更新动态特质 - 任务成功
-	DynamicPersonality.apply_event_effect(target_character, "task_success")
+	DynamicPersonality.apply_task_feedback(target_character, true, 0.5)
 	
 	print("[AIAgent] %s 完成了任务：%s" % [target_character.name, current_task.description])
 
