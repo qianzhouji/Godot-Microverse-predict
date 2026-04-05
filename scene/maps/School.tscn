@@ -21,15 +21,23 @@
 [ext_resource type="Script" uid="uid://jukfjtge0p5v" path="res://script/CameraController.gd" id="16_tgr77"]
 [ext_resource type="PackedScene" uid="uid://b6cvfnhl4xvjo" path="res://scene/prefab/FrontChair.tscn" id="17_xf40e"]
 [ext_resource type="PackedScene" uid="uid://ci2i5dc7loyjt" path="res://scene/prefab/Chair.tscn" id="18_r1j2e"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaojun.tscn" id="23_74cc2"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaoli.tscn" id="24_0bb36"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaomei.tscn" id="25_45tuo"]
 [ext_resource type="PackedScene" uid="uid://c2yyfakwg86js" path="res://scene/ui/GlobalSettingsUI.tscn" id="26_ik20s"]
+[ext_resource type="PackedScene" path="res://scene/characters/LibrarianZhang.tscn" id="26_xtwin"]
 [ext_resource type="PackedScene" uid="uid://bqhqxqhqhqhqh" path="res://scene/ui/GodUI.tscn" id="27_ik20s"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaowei.tscn" id="27_w86wa"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaoyu.tscn" id="28_wm13h"]
+[ext_resource type="PackedScene" path="res://scene/characters/TeacherChen.tscn" id="29_pu4hk"]
 [ext_resource type="PackedScene" path="res://scene/characters/StudentXiaohong.tscn" id="29_vmdq2"]
+[ext_resource type="PackedScene" path="res://scene/characters/TeacherLi.tscn" id="30_6d7n3"]
 [ext_resource type="PackedScene" path="res://scene/characters/StudentXiaoming.tscn" id="30_74cc2"]
 [ext_resource type="Script" uid="uid://bipg4phjpbujy" path="res://script/RoomArea.gd" id="30_yhhlg"]
 [ext_resource type="PackedScene" path="res://scene/characters/TeacherWang.tscn" id="31_0bb36"]
 [ext_resource type="Script" uid="uid://dwbuqa6u6pc8y" path="res://script/RoomManager.gd" id="31_8h615"]
 [ext_resource type="PackedScene" path="res://scene/characters/PrincipalLi.tscn" id="32_45tuo"]
-[ext_resource type="PackedScene" uid="uid://cyhpykj1xrn1n" path="res://scene/characters/Tom.tscn" id="32_vckrt"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaogang.tscn" id="33_sepw8"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_3he53"]
 
@@ -16738,20 +16746,11 @@ vertices = PackedVector2Array(1078, 206, 1002, 178, 1022, 162, 1090, 162, 1142, 
 polygons = Array[PackedInt32Array]([PackedInt32Array(0, 1, 2, 3, 4), PackedInt32Array(5, 6, 7, 8, 9), PackedInt32Array(10, 4, 3, 11), PackedInt32Array(12, 10, 11, 13, 14), PackedInt32Array(2, 1, 14, 13), PackedInt32Array(9, 8, 15, 0), PackedInt32Array(16, 17, 18, 19), PackedInt32Array(18, 20, 19), PackedInt32Array(16, 19, 21), PackedInt32Array(22, 23, 12, 14, 24), PackedInt32Array(25, 22, 24, 26), PackedInt32Array(8, 7, 27, 28, 29), PackedInt32Array(30, 31, 32, 33), PackedInt32Array(33, 34, 35, 36), PackedInt32Array(30, 33, 36), PackedInt32Array(30, 36, 37), PackedInt32Array(38, 30, 37, 39), PackedInt32Array(40, 41, 42, 43, 44), PackedInt32Array(42, 45, 46, 47, 43), PackedInt32Array(46, 48, 49, 47), PackedInt32Array(50, 51, 52, 53), PackedInt32Array(50, 53, 54, 55), PackedInt32Array(47, 50, 55, 43), PackedInt32Array(39, 40, 44, 56, 57), PackedInt32Array(38, 39, 57), PackedInt32Array(28, 38, 57, 58), PackedInt32Array(29, 28, 58), PackedInt32Array(29, 58, 59), PackedInt32Array(60, 61, 62, 63), PackedInt32Array(64, 65, 66, 67), PackedInt32Array(64, 67, 68, 63), PackedInt32Array(69, 70, 71, 72), PackedInt32Array(69, 72, 73, 68), PackedInt32Array(63, 68, 73, 60), PackedInt32Array(59, 60, 73, 74), PackedInt32Array(29, 59, 74), PackedInt32Array(29, 74, 75, 76), PackedInt32Array(77, 29, 76, 78), PackedInt32Array(79, 80, 81, 82), PackedInt32Array(79, 82, 78, 76), PackedInt32Array(77, 78, 83, 26), PackedInt32Array(84, 85, 86, 87), PackedInt32Array(88, 89, 90, 91), PackedInt32Array(92, 88, 91, 93), PackedInt32Array(94, 95, 96, 97), PackedInt32Array(94, 97, 98, 93), PackedInt32Array(92, 93, 98, 99), PackedInt32Array(92, 99, 100, 87), PackedInt32Array(87, 100, 101), PackedInt32Array(84, 87, 101), PackedInt32Array(102, 84, 101, 103), PackedInt32Array(103, 104, 105, 106, 107), PackedInt32Array(108, 109, 110, 111), PackedInt32Array(112, 113, 114, 115, 16), PackedInt32Array(112, 16, 21), PackedInt32Array(111, 112, 21, 116, 107), PackedInt32Array(1, 0, 15, 77, 26), PackedInt32Array(116, 25, 26, 83, 107), PackedInt32Array(106, 108, 111, 107), PackedInt32Array(102, 103, 107), PackedInt32Array(102, 107, 117)])
 outlines = Array[PackedVector2Array]([PackedVector2Array(32, 72, 184, 72, 184, 120, 88, 120, 88, 152, 128, 152, 128, 200, 48, 200, 48, 208, 64, 208, 64, 256, 160, 256, 160, 304, 32, 304, 32, 560, 64, 456, 64.7876, 416, 320, 416, 320, 304, 192, 304, 192, 256, 288, 256, 296, 224, 320, 224, 640, 224, 640, 224, 640, 144, 320, 144, 320, 72, 336, 72, 336, 96, 624, 96, 624, 32, 336, 32, 336, 24, 320, 24, 32, 24), PackedVector2Array(640, 144, 640, 24, 1056, 24, 1056, 48, 1152, 48, 1152, 216, 1088, 216, 1088, 248, 1152, 248, 1152, 384, 1120, 384, 1120, 416, 1024, 416, 1024, 472, 1152, 472, 1152, 584, 1120, 584, 1120, 568, 1088, 568, 1088, 528, 1120, 528, 1120, 512, 1056, 512, 1056, 608, 816, 608, 816, 592, 768, 592, 768, 576, 736, 576, 736, 552, 824, 552, 824, 512, 736, 512, 736, 456, 904, 456, 904, 536, 864, 536, 864, 560, 928, 560, 928, 472, 992, 472, 992, 416, 704, 416, 704, 480, 712, 480, 712, 583.602, 696, 584, 696, 544, 656, 544, 656, 584, 664, 584, 664, 608, 336, 608, 336, 456, 672, 456, 672, 416, 640, 416, 640, 224), PackedVector2Array(704, 104, 704, 168, 992, 168, 992, 104), PackedVector2Array(640, 264, 336, 264, 336, 408, 624, 408, 624, 328, 640, 328), PackedVector2Array(672, 328, 1056, 328, 1056, 264, 672, 264), PackedVector2Array(320, 608, 320, 560, 264, 560, 264, 608, 96, 608, 96, 560, 32, 560, 64, 456, 320, 456), PackedVector2Array(392, 528, 392, 592, 536, 592, 536, 528), PackedVector2Array(1032, 120, 1032, 152, 1080, 152, 1080, 120), PackedVector2Array(200, 480, 200, 544, 320, 544, 320, 512, 224, 512, 224, 480)])
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_f7hqq"]
-size = Vector2(387, 184)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_yhhlg"]
-size = Vector2(288, 246.5)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_8h615"]
-size = Vector2(296, 84)
-
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_loaku"]
 size = Vector2(416, 183)
 
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_rryi1"]
-size = Vector2(512, 405)
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_f7hqq"]
+size = Vector2(387, 184)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_qy4lc"]
 size = Vector2(289, 185)
@@ -16761,9 +16760,6 @@ size = Vector2(312, 116)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jkaac"]
 size = Vector2(288, 184)
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_285b5"]
-size = Vector2(288, 148.5)
 
 [node name="Office" type="Node2D" unique_id=1284905091]
 
@@ -16934,14 +16930,31 @@ script = ExtResource("15_y022p")
 [node name="StudentXiaohong" parent="Characters" unique_id=1822526265 instance=ExtResource("29_vmdq2")]
 position = Vector2(1016, 400)
 
+[node name="StudentXiaojun" parent="Characters" unique_id=1067827764 instance=ExtResource("23_74cc2")]
+
+[node name="StudentXiaoli" parent="Characters" unique_id=1505178434 instance=ExtResource("24_0bb36")]
+
+[node name="StudentXiaomei" parent="Characters" unique_id=930171912 instance=ExtResource("25_45tuo")]
+
+[node name="LibrarianZhang" parent="Characters" unique_id=1476039324 instance=ExtResource("26_xtwin")]
+
+[node name="StudentXiaowei" parent="Characters" unique_id=908182857 instance=ExtResource("27_w86wa")]
+position = Vector2(1098, 298)
+
+[node name="StudentXiaoyu" parent="Characters" unique_id=1418520012 instance=ExtResource("28_wm13h")]
+
+[node name="TeacherChen" parent="Characters" unique_id=571938560 instance=ExtResource("29_pu4hk")]
+
+[node name="TeacherLi" parent="Characters" unique_id=1614705836 instance=ExtResource("30_6d7n3")]
+
 [node name="StudentXiaoming" parent="Characters" unique_id=803814461 instance=ExtResource("30_74cc2")]
 position = Vector2(1098, 298)
 
 [node name="TeacherWang" parent="Characters" unique_id=834850083 instance=ExtResource("31_0bb36")]
 position = Vector2(677, 97)
 
-[node name="Tom2" parent="Characters" unique_id=1598745117 instance=ExtResource("32_vckrt")]
-position = Vector2(988, 569)
+[node name="StudentXiaogang" parent="Characters" unique_id=1087300961 instance=ExtResource("33_sepw8")]
+position = Vector2(677, 97)
 
 [node name="PrincipalLi" parent="Characters" unique_id=46818008 instance=ExtResource("32_45tuo")]
 position = Vector2(473, 563)
@@ -16957,12 +16970,11 @@ visible = false
 script = ExtResource("30_yhhlg")
 room_name = "教室（主教学区）"
 room_desc = "教室的北侧是主教学区，有多个课桌，用于日常课堂教学和课外活动"
-initial_reward_rate = 0.5
 reward_decay_rate = 0.7
 effort_level = 0.8
-activity_types = ["课堂发言"]
+activity_types = Array[String](["课堂发言"])
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomMain"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomMain" unique_id=1068120834]
 position = Vector2(944, 516.5)
 shape = SubResource("RectangleShape2D_loaku")
 
@@ -16974,9 +16986,9 @@ room_desc = "教室的南侧是小组讨论区，有四张课桌，适合课堂�
 initial_reward_rate = 0.7
 reward_decay_rate = 0.3
 effort_level = 0.6
-activity_types = ["小组合作", "竞选"]
+activity_types = Array[String](["小组合作", "竞选"])
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomGroup"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomGroup" unique_id=1333595183]
 position = Vector2(526.5, 516)
 shape = SubResource("RectangleShape2D_f7hqq")
 
@@ -16988,9 +17000,9 @@ room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、�
 initial_reward_rate = 0.8
 reward_decay_rate = 0.3
 effort_level = 0.2
-activity_types = ["同伴互动"]
+activity_types = Array[String](["同伴互动"])
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Canteen"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Canteen" unique_id=826004662]
 position = Vector2(479.5, 324.5)
 shape = SubResource("RectangleShape2D_qy4lc")
 
@@ -17002,9 +17014,9 @@ room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的�
 initial_reward_rate = 0.3
 reward_decay_rate = 0.3
 effort_level = 0.2
-activity_types = ["偶遇互动"]
+activity_types = Array[String](["偶遇互动"])
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor" unique_id=1882605038]
 position = Vector2(480, 166)
 shape = SubResource("RectangleShape2D_10dvn")
 
@@ -17016,9 +17028,9 @@ room_desc = "体育馆内有运动场地和器材，适合体育活动和锻炼"
 initial_reward_rate = 0.8
 reward_decay_rate = 0.7
 effort_level = 0.8
-activity_types = ["体育活动"]
+activity_types = Array[String](["体育活动"])
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Gym"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Gym" unique_id=1103466636]
 position = Vector2(176, 516)
 shape = SubResource("RectangleShape2D_jkaac")
 

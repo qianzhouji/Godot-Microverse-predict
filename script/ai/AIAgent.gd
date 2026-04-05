@@ -29,6 +29,7 @@ var decision_timer: Timer
 
 # 直接使用自动加载单例
 @onready var api_manager = get_node("/root/APIManager")
+@onready var day_night_system = get_node("/root/DayNightSystem")
 
 # 添加新的感知相关变量
 # 尝试多种路径获取RoomManager（支持School和Office场景）
