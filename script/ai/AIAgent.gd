@@ -40,6 +40,10 @@ var experience_timer: Timer               # 体验采样定时器
 const SAMPLE_INTERVAL: float = 5.0        # 每5秒采样一次
 const UPDATE_THRESHOLD: int = 3           # 3个样本后更新信念
 
+# ========== 感知层与系统层分离 ==========
+# AgentRewardReceiver: 接收系统发放的奖赏（感知层组件）
+var reward_receiver: AgentRewardReceiver = null
+
 func _ready():
 	# 创建并配置决策定时器
 	decision_timer = Timer.new()
@@ -67,6 +71,18 @@ func _ready():
 	current_room_start_time = Time.get_unix_time_from_system()
 	last_sample_time = current_room_start_time
 	initial_delay.start()
+	
+	# ========== 创建AgentRewardReceiver（感知层组件）==========
+	# 延迟创建，确保RewardSystem已初始化
+	call_deferred("_create_reward_receiver")
+
+# 创建AgentRewardReceiver
+func _create_reward_receiver() -> void:
+	if reward_receiver == null:
+		reward_receiver = AgentRewardReceiver.new()
+		reward_receiver.ai_agent = self
+		add_child(reward_receiver)
+		print("[AIAgent] %s 的AgentRewardReceiver已创建" % character.name)
 
 # 切换玩家控制状态
 func toggle_player_control(enabled: bool):
@@ -2412,39 +2428,44 @@ func _on_experience_sample():
 	var current_time = Time.get_unix_time_from_system()
 	var time_in_room = current_time - current_room_start_time
 	
-	# 获取角色参数
-	var personality = CharacterPersonality.get_personality(character.name)
-	var is_depression = personality.get("role_type", "") == "depression_risk_student"
-	var cm = personality.get("cognitive_mechanism", {})
-	var eta_s = cm.get("eta_s", 0.5)
-	var eta_a = cm.get("eta_a", 0.5)
+	# ========== 感知层与系统层分离 ==========
+	# 不再直接访问RoomArea获取客观参数
+	# 改为通过RewardSystem请求系统发放奖赏
+	# AgentRewardReceiver会自动接收奖赏并传递给PerceptionSystem
 	
-	# 查找RoomArea获取客观收益（Agent不可见参数，只接收奖赏）
-	var actual_gain = _get_actual_gain_from_room(room_name, time_in_room)
-	
-	# 添加样本到感知系统
-	PerceptionSystem.add_sample(character.name, room_name, time_in_room, 
-								actual_gain, eta_s, eta_a, is_depression)
+	if RewardSystem.instance:
+		# 请求系统层发放奖赏（Agent不可见客观参数）
+		var result = RewardSystem.instance.distribute_reward(
+			character.name, room_name, time_in_room
+		)
+		
+		if result.has("error"):
+			push_warning("[AIAgent] %s 体验采样失败: %s" % [character.name, result.error])
+			return
+		
+		# 奖赏已通过信号发放给AgentRewardReceiver
+		# AgentRewardReceiver会自动:
+		# 1. 接收奖赏（带极小感知噪声）
+		# 2. 传递给PerceptionSystem进行贝叶斯更新
+		# 3. 缓存到历史记录
+	else:
+		push_error("[AIAgent] RewardSystem未初始化，无法获取奖赏")
+		return
 	
 	last_sample_time = current_time
+	
+	# 获取角色参数用于MVT决策
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
 	
 	# ========== MVT驱动行为决策 ==========
 	# 根据MVT计算最优停留时间，决定是否离开当前情境
 	_check_mvt_leave_decision(room_name, time_in_room, personality, is_depression)
 
-# 从RoomArea获取客观收益
-func _get_actual_gain_from_room(room_name: String, time: float) -> float:
-	var room_areas = get_tree().get_nodes_in_group("room_area")
-	for area in room_areas:
-		if area.room_name == room_name:
-			var S = area.initial_reward_rate
-			var a = area.reward_decay_rate
-			if a < 0.01:
-				a = 0.01
-			# G(t) = (S/a)[1 - exp(-at)]
-			var gain = (S / a) * (1.0 - exp(-a * time))
-			return clamp(gain, 0.0, 1.0)
-	return 0.5  # 默认值
+# ❌ 已删除: _get_actual_gain_from_room()
+# 原因: 违反感知层与系统层分离原则
+# Agent不应直接访问RoomArea的initial_reward_rate等客观参数
+# 改为通过RewardSystem.distribute_reward()间接获取奖赏
 
 # 当Agent进入新房间时调用
 func _on_enter_new_room(new_room_name: String):
@@ -2490,13 +2511,8 @@ func _get_perceived_optimal_time(room_name: String) -> float:
 	var alpha = utility_params.alpha
 	var beta_effort = utility_params.beta_effort
 	
-	# 获取努力成本（从RoomArea）
-	var effort = 0.5
-	var room_areas = get_tree().get_nodes_in_group("room_area")
-	for area in room_areas:
-		if area.room_name == room_name:
-			effort = area.effort_level
-			break
+	# 获取努力成本（通过RewardSystem，不直接访问RoomArea）
+	var effort = _get_effort_from_system(room_name)
 	
 	# 获取p_base
 	var p_base = 0.5
@@ -2506,6 +2522,23 @@ func _get_perceived_optimal_time(room_name: String) -> float:
 	# 计算最优时间
 	return UtilitySystem.calculate_optimal_time(perceived_S, perceived_a, effort, 
 											  alpha, beta_effort, p_base)
+
+# 通过系统层获取努力成本（不直接访问RoomArea）
+func _get_effort_from_system(room_name: String) -> float:
+	# 优先通过RewardSystem获取（系统层接口）
+	if RewardSystem.instance:
+		var room_data = RewardSystem.instance._get_room_objective_params(room_name)
+		if not room_data.is_empty():
+			return room_data.get("E", 0.5)
+	
+	# 降级方案：通过RoomManager获取
+	if room_manager and room_manager.has_method("get_room_objective_params_internal"):
+		var room_data = room_manager.get_room_objective_params_internal(room_name)
+		if not room_data.is_empty():
+			return room_data.get("E", 0.5)
+	
+	push_warning("[AIAgent] %s 无法获取房间 %s 的努力成本，使用默认值" % [character.name, room_name])
+	return 0.5  # 默认值
 
 # ========== MVT驱动行为决策 ==========
 # 根据MVT计算结果决定是否离开当前情境
@@ -2518,13 +2551,8 @@ func _check_mvt_leave_decision(room_name: String, time_in_room: float,
 	var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
 	var utility_params = UtilitySystem.get_agent_utility_params(personality)
 	
-	# 获取努力成本
-	var effort = 0.5
-	var room_areas = get_tree().get_nodes_in_group("room_area")
-	for area in room_areas:
-		if area.room_name == room_name:
-			effort = area.effort_level
-			break
+	# 获取努力成本（通过系统层接口）
+	var effort = _get_effort_from_system(room_name)
 	
 	# 计算当前效用
 	var current_gain = (perceived.S / max(perceived.a, 0.01)) * (1.0 - exp(-perceived.a * time_in_room))
@@ -2601,13 +2629,8 @@ func _select_next_room_by_mvt(current_room_name: String) -> RoomData:
 		# 获取对该房间的感知（如果有历史）或初始化
 		var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
 		
-		# 获取房间努力成本
-		var effort = 0.5
-		var room_areas = get_tree().get_nodes_in_group("room_area")
-		for area in room_areas:
-			if area.room_name == room_name:
-				effort = area.effort_level
-				break
+		# 获取房间努力成本（通过系统层接口）
+		var effort = _get_effort_from_system(room_name)
 		
 		# 预测进入该房间后的初始效用（t=5秒时的效用）
 		var predicted_gain = (perceived.S / max(perceived.a, 0.01)) * (1.0 - exp(-perceived.a * 5.0))
