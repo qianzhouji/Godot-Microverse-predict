@@ -31,6 +31,7 @@ GameSaveManager="*res://script/GameSaveManager.gd"
 SaveLoadUIManager="*res://scene/ui/SaveLoadUIManager.tscn"
 DayNightSystem="*res://script/system/DayNightSystem.gd"
 ScheduleSystem="*res://script/system/ScheduleSystem.gd"
+TaskManager="*res://script/system/TaskManager.gd"
 
 [display]
 
