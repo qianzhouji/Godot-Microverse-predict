@@ -688,8 +688,21 @@ func _generate_random_task(character_node):
 	# 随机选择一个任务
 	var random_task = tasks_pool[randi() % tasks_pool.size()]
 	
-	# 随机生成优先级（1-10）
-	var random_priority = randi() % 10 + 1
+	# 根据任务类型和角色生成合理优先级
+	var base_priority = 3  # 默认普通任务
+	
+	# 根据角色类型调整
+	if role_type == "teacher":
+		base_priority = 4  # 教师任务略高
+	elif role_type == "depression_risk_student":
+		# 抑郁Agent可能给社交任务更低优先级
+		if "社交" in random_task or "讨论" in random_task:
+			base_priority = 2
+		else:
+			base_priority = 3
+	
+	# 添加小幅随机波动 (-1 到 +1)
+	var random_priority = clamp(base_priority + (randi() % 3 - 1), 1, 5)
 	
 	# 创建任务对象
 	return {
@@ -2175,9 +2188,11 @@ func _rearrange_task_priorities_default(target_character):
 	if tasks.size() < 2:
 		return
 	
-	# 随机打乱前几个任务的优先级
+	# 微调前几个任务的优先级（只在原有基础上小幅调整）
 	for i in range(min(3, tasks.size())):
-		tasks[i].priority = randi() % 10 + 1
+		var current_priority = tasks[i].get("priority", 3)
+		# 小幅波动 (-1 到 +1)，保持在1-6范围内
+		tasks[i].priority = clamp(current_priority + (randi() % 3 - 1), 1, 6)
 	
 	# 重新排序
 	tasks.sort_custom(func(a, b): return a.priority > b.priority)
@@ -2198,7 +2213,7 @@ func _add_urgent_task_default(target_character):
 	
 	var urgent_task = {
 		"description": urgent_tasks[randi() % urgent_tasks.size()],
-		"priority": randi() % 3 + 8,  # 高优先级 8-10
+		"priority": 9,  # 紧急任务优先级9（仅次于人生大事10）
 		"created_at": Time.get_unix_time_from_system(),
 		"completed": false
 	}
