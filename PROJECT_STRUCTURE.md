@@ -169,6 +169,37 @@ res://
 - **设计原则**: Agent不能直接读取S,a,E，只能通过此接口接收"奖赏"
 - **信号**: `reward_distributed(agent_name, room_name, time, gain, effort)`
 
+#### DayNightSystem.gd ⭐ 2026-04-05新增
+- **路径**: `res://script/system/DayNightSystem.gd`
+- **类型**: Node (AutoLoad)
+- **职责**: 游戏时间管理系统，模拟一天的时间流逝
+- **核心功能**:
+  - 1现实分钟 = 1游戏小时，24分钟 = 1游戏天
+  - 从早上7点开始，17点放学，周末休息
+  - 信号：day_started, hour_changed, day_ended, school_time_started/ended
+  - 自动触发所有学生的每日反思（一天结束时）
+- **时间配置**:
+  - `REAL_SECONDS_PER_GAME_HOUR = 60.0`
+  - `SCHOOL_START_HOUR = 7.0`
+  - `SCHOOL_END_HOUR = 17.0`
+
+#### ScheduleSystem.gd ⭐ 2026-04-05新增
+- **路径**: `res://script/system/ScheduleSystem.gd`
+- **类型**: Node (AutoLoad)
+- **职责**: 课程表与任务管理系统
+- **核心功能**:
+  - 为所有Agent分配个性化课程任务
+  - 根据角色类型（抑郁/健康/教师）调整任务优先级
+  - 监听DayNightSystem信号，上学日自动分配任务
+- **课程表**:
+  - 上午：班主任课 → 英语课 → 小组讨论
+  - 午休：食堂用餐
+  - 下午：数学课 → 体育活动
+- **个性化分配**:
+  - 抑郁风险学生：高努力情境低优先级（可能回避）
+  - 健康学生：正常参与所有活动
+  - 教师：按课程表教学
+
 ---
 
 ### 3.3 角色系统 (script/)
@@ -181,7 +212,10 @@ res://
   - 定义抑郁风险学生、健康学生、教师的基线参数
   - 人口学、大五人格、PHQ-9基线、功能水平、专能性
   - MVT核心参数: p_base, η_s, η_a, β_effort, α
-- **配置角色**: TeacherWang, PrincipalLi, LibrarianZhang, StudentXiaoming等
+- **配置角色** (13个):
+  - **抑郁风险学生** (2): StudentXiaoming, StudentXiaoyu
+  - **健康学生** (6): StudentXiaohong, StudentXiaogang, StudentXiaoli, StudentXiaojun, StudentXiaomei, StudentXiaowei
+  - **教师** (5): TeacherWang, PrincipalLi, LibrarianZhang, TeacherLi, TeacherChen
 
 #### CharacterController.gd
 - **路径**: `res://script/CharacterController.gd`
@@ -380,7 +414,9 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 | script/ai/APIManager.gd | APIManager | API调用管理 |
 | script/ai/memory/MemoryManager.gd | MemoryManager | 记忆系统 |
 | script/CharacterManager.gd | CharacterManager | 角色管理 |
-| script/system/RewardSystem.gd | RewardSystem | 奖赏系统（新增） |
+| script/system/RewardSystem.gd | RewardSystem | 奖赏系统 |
+| script/system/DayNightSystem.gd | DayNightSystem | 游戏时间管理系统 |
+| script/system/ScheduleSystem.gd | ScheduleSystem | 课程表与任务管理 |
 
 ---
 
@@ -430,6 +466,33 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
   - 个体差异（抑郁Agent负面×1.5，健康Agent有韧性）
 - ✅ 创建 docs/DAILY_REFLECTION_DESIGN.md（设计文档）
 
+#### 晚上：场景重构与角色扩展
+- ✅ 重构 School.tscn 的 RoomArea 结构
+  - 删除错误的独立CollisionShape2D节点
+  - 创建5个符合MVT理论的情境（主教学区、小组讨论区、食堂、走廊、体育馆）
+  - 配置正确的S, a, E参数
+- ✅ 删除不需要的通用角色（Alice, Grace, Jack等8个）
+- ✅ 创建5个特定角色场景文件（StudentXiaoming, StudentXiaohong, TeacherWang, PrincipalLi, LibrarianZhang）
+- ✅ 添加8个新角色
+  - 5个健康学生：Xiaogang, Xiaoli, Xiaojun, Xiaomei, Xiaowei
+  - 1个抑郁风险学生：Xiaoyu
+  - 2个教师：TeacherLi（数学）, TeacherChen（英语）
+- ✅ 更新 CharacterPersonality.gd，添加13个角色的完整人设
+
+#### 深夜：时间系统与课程表
+- ✅ 创建 DayNightSystem.gd
+  - 游戏内时间缩放（1现实分钟=1游戏小时）
+  - 学校时间7:00-17:00，周末休息
+  - 自动触发每日反思（一天结束时）
+- ✅ 创建 ScheduleSystem.gd
+  - 完整的课程表（上午3节课+午休+下午2节课）
+  - 个性化任务分配（根据角色类型调整优先级）
+  - 集成DayNightSystem，上学日自动分配任务
+- ✅ 修改 AIAgent.gd
+  - 优先使用ScheduleSystem的课程表任务
+  - 修复环境描述使用游戏内时间
+  - 改进学校场景描述
+
 ---
 
-*本文档由为项目结构维护文档。*
+*本文档由AI助手百舟楫维护。*
