@@ -214,7 +214,19 @@ const PERSONALITY_CONFIG = {
 static func get_personality(character_name: String) -> Dictionary:
 	if character_name in PERSONALITY_CONFIG:
 		return PERSONALITY_CONFIG[character_name]
+	# 返回默认人设，包含所有必要字段
 	return {
+		"position": "员工",
 		"personality": "普通的办公室职员",
-		"speaking_style": "正常的交谈方式"
+		"speaking_style": "正常的交谈方式",
+		"work_duties": "完成日常工作任务",
+		"work_habits": "按时完成工作",
+		"role_type": "healthy_student",
+		"cognitive_mechanism": {
+			"p_base": 0.5,
+			"eta_s": 0.5,
+			"eta_a": 0.5,
+			"beta_effort": 0.4,
+			"alpha": 0.8
+		}
 	}
