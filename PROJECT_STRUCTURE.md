@@ -138,6 +138,22 @@ res://
 - **记忆类型**: PERSONAL, INTERACTION, TASK, EMOTION, EVENT
 - **重要性等级**: LOW(1), NORMAL(3), HIGH(5), CRITICAL(10)
 
+#### DailyReflectionSystem.gd ⭐ 2026-04-05新增
+- **路径**: `res://script/ai/DailyReflectionSystem.gd`
+- **类型**: Node (静态类)
+- **职责**: 每日反思与认知机制动态调整系统
+- **核心功能**:
+  - `conduct_daily_reflection()` - 执行完整每日反思流程
+  - `_analyze_reflection()` - LLM分析当日经历
+  - `_decide_cognitive_adjustments()` - 决定四项参数调整
+  - `_calculate_adjustment_magnitude()` - 动态幅度计算
+  - `_conduct_phq9_assessment()` - 完整PHQ-9九项评估
+- **调整幅度设计**:
+  - 严重程度1-5映射到1%-12%
+  - 个体差异：抑郁Agent负面×1.5，健康Agent有韧性
+  - 边界保护：偏离基线≤20%
+- **PHQ-9评估**: 九项症状，总分0-27，五个等级
+
 ---
 
 ### 3.2 系统层 (script/system/) ⭐ 新增
@@ -381,7 +397,9 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 
 ## 八、最近变更记录
 
-### 2026-04-05 - 感知层与系统层分离完成
+### 2026-04-05 - 重大更新日
+
+#### 上午：感知层与系统层分离完成
 - ✅ 创建 RewardSystem.gd（系统层奖赏发放）
 - ✅ 创建 AgentRewardReceiver.gd（感知层接收器）
 - ✅ 修改 AIAgent.gd（移除直接RoomArea访问，集成RewardSystem）
@@ -392,6 +410,25 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 - ✅ 创建 PROJECT_STRUCTURE.md（项目完整结构）
 - ✅ 创建 TODO_Perception_System_Separation_2026-04-05.md（分离实施待办）
 - ✅ 创建 docs/AUTOLOAD_SETUP.md（AutoLoad配置说明）
+
+#### 下午：动态人设系统实现
+- ✅ 扩展 DynamicPersonality.gd
+  - 新增任务反馈影响（apply_task_feedback）
+  - 新增社交互动影响（apply_social_feedback）
+  - 新增教师评价影响（apply_teacher_feedback）
+  - 新增每日PHQ-9更新（daily_phq9_update）
+  - 新增边界保护机制（_apply_boundary_protection）
+- ✅ 创建 docs/DYNAMIC_PERSONALITY_DESIGN.md（设计文档）
+
+#### 傍晚：每日反思系统实现
+- ✅ 创建 DailyReflectionSystem.gd
+  - 完整的每日反思流程（conduct_daily_reflection）
+  - LLM-based反思分析（_analyze_reflection）
+  - 四项认知参数动态调整（_decide_cognitive_adjustments）
+  - 动态幅度计算（严重程度1-5映射到1%-12%）
+  - 完整的PHQ-9九项评估（_conduct_phq9_assessment）
+  - 个体差异（抑郁Agent负面×1.5，健康Agent有韧性）
+- ✅ 创建 docs/DAILY_REFLECTION_DESIGN.md（设计文档）
 
 ---
 

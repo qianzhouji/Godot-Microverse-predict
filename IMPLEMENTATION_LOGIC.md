@@ -227,30 +227,62 @@ if time_in_room >= optimal_time:
 
 ---
 
-### 2.6 DynamicPersonality.gd - 动态特质管理
+### 2.6 DynamicPersonality.gd - 动态特质管理 ⭐ 2026-04-05重大扩展
 
-**职责：** 管理随时间变化的心理特质（外部控制）
+**职责：** 管理随时间变化的心理特质和认知计算机制参数
 
-**设计变更（2026-04-05）：**
-- ❌ 已删除自动触发事件机制
-- ✅ 改为完全由外部系统显式调用
+**核心功能（2026-04-05新增）：**
 
-**可动态调整的特质：**
+| 函数 | 触发条件 | 影响 |
+|------|---------|------|
+| `apply_task_feedback()` | 任务完成/失败 | beta_effort, p_base, daily_depression_level |
+| `apply_social_feedback()` | 社交互动后 | daily_depression_level, eta_s, beta_effort |
+| `apply_teacher_feedback()` | 收到评价后 | beta_effort, daily_depression_level |
+| `daily_phq9_update()` | 每日结束 | 基于当日事件净变化更新抑郁水平 |
+| `_apply_boundary_protection()` | 所有更新 | 防止偏离基线超过20% |
+
+**可动态调整的特质（四项认知机制）：**
 ```gdscript
-# 从基线认知机制参数
 var base_traits = {
-    "daily_depression_level": 0.5,  # 当日抑郁水平（动态）
+    "daily_depression_level": 0.5,  # 当日抑郁水平
     "p_base": 0.5,                  # 离开阈值
     "eta_s": 0.5,                   # 初始奖赏感知权重
     "eta_a": 0.5,                   # 衰减率感知权重
-    "beta_effort": 0.5              # 努力敏感性
+    "beta_effort": 0.5              # 努力敏感性（核心差异指标）
 }
+```
+
+**个体差异设计：**
+```gdscript
+# 抑郁Agent（如StudentXiaoming）
+- 基线: beta_effort = 0.8
+- 负面事件影响: ×1.5（恶化更快）
+- 正面事件影响: ×0.7（恢复更慢）
+- 边界: [0.6, 1.0]
+
+# 健康Agent（如StudentXiaohong）
+- 基线: beta_effort = 0.4
+- 负面事件影响: ×0.8（有韧性）
+- 正面事件影响: ×1.2（恢复更快）
+- 边界: [0.2, 0.6]
 ```
 
 **使用方式：**
 ```gdscript
-# 外部系统显式调用更新
-DynamicPersonality.update_trait(character, "beta_effort", 0.1, "任务成功增强自信")
+# 方式1: 直接更新（带原因说明）
+DynamicPersonality.update_trait(
+    character, 
+    "beta_effort", 
+    -0.05, 
+    "任务成功增强自信，降低努力敏感性"
+)
+
+# 方式2: 调用封装好的反馈函数
+DynamicPersonality.apply_task_feedback(
+    character, 
+    success=true, 
+    effort_level=0.8
+)
 ```
 
 ---
@@ -274,6 +306,53 @@ enum MemoryType {
 - 记忆影响Agent的先验信念
 - 负面记忆可能强化抑郁Agent的悲观预期
 - 任务成功/失败记忆通过外部系统影响动态特质
+- **每日反思的基础**：所有当日记忆被收集用于反思分析
+
+### 2.8 DailyReflectionSystem.gd - 每日反思系统 ⭐ 2026-04-05新增
+
+**职责：** 每日结束时自动反思，动态调整认知参数，完成PHQ-9评估
+
+**核心流程：**
+```
+收集当日记忆 → LLM反思分析 → 参数调整决策 → 动态幅度计算 → PHQ-9评估 → 记录结果
+```
+
+**关键函数：**
+
+| 函数 | 职责 |
+|------|------|
+| `conduct_daily_reflection()` | 主入口，执行完整流程 |
+| `_analyze_reflection()` | LLM分析当日经历，输出情绪主题和认知变化 |
+| `_decide_cognitive_adjustments()` | LLM判断四项参数调整方向和严重程度 |
+| `_calculate_adjustment_magnitude()` | 基于严重程度(1-5)和个体差异计算幅度 |
+| `_conduct_phq9_assessment()` | LLM评估PHQ-9九项症状 |
+
+**动态幅度计算：**
+```gdscript
+# 严重程度 → 基础幅度
+1 → ±1%    # 轻微
+2 → ±3%    # 轻度
+3 → ±5%    # 中度
+4 → ±8%    # 重度
+5 → ±12%   # 严重
+
+# 最终幅度 = 基础幅度 × 个体差异乘数
+# 抑郁Agent负面: ×1.5, 正面: ×0.7
+# 健康Agent负面: ×0.8, 正面: ×1.2
+```
+
+**PHQ-9评估：**
+- 九项症状，每项0-3分
+- 总分0-27，转换为抑郁水平(0-1)
+- 五个等级：无/轻度/中度/中重度/重度抑郁
+
+**使用方式：**
+```gdscript
+# 每日结束时调用
+func _on_day_end():
+    var result = await DailyReflectionSystem.conduct_daily_reflection(character)
+    # result包含: reflection_report, adjustments, phq9_assessment
+```
 
 ---
 
@@ -469,8 +548,11 @@ res://
 **⭐ 2026-04-05新增文件**:
 - `script/system/RewardSystem.gd` - 系统层奖赏发放
 - `script/ai/AgentRewardReceiver.gd` - 感知层接收器
+- `script/ai/DailyReflectionSystem.gd` - 每日反思与认知调整系统
 - `PROJECT_STRUCTURE.md` - 完整项目结构文档
 - `TODO_Perception_System_Separation_2026-04-05.md` - 分离实施待办
+- `docs/DYNAMIC_PERSONALITY_DESIGN.md` - 动态人设设计文档
+- `docs/DAILY_REFLECTION_DESIGN.md` - 每日反思设计文档
 
 ---
 
@@ -498,7 +580,9 @@ res://
 
 ## 八、最近更新记录
 
-### 2026-04-05 重大更新 - 感知层与系统层分离完成
+### 2026-04-05 重大更新日
+
+#### 上午：感知层与系统层分离完成
 - ✅ **MVT驱动行为决策实现** - AIAgent现在根据MVT计算结果直接驱动停留/离开行为
 - ✅ **感知层与系统层分离全部完成** - Agent不再直接访问RoomArea参数
   - ✅ 新增RewardSystem.gd - 系统层奖赏发放中介
@@ -509,6 +593,23 @@ res://
   - ✅ 配置AutoLoad - RewardSystem设置为单例
 - ✅ **感知噪声调整** - 从10%降至2%（σ=0.02）
 - ✅ **新增项目文档** - PROJECT_STRUCTURE.md, TODO_Perception_System_Separation_2026-04-05.md, docs/AUTOLOAD_SETUP.md
+
+#### 下午：动态人设系统扩展
+- ✅ **扩展DynamicPersonality.gd** - 新增事件反馈影响函数
+  - `apply_task_feedback()` - 任务成功/失败影响
+  - `apply_social_feedback()` - 社交互动影响
+  - `apply_teacher_feedback()` - 教师评价影响
+  - `daily_phq9_update()` - 每日PHQ-9更新
+  - `_apply_boundary_protection()` - 边界保护机制
+- ✅ **新增设计文档** - docs/DYNAMIC_PERSONALITY_DESIGN.md
+
+#### 傍晚：每日反思系统实现
+- ✅ **创建DailyReflectionSystem.gd** - 完整的每日反思与认知调整系统
+  - LLM-based反思分析（情绪主题、关键事件、认知变化）
+  - 四项认知参数动态调整（严重程度1-5映射到1%-12%）
+  - 个体差异（抑郁Agent负面×1.5，健康Agent有韧性）
+  - 完整PHQ-9九项评估（总分0-27，五个等级）
+- ✅ **新增设计文档** - docs/DAILY_REFLECTION_DESIGN.md
 
 ---
 
