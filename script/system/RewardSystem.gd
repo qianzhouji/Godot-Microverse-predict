@@ -1,5 +1,6 @@
 extends Node
-class_name RewardSystem
+# 注意：此类通过AutoLoad配置为单例，不使用class_name避免冲突
+# 在project.godot中配置: RewardSystem="*res://script/system/RewardSystem.gd"
 
 # 奖赏系统 - 系统层核心组件
 # 职责：
