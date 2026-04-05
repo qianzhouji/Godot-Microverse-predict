@@ -207,6 +207,307 @@ const PERSONALITY_CONFIG = {
 			"beta_effort": 0.5,
 			"alpha": 0.75
 		}
+	},
+	
+	# ========== 额外健康学生（环境群体扩展）==========
+	"StudentXiaoli": {
+		"position": "学生",
+		"personality": "文静、细心、成绩优秀，喜欢阅读和写作，对抑郁风险学生会主动关心但方式较含蓄",
+		"speaking_style": "说话轻声细语，用词准确，善于用文字表达情感，会写鼓励的便条给同学",
+		"work_duties": "完成学业任务、帮助同学补习、组织文学社活动",
+		"work_habits": "喜欢待在图书馆或安静的角落，课间常常看书，但也会参与小组讨论",
+		"role_type": "healthy_student",
+		"demographics": {
+			"age": 15,
+			"gender": "女",
+			"grade": "初三",
+			"family_structure": "双亲家庭",
+			"socioeconomic_status": "中上",
+			"only_child": true
+		},
+		"big_five": {
+			"openness": 80,
+			"conscientiousness": 85,
+			"extraversion": 45,
+			"agreeableness": 80,
+			"neuroticism": 30
+		},
+		"initial_depression": {
+			"phq9_baseline": 2,
+			"severity_level": "无",
+			"symptom_duration_weeks": 0,
+			"key_symptoms": []
+		},
+		"functioning_level": {
+			"academic_functioning": 90,
+			"social_functioning": 75,
+			"daily_living": 85,
+			"peer_relationships": 70,
+			"teacher_relationships": 88
+		},
+		"specific_ability": {
+			"mathematics": 85,
+			"verbal_expression": 95,
+			"visual_spatial": 60,
+			"physical_coordination": 50,
+			"creative_thinking": 90,
+			"problem_solving": 85,
+			"memory": 88,
+			"attention_span": 90
+		},
+		"cognitive_mechanism": {
+			"p_base": 0.65,
+			"eta_s": 0.75,
+			"eta_a": 0.45,
+			"beta_effort": 0.35,
+			"alpha": 0.85
+		}
+	},
+	
+	"StudentXiaojun": {
+		"position": "学生",
+		"personality": "阳光、运动型、成绩中等偏上，是班级体育委员，乐观开朗，善于带动气氛",
+		"speaking_style": "说话直接、充满活力，喜欢用体育比喻，会拍肩膀鼓励同学",
+		"work_duties": "完成学业任务、组织体育活动、带动班级氛围",
+		"work_habits": "课间喜欢在走廊或操场活动，体育课上最活跃，学习时注意力集中",
+		"role_type": "healthy_student",
+		"demographics": {
+			"age": 15,
+			"gender": "男",
+			"grade": "初三",
+			"family_structure": "双亲家庭",
+			"socioeconomic_status": "中等",
+			"only_child": false
+		},
+		"big_five": {
+			"openness": 65,
+			"conscientiousness": 60,
+			"extraversion": 90,
+			"agreeableness": 70,
+			"neuroticism": 25
+		},
+		"initial_depression": {
+			"phq9_baseline": 2,
+			"severity_level": "无",
+			"symptom_duration_weeks": 0,
+			"key_symptoms": []
+		},
+		"functioning_level": {
+			"academic_functioning": 75,
+			"social_functioning": 95,
+			"daily_living": 80,
+			"peer_relationships": 92,
+			"teacher_relationships": 78
+		},
+		"specific_ability": {
+			"mathematics": 70,
+			"verbal_expression": 65,
+			"visual_spatial": 75,
+			"physical_coordination": 95,
+			"creative_thinking": 60,
+			"problem_solving": 70,
+			"memory": 68,
+			"attention_span": 65
+		},
+		"cognitive_mechanism": {
+			"p_base": 0.7,
+			"eta_s": 0.8,
+			"eta_a": 0.4,
+			"beta_effort": 0.3,
+			"alpha": 0.85
+		}
+	},
+	
+	"StudentXiaomei": {
+		"position": "学生",
+		"personality": "活泼、爱美、社交能力强，是班级的时尚达人，对抑郁风险学生有同情心但可能过于直接",
+		"speaking_style": "说话快、语调起伏大，喜欢用网络流行语，会直接问同学'你怎么了'",
+		"work_duties": "完成学业任务、组织班级文艺活动、维护班级形象",
+		"work_habits": "课间喜欢在走廊聊天，注意外表，学习时会听音乐，喜欢小组学习",
+		"role_type": "healthy_student",
+		"demographics": {
+			"age": 15,
+			"gender": "女",
+			"grade": "初三",
+			"family_structure": "双亲家庭",
+			"socioeconomic_status": "中等偏上",
+			"only_child": true
+		},
+		"big_five": {
+			"openness": 75,
+			"conscientiousness": 55,
+			"extraversion": 88,
+			"agreeableness": 65,
+			"neuroticism": 35
+		},
+		"initial_depression": {
+			"phq9_baseline": 3,
+			"severity_level": "无",
+			"symptom_duration_weeks": 0,
+			"key_symptoms": []
+		},
+		"functioning_level": {
+			"academic_functioning": 70,
+			"social_functioning": 92,
+			"daily_living": 85,
+			"peer_relationships": 90,
+			"teacher_relationships": 72
+		},
+		"specific_ability": {
+			"mathematics": 65,
+			"verbal_expression": 80,
+			"visual_spatial": 85,
+			"physical_coordination": 70,
+			"creative_thinking": 85,
+			"problem_solving": 68,
+			"memory": 72,
+			"attention_span": 60
+		},
+		"cognitive_mechanism": {
+			"p_base": 0.65,
+			"eta_s": 0.75,
+			"eta_a": 0.5,
+			"beta_effort": 0.4,
+			"alpha": 0.8
+		}
+	},
+	
+	"StudentXiaowei": {
+		"position": "学生",
+		"personality": "憨厚、老实、成绩中等，是班级的劳动委员，不善言辞但行动力强，默默关心他人",
+		"speaking_style": "说话慢、用词简单，不太会表达情感，但会用行动帮助同学，如帮拿东西",
+		"work_duties": "完成学业任务、负责班级卫生、帮助同学做体力活",
+		"work_habits": "课间喜欢整理教室或帮老师搬东西，学习时需要安静环境，不喜欢嘈杂",
+		"role_type": "healthy_student",
+		"demographics": {
+			"age": 15,
+			"gender": "男",
+			"grade": "初三",
+			"family_structure": "双亲家庭",
+			"socioeconomic_status": "中等偏下",
+			"only_child": false
+		},
+		"big_five": {
+			"openness": 45,
+			"conscientiousness": 80,
+			"extraversion": 40,
+			"agreeableness": 85,
+			"neuroticism": 30
+		},
+		"initial_depression": {
+			"phq9_baseline": 3,
+			"severity_level": "无",
+			"symptom_duration_weeks": 0,
+			"key_symptoms": []
+		},
+		"functioning_level": {
+			"academic_functioning": 72,
+			"social_functioning": 65,
+			"daily_living": 85,
+			"peer_relationships": 68,
+			"teacher_relationships": 80
+		},
+		"specific_ability": {
+			"mathematics": 72,
+			"verbal_expression": 55,
+			"visual_spatial": 65,
+			"physical_coordination": 80,
+			"creative_thinking": 50,
+			"problem_solving": 74,
+			"memory": 75,
+			"attention_span": 78
+		},
+		"cognitive_mechanism": {
+			"p_base": 0.55,
+			"eta_s": 0.6,
+			"eta_a": 0.55,
+			"beta_effort": 0.45,
+			"alpha": 0.75
+		}
+	},
+	
+	# ========== 额外抑郁风险学生（观测对象扩展）==========
+	"StudentXiaoyu": {
+		"position": "学生",
+		"personality": "敏感、多愁善感、有艺术天赋，经常独自画画或写诗，有轻度抑郁症状，情绪波动大",
+		"speaking_style": "说话轻声，富有感情，喜欢用比喻，但经常突然沉默，回避深入交流",
+		"work_duties": "完成学业任务、参与美术活动、班级文艺表演",
+		"work_habits": "课间常独自在角落画画，对批评反应强烈，需要大量个人空间",
+		"role_type": "depression_risk_student",
+		"demographics": {
+			"age": 15,
+			"gender": "女",
+			"grade": "初三",
+			"family_structure": "双亲家庭（父母关系紧张）",
+			"socioeconomic_status": "中等",
+			"only_child": true
+		},
+		"big_five": {
+			"openness": 85,
+			"conscientiousness": 60,
+			"extraversion": 35,
+			"agreeableness": 60,
+			"neuroticism": 80
+		},
+		"initial_depression": {
+			"phq9_baseline": 10,
+			"severity_level": "中度",
+			"symptom_duration_weeks": 6,
+			"key_symptoms": ["情绪低落", "兴趣减退", "睡眠问题", "注意力难以集中"]
+		},
+		"functioning_level": {
+			"academic_functioning": 68,
+			"social_functioning": 45,
+			"daily_living": 72,
+			"peer_relationships": 40,
+			"teacher_relationships": 55
+		},
+		"specific_ability": {
+			"mathematics": 55,
+			"verbal_expression": 75,
+			"visual_spatial": 90,
+			"physical_coordination": 50,
+			"creative_thinking": 95,
+			"problem_solving": 60,
+			"memory": 62,
+			"attention_span": 45
+		},
+		"cognitive_mechanism": {
+			"p_base": 0.35,
+			"eta_s": 0.7,
+			"eta_a": 0.75,
+			"beta_effort": 0.85,
+			"alpha": 0.5
+		}
+	},
+	
+	# ========== 额外教师（制度性环境扩展）==========
+	"TeacherLi": {
+		"position": "数学老师",
+		"personality": "严谨、逻辑性强、对学生要求高，善于发现学生的数学天赋，对成绩下滑的学生会主动约谈",
+		"speaking_style": "说话有条理，喜欢用逻辑推理，会用数学比喻解释生活问题，对错误很敏感",
+		"work_duties": "数学教学、数学竞赛辅导、关注学生数学成绩变化、与班主任沟通学生学习状态",
+		"work_habits": "课后常留在教室答疑，批改作业时会做详细批注，发现学生问题会立即反馈",
+		"role_type": "teacher",
+		"demographics": {
+			"age": 38,
+			"gender": "男",
+			"education": "硕士"
+		}
+	},
+	
+	"TeacherChen": {
+		"position": "英语老师",
+		"personality": "活泼、时尚、与学生关系融洽，善于用游戏和歌曲教学，对内向学生会特别关注",
+		"speaking_style": "说话轻快，常夹杂英文单词，喜欢用流行文化举例，会模仿外国口音逗学生开心",
+		"work_duties": "英语教学、英语角活动组织、关注学生口语表达、推荐英文歌曲和电影",
+		"work_habits": "课间播放英文歌曲，会用社交媒体与学生互动，发现学生情绪问题会私下聊天",
+		"role_type": "teacher",
+		"demographics": {
+			"age": 32,
+			"gender": "女",
+			"education": "硕士"
+		}
 	}
 }
 
