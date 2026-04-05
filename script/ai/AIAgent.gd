@@ -722,6 +722,9 @@ func make_decision():
 	# 检查当前是否应该上课（由TaskManager管理）
 	_check_current_class()
 	
+	# 检查附近是否有其他角色，可能触发对话
+	_check_nearby_characters()
+	
 	# 生成场景描述
 	var scene_description = generate_scene_description()
 	print("[AIAgent] %s 的场景描述：\n%s" % [character.name, scene_description])
@@ -3030,6 +3033,47 @@ func _evaluate_task_priorities():
 	# 重新排序任务
 	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
 	character.set_meta("tasks", tasks)
+
+# 检查附近是否有其他角色
+func _check_nearby_characters():
+	"""检查附近是否有其他角色，根据概率决定是否发起对话"""
+	var cm = get_node_or_null("/root/CharacterManager")
+	if not cm:
+		return
+	
+	var nearby_char = cm.get_nearby_character(character)
+	if not nearby_char:
+		return
+	
+	# 检查是否已经在对话中
+	if dialog_manager and dialog_manager.is_character_in_conversation(character):
+		return
+	
+	# 获取角色人设，根据性格决定是否发起对话
+	var personality = CharacterPersonality.get_personality(character.name)
+	var extraversion = personality.get("big_five", {}).get("extraversion", 50)
+	var role_type = personality.get("role_type", "")
+	
+	# 计算对话概率
+	var talk_probability = 0.0
+	
+	if role_type == "depression_risk_student":
+		# 抑郁Agent社交回避，对话概率低
+		talk_probability = 0.1  # 10%概率
+	elif extraversion > 70:
+		// 外向Agent喜欢社交
+		talk_probability = 0.4  // 40%概率
+	elif extraversion < 40:
+		// 内向Agent不太主动
+		talk_probability = 0.15  // 15%概率
+	else:
+		// 普通Agent
+		talk_probability = 0.25  // 25%概率
+	
+	// 随机决定是否发起对话
+	if randf() < talk_probability:
+		print("[AIAgent] %s 发现附近角色 %s，决定发起对话" % [character.name, nearby_char.name])
+		initiate_conversation(nearby_char)
 
 # 检查当前是否应该上课
 func _check_current_class():
