@@ -476,7 +476,26 @@ func _check_and_refresh_daily_tasks(character_node):
 func _refresh_daily_tasks(character_node):
 	if not character_node:
 		return
-		
+	
+	print("[AIAgent] %s 刷新每日任务..." % character_node.name)
+	
+	# 首先尝试从ScheduleSystem获取课程表任务
+	var schedule_tasks = []
+	if ScheduleSystem and ScheduleSystem.is_school_day:
+		schedule_tasks = _get_schedule_tasks_for_character(character_node)
+		if not schedule_tasks.is_empty():
+			print("[AIAgent] %s 从ScheduleSystem获取课程表任务：%d个" % [character_node.name, schedule_tasks.size()])
+			character_node.set_meta("tasks", schedule_tasks)
+			character_node.set_meta("last_task_refresh", Time.get_unix_time_from_system())
+			
+			# 添加任务刷新记忆
+			var memory_text = "今天是上学日，你按照课程表安排活动，共有%d个课程任务。" % schedule_tasks.size()
+			MemoryManager.add_memory(character_node, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
+			
+			print("[AIAgent] %s 的任务已刷新（课程表），当前有 %d 个任务" % [character_node.name, schedule_tasks.size()])
+			return
+	
+	# 如果不是上学日或ScheduleSystem无任务，使用原有逻辑
 	# 获取当前任务列表
 	var tasks = character_node.get_meta("tasks", [])
 	
@@ -508,7 +527,7 @@ func _refresh_daily_tasks(character_node):
 	var memory_text = "你更新了今天的任务计划，共有%d个任务需要完成。" % incomplete_tasks.size()
 	MemoryManager.add_memory(character_node, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
 	
-	print("[AIAgent] %s 的任务已刷新，当前有 %d 个任务" % [character_node.name, incomplete_tasks.size()])
+	print("[AIAgent] %s 的任务已刷新（默认），当前有 %d 个任务" % [character_node.name, incomplete_tasks.size()])
 
 # 生成随机任务
 func _generate_random_task(character_node):
