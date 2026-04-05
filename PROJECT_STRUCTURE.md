@@ -493,6 +493,66 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
   - 修复环境描述使用游戏内时间
   - 改进学校场景描述
 
+#### 凌晨：Bug修复与优化
+- ✅ 修复DayNightSystem访问错误
+  - 移除class_name避免与AutoLoad冲突
+  - 使用get_node_or_null安全获取（解决_ready前调用问题）
+  - 修复is_school_day属性错误（使用is_weekend()判断）
+- ✅ 修复场景描述错误
+  - School.tscn根节点名为Office，添加匹配处理
+  - 使用游戏内时间而非真实时间
+- ✅ 修复任务刷新逻辑
+  - 优先使用ScheduleSystem课程表任务
+  - 周末生成10个默认任务，平时3个
+- ✅ 重构默认任务池
+  - 学生上学日任务池（20个任务）
+  - 学生周末任务池（20个任务）
+  - 教师任务池（按科目定制）
+  - 完全替换办公室任务为学校场景任务
+
 ---
 
-*本文档由AI助手百舟楫维护。*
+## 九、系统架构总览
+
+### 9.1 核心系统交互图
+
+```
+DayNightSystem (时间)
+    ↓ day_started信号
+ScheduleSystem (课程表)
+    ↓ 分配任务
+AIAgent (决策)
+    ↓ API调用 / 默认决策
+CharacterController (执行)
+    ↓ 移动/交互
+场景更新
+    ↓
+RewardSystem (奖赏)
+    ↓ 信号
+AgentRewardReceiver (感知)
+    ↓
+PerceptionSystem (贝叶斯更新)
+    ↓
+UtilitySystem (MVT决策)
+    ↓
+AIAgent (新决策)
+```
+
+### 9.2 数据流
+
+1. **时间驱动**: DayNightSystem推进时间，触发信号
+2. **任务分配**: ScheduleSystem根据时间分配课程任务
+3. **决策执行**: AIAgent根据任务和MVT计算做出决策
+4. **感知更新**: 在情境中获得奖赏，更新信念
+5. **每日反思**: 一天结束时自动触发，更新认知参数
+
+### 9.3 本地LLM集成
+
+- **Ollama**: 本地大模型服务
+- **默认模型**: qwen2.5:1.5b（中文优化）
+- **API配置**: APIConfig.gd统一管理
+- **故障回退**: API失败时自动使用默认决策
+
+---
+
+*本文档由AI助手百舟楫维护，最后更新：2026-04-05*

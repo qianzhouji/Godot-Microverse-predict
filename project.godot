@@ -23,14 +23,14 @@ config/icon="res://icon.svg"
 
 SettingsManager="*res://script/ui/SettingsManager.gd"
 RewardSystem="*res://script/system/RewardSystem.gd"
-DayNightSystem="*res://script/system/DayNightSystem.gd"
-ScheduleSystem="*res://script/system/ScheduleSystem.gd"
 APIManager="*res://script/ai/APIManager.gd"
 MemoryManager="*res://script/ai/memory/MemoryManager.gd"
-CharacterManager="*res://script/CharacterManager.gd"
 DialogManager="*res://script/ai/DialogManager.gd"
+CharacterManager="*res://script/CharacterManager.gd"
 GameSaveManager="*res://script/GameSaveManager.gd"
 SaveLoadUIManager="*res://scene/ui/SaveLoadUIManager.tscn"
+DayNightSystem="*res://script/system/DayNightSystem.gd"
+ScheduleSystem="*res://script/system/ScheduleSystem.gd"
 
 [display]
 
