@@ -1093,7 +1093,10 @@ func _generate_farewell_message(char_node, partner_node):
 		chat_history = history_node.get_recent_conversation_with(partner_node.name, 5)
 	
 	# 构建告别消息prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+		role_description,
 		char_node.name,
 		personality["position"],
 		personality["personality"],
@@ -1294,13 +1297,14 @@ func _generate_initial_tasks():
 	var status_info = get_character_status_info(character)
 	
 	# 构建生成任务的prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。你的工作职责是：%s。你的工作习惯是：%s。" % [
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+		role_description,
 		character.name,
 		personality["position"],
 		personality["personality"],
-		personality["speaking_style"],
-		personality["work_duties"],
-		personality["work_habits"]
+		personality["speaking_style"]
 	]
 	
 	# 添加公司基本信息和员工名单信息
@@ -1417,13 +1421,14 @@ func _adjust_tasks(char_node = null):
 	
 	# 获取角色人设和状态
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	var status_info = get_character_status_info(target_character)
 	var scene_description = generate_scene_description()
 	
 	# 构建调整任务的prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。" % [
-		target_character.name,
-		personality["position"],
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。" % [
+		role_description,
 		personality["personality"]
 	]
 	
@@ -1527,13 +1532,14 @@ func _continue_current_task(char_node = null):
 	
 	# 获取角色人设和状态
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	var status_info = get_character_status_info(target_character)
 	var scene_description = generate_scene_description()
 	
 	# 构建执行任务的prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。" % [
-		target_character.name,
-		personality["position"],
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。" % [
+		role_description,
 		personality["personality"]
 	]
 	
@@ -1618,12 +1624,13 @@ func _execute_task_movement(target_character, current_task):
 	
 	# 获取角色人设和状态
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	var scene_description = generate_scene_description()
 	
 	# 构建移动决策的prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。" % [
-		target_character.name,
-		personality["position"]
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+		role_description,
 	]
 	
 	# 添加公司基本信息和员工名单信息
@@ -1744,11 +1751,12 @@ func _execute_task_conversation(target_character, current_task):
 	
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	
 	# 构建对话选择的prompt，包含角色的精确坐标信息
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。" % [
-		target_character.name,
-		personality["position"]
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+		role_description,
 	]
 	
 	# 添加公司基本信息和员工名单信息
@@ -1880,13 +1888,14 @@ func _execute_task_thinking(target_character, current_task):
 	
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	var status_info = get_character_status_info(target_character)
 	var scene_description = generate_scene_description()
 	
 	# 构建思考prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
-		target_character.name,
-		personality["position"],
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+		role_description,
 		personality["personality"],
 		personality["speaking_style"]
 	]
@@ -2262,6 +2271,8 @@ func _handle_target_not_found(target_character, target_name: String, current_tas
 	
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	
 	# 获取所有房间列表
 	var room_names = []
@@ -2269,9 +2280,8 @@ func _handle_target_not_found(target_character, target_name: String, current_tas
 		room_names.append(room_name)
 	
 	# 构建决策prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。" % [
-		target_character.name,
-		personality["position"]
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+		role_description,
 	]
 	
 	prompt += "\n\n你当前的任务是：%s" % current_task.description
@@ -2343,6 +2353,8 @@ func _choose_room_to_search(target_character, target_name: String, current_task)
 	
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	
 	# 获取当前房间
 	var current_room = room_manager.get_current_room(room_manager.rooms, target_character.global_position)
@@ -2360,9 +2372,8 @@ func _choose_room_to_search(target_character, target_name: String, current_task)
 		return
 	
 	# 构建房间选择prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。" % [
-		target_character.name,
-		personality["position"]
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+		role_description,
 	]
 	
 	prompt += "\n\n你当前的任务是：%s" % current_task.description
@@ -2438,14 +2449,15 @@ func _reschedule_task(target_character, current_task, failed_target_name: String
 	
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
+	var role_type = personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
 	
 	# 获取场景描述
 	var scene_description = generate_scene_description()
 	
 	# 构建重新安排任务的prompt
-	var prompt = "你是一个办公室员工，名字是%s。你的职位是：%s。" % [
-		target_character.name,
-		personality["position"]
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+		role_description,
 	]
 	
 	# 添加公司基本信息和员工名单信息
