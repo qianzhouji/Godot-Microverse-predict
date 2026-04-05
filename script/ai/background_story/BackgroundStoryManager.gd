@@ -31,9 +31,9 @@ static var custom_rules: Array[String] = []
 # 预设的故事背景配置
 static var BACKGROUND_CONFIGS = {
 	"Office": {
-		"company_name": "CountSheep游戏公司",
-		"company_description": "一家专注于休闲小游戏开发的创新公司，主要产品是《CountSheep》小游戏。游戏宣传语：Can't Sleep? Count Sheep。游戏玩法：通过让用户数手机屏幕上跳过的小羊，然后有九宫格数字按钮来计数得分。该游戏目前十分流行，吸引了许多跟时髦的小青年充值购买小羊皮肤和按键皮肤。",
-		"environment_description": "这是一家现代化的公司，有多个工作区、会议室和休息区。办公室装修简洁明亮，有大窗户可以看到外面的景色。工作环境轻松愉快，鼓励创新和团队合作。",
+		"company_name": "阳光中学",
+		"company_description": "一所普通的初中学校，有教室、食堂、走廊和体育馆。",
+		"environment_description": "这是一所初中学校，教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。",
 		"time_period": "现代（2024年）",
 		"cultural_context": "现代都市办公文化，注重工作与生活平衡，团队协作和创新思维。",
 		"economic_situation": "公司处于快速发展期，游戏收入稳定增长，员工待遇良好。",

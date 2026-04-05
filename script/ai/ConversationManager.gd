@@ -191,7 +191,6 @@ func build_dialog_prompt(speaker_personality: Dictionary, listener_personality: 
 	if not background_prompt.is_empty():
 		prompt += "\n\n" + background_prompt
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += company_basic_info
 	prompt += company_info
 	
@@ -300,26 +299,21 @@ func _on_request_completed(result, response_code, headers, body):
 		# 生成对方的回复
 		await generate_dialog()
 
-# 获取公司员工信息字符串
+# 获取学校师生信息字符串
 func get_company_employees_info() -> String:
-	var employees_info = "\n\n公司员工名单及职位信息："
+	var info = "\n\n学校师生名单："
 	
 	# 遍历CharacterPersonality中的所有角色配置
 	for character_name in CharacterPersonality.PERSONALITY_CONFIG:
 		var personality = CharacterPersonality.PERSONALITY_CONFIG[character_name]
-		employees_info += "\n- " + character_name + "：" + personality["position"]
+		info += "\n- " + character_name + "：" + personality["position"]
 	
-	employees_info += "\n注意：在生成任何内容时，只能提及以上列出的员工，不要创造新的角色名字。"
-	return employees_info
+	info += "\n注意：在生成任何内容时，只能提及以上列出的师生，不要创造新的角色名字。"
+	return info
 
-# 获取公司基本信息字符串
+# 获取学校基本信息字符串
 func get_company_basic_info() -> String:
-	var company_info = "\n\n公司基本信息："
-	company_info += "\n你们公司的主要产品是《CountSheep》小游戏。"
-	company_info += "\n游戏宣传语：Can't Sleep? Count Sheep"
-	company_info += "\n游戏玩法：通过让用户数手机屏幕上跳过的小羊，然后有九宫格数字按钮来计数得分。"
-	company_info += "\n该游戏目前十分流行，吸引了许多跟时髦的小青年充值购买小羊皮肤和按键皮肤。"
-	return company_info
+	return "\n\n学校基本信息：\n这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
 
 # 获取角色详细状态信息
 func get_character_status_info(character: CharacterBody2D) -> String:

@@ -403,26 +403,21 @@ func get_character_status_info(char_node = null) -> String:
 	
 	return status_info
 
-# 获取公司员工信息字符串
+# 获取学校师生信息字符串
 func get_company_employees_info() -> String:
-	var employees_info = "\n\n公司员工名单及职位信息："
+	var info = "\n\n学校师生名单："
 	
 	# 遍历CharacterPersonality中的所有角色配置
 	for character_name in CharacterPersonality.PERSONALITY_CONFIG:
 		var personality = CharacterPersonality.PERSONALITY_CONFIG[character_name]
-		employees_info += "\n- " + character_name + "：" + personality["position"]
+		info += "\n- " + character_name + "：" + personality["position"]
 	
-	employees_info += "\n注意：在生成任何内容时，只能提及以上列出的员工，不要创造新的角色名字。"
-	return employees_info
+	info += "\n注意：在生成任何内容时，只能提及以上列出的师生，不要创造新的角色名字。"
+	return info
 
-# 获取公司基本信息字符串
+# 获取学校基本信息字符串
 func get_company_basic_info() -> String:
-	var company_info = "\n\n公司基本信息："
-	company_info += "\n你们公司的主要产品是《CountSheep》小游戏。"
-	company_info += "\n游戏宣传语：Can't Sleep? Count Sheep"
-	company_info += "\n游戏玩法：通过让用户数手机屏幕上跳过的小羊，然后有九宫格数字按钮来计数得分。"
-	company_info += "\n该游戏目前十分流行，吸引了许多跟时髦的小青年充值购买小羊皮肤和按键皮肤。"
-	return company_info
+	return "\n\n学校基本信息：\n这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
 
 # 获取角色任务信息
 func get_character_task_info(char_node = null) -> String:
@@ -891,7 +886,6 @@ func make_decision():
 	# 添加动态特质信息（运行时变化的心理特质）
 	prompt += DynamicPersonality.get_traits_for_prompt(character)
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info  # 添加详细状态信息
@@ -1307,7 +1301,6 @@ func _generate_initial_tasks():
 		personality["speaking_style"]
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
@@ -1317,11 +1310,16 @@ func _generate_initial_tasks():
 	prompt += "\n- 考虑你当前的心情、健康和财务状况"
 	prompt += "\n- 包括工作任务和个人事务"
 	prompt += "\n- 每个任务用一句话描述（20-50字）"
-	prompt += "\n\n请按以下格式输出，每行一个任务，格式为：任务描述|渴望程度（1-10的数字）"
-	prompt += "\n例如："
-	prompt += "\n完成本月的销售报告|8"
-	prompt += "\n与同事讨论新项目方案|6"
-	prompt += "\n整理办公桌上的文件|4"
+	prompt += "\n\n请按以下格式输出，每行一个任务，格式为：任务描述|任务类型"
+	prompt += "\n任务类型说明："
+	prompt += "\n- important_urgent: 重要且略紧急（如一周后的考试、几天后的会议）"
+	prompt += "\n- normal_work: 普通工作（如完成作业、组织活动、撰写稿件，不紧急）"
+	prompt += "\n- daily: 日常任务（如吃饭、睡觉、娱乐休息）"
+	prompt += "\n- social: 社交任务（如与同学交流、小组讨论）"
+	prompt += "\n\n例如："
+	prompt += "\n准备下周的数学考试|important_urgent"
+	prompt += "\n完成英语作业|normal_work"
+	prompt += "\n去食堂吃午饭|daily"
 	prompt += "\n\n请生成3个任务："
 	
 	# 使用APIManager生成任务
@@ -1372,15 +1370,17 @@ func _on_generate_tasks_completed(result, _response_code, headers, body, char_no
 			var parts = line.split("|")
 			if parts.size() >= 2:
 				var description = parts[0].strip_edges()
-				var priority_str = parts[1].strip_edges()
-				var priority = int(priority_str) if priority_str.is_valid_int() else 5
+				var task_type = parts[1].strip_edges().to_lower()
 				
-				# 确保优先级在1-10范围内
-				priority = max(1, min(10, priority))
+				# 验证任务类型
+				var valid_types = ["important_urgent", "normal_work", "daily", "social"]
+				if task_type not in valid_types:
+					task_type = "normal_work"  # 默认类型
 				
 				tasks.append({
 					"description": description,
-					"priority": priority,
+					"task_type": task_type,
+					"priority": 0,  # 初始为0，由Agent后续评估
 					"created_at": Time.get_unix_time_from_system(),
 					"completed": false
 				})
@@ -1432,7 +1432,6 @@ func _adjust_tasks(char_node = null):
 		personality["personality"]
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
@@ -1543,7 +1542,6 @@ func _continue_current_task(char_node = null):
 		personality["personality"]
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
@@ -1633,7 +1631,6 @@ func _execute_task_movement(target_character, current_task):
 		role_description,
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += "\n" + scene_description
@@ -1746,7 +1743,7 @@ func _execute_task_conversation(target_character, current_task):
 	
 	if available_chars.size() == 0:
 		print("[AIAgent] %s 没有其他角色可以交谈" % target_character.name)
-		_add_memory(target_character, "你想要通过对话来完成任务'%s'，但是公司里没有其他人。" % current_task.description)
+		_add_memory(target_character, "你想要通过对话来完成任务'%s'，但是学校里没有其他人。" % current_task.description)
 		return
 	
 	# 获取角色人设
@@ -1759,11 +1756,10 @@ func _execute_task_conversation(target_character, current_task):
 		role_description,
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += "\n\n你当前的任务是：%s" % current_task.description
-	prompt += "\n\n公司里有以下同事可以交谈："
+	prompt += "\n\n学校里有以下师生可以交谈："
 	for char in available_chars:
 		var char_personality = CharacterPersonality.get_personality(char.name)
 		var char_room = room_manager.get_current_room(room_manager.rooms, char.global_position)
@@ -1900,7 +1896,6 @@ func _execute_task_thinking(target_character, current_task):
 		personality["speaking_style"]
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
@@ -2286,7 +2281,7 @@ func _handle_target_not_found(target_character, target_name: String, current_tas
 	
 	prompt += "\n\n你当前的任务是：%s" % current_task.description
 	prompt += "\n你想要找到'%s'来完成这个任务，但是在当前房间没有找到这个目标。" % target_name
-	prompt += "\n\n公司有以下房间：%s" % ", ".join(room_names)
+	prompt += "\n\n学校有以下场所：%s" % ", ".join(room_names)
 	prompt += "\n\n请选择你的行动："
 	prompt += "\n1. 去其他房间寻找'%s'" % target_name
 	prompt += "\n2. 留在原地，重新安排任务"
@@ -2460,7 +2455,6 @@ func _reschedule_task(target_character, current_task, failed_target_name: String
 		role_description,
 	]
 	
-	# 添加公司基本信息和员工名单信息
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += "\n" + scene_description
@@ -2470,7 +2464,7 @@ func _reschedule_task(target_character, current_task, failed_target_name: String
 	prompt += "\n\n请重新安排一个新的任务，这个任务应该："
 	prompt += "\n1. 适合你的职位和当前环境"
 	prompt += "\n2. 可以在当前环境中完成"
-	prompt += "\n3. 符合办公室工作的常理"
+	prompt += "\n3. 符合学校生活的常理"
 	prompt += "\n\n请只回复新任务的描述，不要有任何其他文字。"
 	
 	print(prompt)
