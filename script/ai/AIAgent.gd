@@ -268,10 +268,10 @@ func get_environment_info() -> String:
 			# 默认描述
 			environment_info = "这是一个室内场所。"
 	
-	# 添加时间信息（使用游戏内时间DayNightSystem）
+	# 添加时间信息（使用游戏内时间day_night_system）
 	var time_description = ""
 	
-	if DayNightSystem:
+	if day_night_system:
 		var current_hour = day_night_system.current_hour
 		var weekday = day_night_system.get_weekday_name()
 		
@@ -506,7 +506,7 @@ func _refresh_daily_tasks(character_node):
 			incomplete_tasks.append(task)
 	
 	# 检查是否是周末
-	var is_weekend = DayNightSystem and day_night_system.is_weekend()
+	var is_weekend = day_night_system and day_night_system.is_weekend()
 	var target_task_count = 10 if is_weekend else 3  # 周末生成10个任务，平时3个
 	
 	# 生成新任务直到达到目标数量
@@ -550,7 +550,7 @@ func _generate_random_task(character_node):
 	var tasks_pool = []
 	
 	# 检查是否是上学日
-	var is_school_day = DayNightSystem and day_night_system.is_school_day
+	var is_school_day = day_night_system and day_night_system.is_school_day
 	var role_type = personality.get("role_type", "")
 	
 	if is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
@@ -2843,7 +2843,7 @@ func _get_schedule_tasks_for_character(target_character: Node) -> Array:
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	
 	# 根据角色类型和当前时间获取相应任务
-	if DayNightSystem:
+	if day_night_system:
 		var current_hour = day_night_system.current_hour
 		
 		# 上午课程
