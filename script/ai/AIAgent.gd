@@ -2419,7 +2419,7 @@ func _on_experience_sample():
 	var eta_s = cm.get("eta_s", 0.5)
 	var eta_a = cm.get("eta_a", 0.5)
 	
-	# 查找RoomArea获取客观收益
+	# 查找RoomArea获取客观收益（Agent不可见参数，只接收奖赏）
 	var actual_gain = _get_actual_gain_from_room(room_name, time_in_room)
 	
 	# 添加样本到感知系统
@@ -2427,6 +2427,10 @@ func _on_experience_sample():
 								actual_gain, eta_s, eta_a, is_depression)
 	
 	last_sample_time = current_time
+	
+	# ========== MVT驱动行为决策 ==========
+	# 根据MVT计算最优停留时间，决定是否离开当前情境
+	_check_mvt_leave_decision(room_name, time_in_room, personality, is_depression)
 
 # 从RoomArea获取客观收益
 func _get_actual_gain_from_room(room_name: String, time: float) -> float:
@@ -2502,3 +2506,138 @@ func _get_perceived_optimal_time(room_name: String) -> float:
 	# 计算最优时间
 	return UtilitySystem.calculate_optimal_time(perceived_S, perceived_a, effort, 
 											  alpha, beta_effort, p_base)
+
+# ========== MVT驱动行为决策 ==========
+# 根据MVT计算结果决定是否离开当前情境
+func _check_mvt_leave_decision(room_name: String, time_in_room: float, 
+								personality: Dictionary, is_depression: bool) -> void:
+	# 获取MVT计算的最优停留时间
+	var optimal_time = _get_perceived_optimal_time(room_name)
+	
+	# 获取当前效用（用于判断）
+	var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
+	var utility_params = UtilitySystem.get_agent_utility_params(personality)
+	
+	# 获取努力成本
+	var effort = 0.5
+	var room_areas = get_tree().get_nodes_in_group("room_area")
+	for area in room_areas:
+		if area.room_name == room_name:
+			effort = area.effort_level
+			break
+	
+	# 计算当前效用
+	var current_gain = (perceived.S / max(perceived.a, 0.01)) * (1.0 - exp(-perceived.a * time_in_room))
+	var current_utility = UtilitySystem.calculate_utility(current_gain, effort, 
+														  utility_params.alpha, utility_params.beta_effort)
+	
+	# MVT决策逻辑
+	var should_leave = false
+	var leave_reason = ""
+	
+	# 条件1：已超过最优停留时间
+	if time_in_room >= optimal_time:
+		should_leave = true
+		leave_reason = "已达到最优停留时间(%.0f秒)，继续停留效用将下降" % optimal_time
+	
+	# 条件2：当前效用为负（即使时间未到最优，但已经"不值"了）
+	elif current_utility < -0.1:
+		should_leave = true
+		leave_reason = "当前情境效用为负(%.2f)，继续参与感到"不值"" % current_utility
+	
+	# 条件3：抑郁Agent的特殊回避行为（高努力敏感性导致提前离开）
+	elif is_depression and utility_params.beta_effort > 0.7 and effort > 0.5 and time_in_room > optimal_time * 0.5:
+		should_leave = true
+		leave_reason = "感到疲惫（高努力敏感性），决定提前离开"
+	
+	# 执行离开决策
+	if should_leave:
+		print("[MVT决策] %s 决定离开 %s，原因：%s" % [character.name, room_name, leave_reason])
+		_add_memory(character, "你决定离开%s，因为%s" % [room_name, leave_reason])
+		
+		# 触发离开行为
+		_execute_mvt_leave_behavior(room_name)
+
+# 执行MVT驱动的离开行为
+func _execute_mvt_leave_behavior(current_room_name: String) -> void:
+	# 停止体验采样
+	if experience_timer:
+		experience_timer.stop()
+	
+	# 选择下一个目标（基于MVT效用最大化）
+	var next_room = _select_next_room_by_mvt(current_room_name)
+	
+	if next_room:
+		print("[MVT行为] %s 将移动到 %s" % [character.name, next_room.name])
+		
+		# 更新当前房间时间记录（准备进入新房间）
+		_on_leave_room(current_room_name)
+		
+		# 执行移动
+		if character and character.has_method("move_to"):
+			character.move_to(next_room.position)
+			_add_memory(character, "你决定前往%s寻找新的机会" % next_room.name)
+	else:
+		# 如果没有更好的选择，在当前房间随机移动或停留
+		print("[MVT行为] %s 没有找到更好的情境，将在当前区域探索" % character.name)
+		_execute_exploration_behavior()
+
+# 基于MVT选择下一个房间（效用最大化）
+func _select_next_room_by_mvt(current_room_name: String) -> RoomData:
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	var utility_params = UtilitySystem.get_agent_utility_params(personality)
+	
+	var best_room = null
+	var best_expected_utility = -999999.0
+	
+	# 遍历所有房间，计算预期效用
+	for room_name in room_manager.rooms:
+		if room_name == current_room_name:
+			continue  # 跳过当前房间
+		
+		var room = room_manager.rooms[room_name]
+		
+		# 获取对该房间的感知（如果有历史）或初始化
+		var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
+		
+		# 获取房间努力成本
+		var effort = 0.5
+		var room_areas = get_tree().get_nodes_in_group("room_area")
+		for area in room_areas:
+			if area.room_name == room_name:
+				effort = area.effort_level
+				break
+		
+		# 预测进入该房间后的初始效用（t=5秒时的效用）
+		var predicted_gain = (perceived.S / max(perceived.a, 0.01)) * (1.0 - exp(-perceived.a * 5.0))
+		var expected_utility = UtilitySystem.calculate_utility(predicted_gain, effort, 
+															   utility_params.alpha, utility_params.beta_effort)
+		
+		# 考虑距离成本（简单线性衰减）
+		var distance = character.global_position.distance_to(room.position)
+		var distance_cost = distance * 0.001  # 距离惩罚
+		expected_utility -= distance_cost
+		
+		print("[MVT选择] %s: 预期效用=%.2f (感知S=%.2f, a=%.2f, 努力=%.2f)" % 
+			  [room_name, expected_utility, perceived.S, perceived.a, effort])
+		
+		if expected_utility > best_expected_utility:
+			best_expected_utility = expected_utility
+			best_room = room
+	
+	# 只有预期效用显著为正时才切换
+	if best_expected_utility > 0.1:
+		return best_room
+	else:
+		return null  # 没有找到更好的选择
+
+# 执行探索行为（当没有更好选择时）
+func _execute_exploration_behavior() -> void:
+	# 在当前房间内随机移动一小段距离
+	var random_offset = Vector2(randf_range(-100, 100), randf_range(-100, 100))
+	var explore_target = character.global_position + random_offset
+	
+	if character and character.has_method("move_to"):
+		character.move_to(explore_target)
+		_add_memory(character, "你在当前区域随意走动，思考下一步该做什么")
