@@ -381,12 +381,17 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 
 ## 八、最近变更记录
 
-### 2026-04-05
+### 2026-04-05 - 感知层与系统层分离完成
 - ✅ 创建 RewardSystem.gd（系统层奖赏发放）
 - ✅ 创建 AgentRewardReceiver.gd（感知层接收器）
+- ✅ 修改 AIAgent.gd（移除直接RoomArea访问，集成RewardSystem）
+- ✅ 修改 RoomManager.gd（添加内部接口）
+- ✅ 修改 RoomArea.gd（移除直接暴露参数的接口）
 - ✅ 修改 PerceptionSystem.gd（降低感知噪声至2%）
-- ✅ 创建本文档（项目完整结构）
-- ⏳ 待完成: 修改AIAgent.gd移除直接RoomArea访问
+- ✅ 配置 AutoLoad（RewardSystem设置为单例）
+- ✅ 创建 PROJECT_STRUCTURE.md（项目完整结构）
+- ✅ 创建 TODO_Perception_System_Separation_2026-04-05.md（分离实施待办）
+- ✅ 创建 docs/AUTOLOAD_SETUP.md（AutoLoad配置说明）
 
 ---
 

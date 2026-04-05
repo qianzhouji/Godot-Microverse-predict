@@ -385,6 +385,8 @@ CharacterController执行移动/交互
    - 创建 `AgentRewardReceiver.gd` - 感知层接收器
    - 修改 `AIAgent.gd` - 移除所有直接RoomArea访问
    - 修改 `RoomManager.gd` - 添加内部接口
+   - 修改 `RoomArea.gd` - 移除直接暴露参数的接口
+   - 配置 `AutoLoad` - RewardSystem设置为单例
    - Agent只能通过RewardSystem接收"奖赏"，不能直接读取S,a,E
 
 3. **感知噪声调整** ✅ 2026-04-05完成
@@ -394,13 +396,21 @@ CharacterController执行移动/交互
 ### 待完成事项 ⏳
 
 ### 高优先级
-1. **配置AutoLoad**
-   - 将RewardSystem配置为AutoLoad单例
-   - 确保项目启动时正确初始化
+（暂无）
 
-2. **RoomArea.gd清理**
-   - 移除或修改 `get_situation_params_description()`
-   - 该函数直接暴露S,a,E给AI Prompt，违反分离原则
+### 中优先级
+1. **PHQ-9每日自评机制**
+   - 完善抑郁水平的动态更新
+   - 与行为反馈（任务成功/失败）关联
+
+2. **贝叶斯更新优化**
+   - 将线性回归改为非线性拟合
+   - 拟合真实的 `G(t) = (S/a)[1 - exp(-at)]`
+
+### 低优先级
+3. **MVT解析解计算**
+   - 当前离散搜索效率较低
+   - 可改为解析求解最优时间
 
 ### 中优先级
 3. **PHQ-9每日自评机制**
@@ -488,13 +498,17 @@ res://
 
 ## 八、最近更新记录
 
-### 2026-04-05 重大更新
+### 2026-04-05 重大更新 - 感知层与系统层分离完成
 - ✅ **MVT驱动行为决策实现** - AIAgent现在根据MVT计算结果直接驱动停留/离开行为
-- ✅ **感知层与系统层分离完成** - Agent不再直接访问RoomArea参数
-- ✅ **新增RewardSystem.gd** - 系统层奖赏发放中介
-- ✅ **新增AgentRewardReceiver.gd** - 感知层奖赏接收器
+- ✅ **感知层与系统层分离全部完成** - Agent不再直接访问RoomArea参数
+  - ✅ 新增RewardSystem.gd - 系统层奖赏发放中介
+  - ✅ 新增AgentRewardReceiver.gd - 感知层奖赏接收器
+  - ✅ 修改AIAgent.gd - 移除所有直接RoomArea访问
+  - ✅ 修改RoomManager.gd - 添加内部接口
+  - ✅ 修改RoomArea.gd - 移除直接暴露参数的接口
+  - ✅ 配置AutoLoad - RewardSystem设置为单例
 - ✅ **感知噪声调整** - 从10%降至2%（σ=0.02）
-- ✅ **新增项目文档** - PROJECT_STRUCTURE.md, TODO_Perception_System_Separation_2026-04-05.md
+- ✅ **新增项目文档** - PROJECT_STRUCTURE.md, TODO_Perception_System_Separation_2026-04-05.md, docs/AUTOLOAD_SETUP.md
 
 ---
 
