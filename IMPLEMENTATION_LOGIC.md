@@ -8,27 +8,32 @@
 
 ## 一、项目架构总览
 
-### 1.1 三层架构与代码映射
+### 1.1 三层架构与代码映射（2026-04-05更新：感知层与系统层分离完成）
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Layer 1: 客观现实（系统层）                                      │
+│  Layer 1: 客观现实（系统层）- Agent不可见 ⭐ 分离完成              │
 │  ├─ RoomArea.gd          - 定义情境参数(S, a, E)                 │
-│  ├─ RoomData.gd          - 房间数据结构                          │
-│  └─ RoomManager.gd       - 房间管理与位置判断                    │
+│  ├─ RewardSystem.gd      - 【新增】奖赏发放中介 ⭐               │
+│  ├─ RoomManager.gd       - 房间管理与内部接口 ⭐                 │
+│  └─ RoomData.gd          - 房间数据结构                          │
 │                                                                 │
-│  职责：维护客观世界，向Agent发放"奖赏"（Agent不可见情境参数）      │
+│  职责：维护客观世界，通过RewardSystem发放"奖赏"                  │
+│  原则：Agent不能直接读取S,a,E，只能接收系统发放的奖赏数值        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
-                    【客观奖赏】（数值）
+                    【通过RewardSystem发放】
+                    （Agent只接收"奖赏"数值）
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  Layer 2: 感知推断（认知层）                                      │
+│  Layer 2: 感知推断（认知层）- 个体差异 ⭐ 分离完成                │
+│  ├─ AgentRewardReceiver.gd - 【新增】Agent奖赏接收器 ⭐          │
 │  └─ PerceptionSystem.gd  - 贝叶斯感知系统                        │
 │                                                                 │
-│  职责：从奖赏序列推断情境特征，个体差异体现在先验和感知精度        │
-│  • 健康Agent：中性乐观先验 S~Uniform(0,1)                        │
-│  • 抑郁Agent：悲观预期先验 S~Uniform(0,0.5)                      │
+│  职责：从奖赏序列推断情境特征，个体差异体现在先验和感知精度      │
+│  • 健康Agent：中性乐观先验 S~Uniform(0.5, 0.25)                  │
+│  • 抑郁Agent：悲观预期先验 S~Uniform(0.3, 0.15)                  │
+│  • 感知噪声：极小（σ=2%），主要噪声在决策层                      │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
               【主观感知】(Ŝ, â, 不确定性)
@@ -36,7 +41,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 3: 效用评估（决策层）                                      │
 │  ├─ UtilitySystem.gd     - 效用计算与MVT决策                     │
-│  ├─ AIAgent.gd           - Agent决策逻辑（整合感知与效用）        │
+│  ├─ AIAgent.gd           - Agent决策中枢 ⭐ 已移除直接RoomArea访问 │
 │  └─ DynamicPersonality.gd - 动态特质管理（外部控制）              │
 │                                                                 │
 │  职责：计算主观效用，驱动行为决策                                  │
@@ -45,6 +50,8 @@
 │  健康Agent：α↑ (0.8), β↓ (0.4)                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**⭐ 2026-04-05重大更新**: 完成感知层与系统层分离，Agent不再直接访问RoomArea参数
 
 ### 1.2 核心数据流
 
@@ -290,36 +297,44 @@ enum MemoryType {
 
 ## 三、数据流详细说明
 
-### 3.1 正常决策循环
+### 3.1 正常决策循环（2026-04-05更新：感知层与系统层分离）
 
 ```
-[系统层]
-RoomArea(S=0.8, a=0.3, E=0.2)  # 食堂
+[系统层] ⭐ Agent不可见
+RewardSystem.distribute_reward(agent_name, room_name, time=5)
     ↓
-G(t=5) = (0.8/0.3)[1-exp(-0.3×5)] = 0.72
+内部读取 RoomArea(S=0.8, a=0.3, E=0.2) 【Agent不可访问】
     ↓
-发放奖赏 = 0.72
+计算 G(t=5) = (0.8/0.3)[1-exp(-0.3×5)] = 0.72
+    ↓
+发射信号 reward_distributed(agent_name, "食堂", 5, 0.72, 0.2)
 
-[感知层]
-PerceptionSystem.add_sample(time=5, gain=0.72)
+[感知层] ⭐ 接收信号
+AgentRewardReceiver._on_reward_received()
     ↓
-添加噪声 → 感知gain = 0.68
+添加极小噪声(σ=2%) → 感知gain = 0.71
     ↓
-贝叶斯更新 → Ŝ=0.75, â=0.35
+PerceptionSystem.add_sample(time=5, gain=0.71)
+    ↓
+贝叶斯更新 → Ŝ=0.74, â=0.32
 
 [效用层]
-UtilitySystem.calculate_optimal_time(Ŝ=0.75, â=0.35, E=0.2, 
+UtilitySystem.calculate_optimal_time(Ŝ=0.74, â=0.32, E=0.2, 
                                      α=0.55, β=0.8, p_base=0.4)
     ↓
-计算得最优时间 T* = 12秒
+计算得最优时间 T* = 13秒
 
-[决策层]
-AIAgent决策：
-- 当前已停留5秒 < T*(12秒)
-- 但LLM可能基于Prompt信息决定继续停留或离开
+[决策层] ⭐ MVT驱动
+AIAgent._check_mvt_leave_decision()
+- 当前已停留5秒 < T*(13秒)
+- 但效用开始下降，可能触发离开
+    ↓
+MVT决策：STAY / LEAVE / SWITCH
     ↓
 CharacterController执行移动/交互
 ```
+
+**⭐ 关键变更**: Agent不再直接访问RoomArea，只能通过RewardSystem接收奖赏
 
 ### 3.2 抑郁vs健康Agent差异示例
 
@@ -333,37 +348,59 @@ CharacterController执行移动/交互
 
 ---
 
-## 四、与理论框架的对应检查表
+## 四、与理论框架的对应检查表（2026-04-05更新）
 
 | 理论要求 | 实现状态 | 实现文件 | 备注 |
 |---------|---------|---------|------|
 | 三类智能体架构 | ✅ | CharacterPersonality.gd | 完整实现 |
 | 情境参数(S,a,E) | ✅ | RoomArea.gd | 完整实现 |
-| 客观收益函数G(t) | ✅ | RoomArea.gd | 公式正确 |
+| 客观收益函数G(t) | ✅ | RewardSystem.gd ⭐ | 系统层计算 |
+| **感知层与系统层分离** | ✅ | 多层协作 ⭐ | **2026-04-05完成** |
 | 贝叶斯感知系统 | ⚠️ | PerceptionSystem.gd | 简化实现 |
 | 先验信念差异 | ✅ | PerceptionSystem.gd | 健康vs抑郁 |
+| 感知噪声 | ✅ | PerceptionSystem.gd ⭐ | σ=2%，极小噪声 |
 | 效用函数U=G^α-βE | ✅ | UtilitySystem.gd | 完整实现 |
 | 参数个体差异 | ✅ | CharacterPersonality.gd | α和β差异 |
 | MVT最优时间计算 | ⚠️ | UtilitySystem.gd | 离散搜索非解析解 |
-| MVT驱动行为决策 | ❌ | AIAgent.gd | 未直接调用 |
+| **MVT驱动行为决策** | ✅ | AIAgent.gd ⭐ | **2026-04-05实现** |
 | PHQ-9动态追踪 | ⚠️ | DynamicPersonality.gd | 有变量未完整集成 |
 | 记忆系统 | ✅ | MemoryManager.gd | 完整实现 |
 
-**图例：** ✅ 完整实现 | ⚠️ 简化/部分实现 | ❌ 未实现
+**图例：** ✅ 完整实现 | ⚠️ 简化/部分实现 | ❌ 未实现  
+**⭐** 2026-04-05新增或重大更新
 
 ---
 
-## 五、关键待办事项
+## 五、关键待办事项（2026-04-05更新）
+
+### 已完成的重大改进 ✅
+
+1. **MVT驱动行为决策** ✅ 2026-04-05完成
+   - 实现 `_check_mvt_leave_decision()` 函数
+   - 三种触发条件：超过最优时间 / 效用为负 / 抑郁Agent提前离开
+   - 实现 `_select_next_room_by_mvt()` 效用最大化选择
+
+2. **感知层与系统层分离** ✅ 2026-04-05完成
+   - 创建 `RewardSystem.gd` - 系统层奖赏发放
+   - 创建 `AgentRewardReceiver.gd` - 感知层接收器
+   - 修改 `AIAgent.gd` - 移除所有直接RoomArea访问
+   - 修改 `RoomManager.gd` - 添加内部接口
+   - Agent只能通过RewardSystem接收"奖赏"，不能直接读取S,a,E
+
+3. **感知噪声调整** ✅ 2026-04-05完成
+   - 将 `BASE_PERCEPTION_NOISE` 从0.1降至0.02（σ=2%）
+   - 理论依据：主要噪声应在决策层（ε），感知层仅轻微不确定性
+
+### 待完成事项 ⏳
 
 ### 高优先级
-1. **MVT驱动行为决策**
-   - 在AIAgent.gd中调用 `_get_perceived_optimal_time()`
-   - 让MVT计算结果直接影响停留/离开行为
-   - 当前仅作为Prompt信息，未实际控制行为
+1. **配置AutoLoad**
+   - 将RewardSystem配置为AutoLoad单例
+   - 确保项目启动时正确初始化
 
-2. **感知层与系统层分离**
-   - 确保Agent不能直接读取RoomArea的S,a,E
-   - 只能通过PerceptionSystem接收处理后的奖赏
+2. **RoomArea.gd清理**
+   - 移除或修改 `get_situation_params_description()`
+   - 该函数直接暴露S,a,E给AI Prompt，违反分离原则
 
 ### 中优先级
 3. **PHQ-9每日自评机制**
@@ -381,27 +418,30 @@ CharacterController执行移动/交互
 
 ---
 
-## 六、文件结构速查
+## 六、文件结构速查（2026-04-05更新：感知层分离）
 
 ```
 res://
 ├── script/
-│   ├── ai/
-│   │   ├── AIAgent.gd              # Agent决策中枢
+│   ├── ai/                         # AI系统层
+│   │   ├── AIAgent.gd              # Agent决策中枢 ⭐ 已移除RoomArea访问
 │   │   ├── PerceptionSystem.gd     # 贝叶斯感知系统（Layer 2）
 │   │   ├── UtilitySystem.gd        # 效用计算系统（Layer 3）
+│   │   ├── AgentRewardReceiver.gd  # 【新增】Agent奖赏接收器 ⭐
 │   │   ├── DynamicPersonality.gd   # 动态特质管理
 │   │   ├── DialogManager.gd        # 对话管理
 │   │   ├── ConversationManager.gd  # 对话内容生成
 │   │   ├── APIManager.gd           # AI API调用
 │   │   └── memory/
 │   │       └── MemoryManager.gd    # 记忆系统
+│   ├── system/                     # 【新增】系统层目录 ⭐
+│   │   └── RewardSystem.gd         # 【新增】奖赏发放中介 ⭐
 │   ├── CharacterPersonality.gd     # 角色人设配置
 │   ├── CharacterController.gd      # 角色物理控制
 │   ├── CharacterManager.gd         # 角色管理
 │   ├── RoomArea.gd                 # 情境参数定义（Layer 1）
 │   ├── RoomData.gd                 # 房间数据结构
-│   ├── RoomManager.gd              # 房间管理
+│   ├── RoomManager.gd              # 房间管理 ⭐ 已添加内部接口
 │   └── ...
 ├── scene/
 │   ├── maps/
@@ -410,8 +450,17 @@ res://
 │   │   └── *.tscn                  # 角色场景
 │   └── ui/
 │       └── *.tscn                  # UI场景
-└── PROJECT_OVERVIEW.md             # 理论基础文档
+├── PROJECT_OVERVIEW.md             # 理论基础文档
+├── IMPLEMENTATION_LOGIC.md         # 实现逻辑文档（本文档）
+├── PROJECT_STRUCTURE.md            # 【新增】完整项目结构文档 ⭐
+└── TODO_Perception_System_Separation_2026-04-05.md  # 【新增】分离实施待办 ⭐
 ```
+
+**⭐ 2026-04-05新增文件**:
+- `script/system/RewardSystem.gd` - 系统层奖赏发放
+- `script/ai/AgentRewardReceiver.gd` - 感知层接收器
+- `PROJECT_STRUCTURE.md` - 完整项目结构文档
+- `TODO_Perception_System_Separation_2026-04-05.md` - 分离实施待办
 
 ---
 
@@ -432,6 +481,20 @@ res://
 | η_a | 0.5 | ↑ | 衰减率感知权重 |
 | α | 0.8 | 0.5-0.6 | 收益敏感性 |
 | β_effort | 0.4 | 0.8 | 努力敏感性（核心差异）|
+
+---
+
+---
+
+## 八、最近更新记录
+
+### 2026-04-05 重大更新
+- ✅ **MVT驱动行为决策实现** - AIAgent现在根据MVT计算结果直接驱动停留/离开行为
+- ✅ **感知层与系统层分离完成** - Agent不再直接访问RoomArea参数
+- ✅ **新增RewardSystem.gd** - 系统层奖赏发放中介
+- ✅ **新增AgentRewardReceiver.gd** - 感知层奖赏接收器
+- ✅ **感知噪声调整** - 从10%降至2%（σ=0.02）
+- ✅ **新增项目文档** - PROJECT_STRUCTURE.md, TODO_Perception_System_Separation_2026-04-05.md
 
 ---
 

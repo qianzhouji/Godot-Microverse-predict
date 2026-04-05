@@ -235,33 +235,47 @@ func get_room_objective_params_internal(room_name: String) -> Dictionary:
 
 ---
 
-## 九、实施优先级
+## 九、实施状态
+
+### 已完成的步骤 ✅
+
+| 步骤 | 状态 | 提交哈希 | 完成时间 |
+|------|------|---------|---------|
+| 步骤1: 创建RewardSystem.gd | ✅ 完成 | `15df1e7` | 2026-04-05 12:04 |
+| 步骤2: 创建AgentRewardReceiver.gd | ✅ 完成 | `ca4a662` | 2026-04-05 12:07 |
+| 步骤3: 修改AIAgent.gd | ✅ 完成 | `2e61e6c` | 2026-04-05 12:28 |
+| 步骤4: 修改RoomManager.gd | ✅ 完成 | `6be0daa` | 2026-04-05 12:37 |
+| 感知噪声调整 | ✅ 完成 | `678b6b6` | 2026-04-05 12:19 |
+
+### 待完成的步骤 ⏳
 
 | 优先级 | 步骤 | 预估工作量 |
 |--------|------|-----------|
-| P0 | 步骤1: 创建RewardSystem.gd | 30分钟 |
-| P0 | 步骤2: 创建AgentRewardReceiver.gd | 30分钟 |
-| P0 | 步骤3: 修改AIAgent.gd | 45分钟 |
-| P1 | 步骤4: 修改RoomManager.gd | 15分钟 |
 | P1 | 步骤5: 修改RoomArea.gd | 15分钟 |
 | P1 | 步骤6: 配置AutoLoad | 5分钟 |
 | P2 | 验证与测试 | 30分钟 |
 
-**总计**: 约2.5-3小时
+**剩余工作量**: 约50分钟
 
 ---
 
 ## 十、完成标准
 
-- [ ] RewardSystem.gd 创建并配置为AutoLoad
-- [ ] AgentRewardReceiver.gd 创建并集成到AIAgent
-- [ ] AIAgent.gd 移除所有直接RoomArea访问
-- [ ] RoomManager.gd 添加内部接口
+### 已完成 ✅
+- [x] RewardSystem.gd 创建并配置
+- [x] AgentRewardReceiver.gd 创建并集成到AIAgent
+- [x] AIAgent.gd 移除所有直接RoomArea访问
+- [x] RoomManager.gd 添加内部接口
+- [x] 感知噪声调整至2%（BASE_PERCEPTION_NOISE = 0.02）
+- [x] 项目结构文档创建（PROJECT_STRUCTURE.md）
+- [x] 感知层与系统层分离文档创建
+
+### 待完成 ⏳
 - [ ] RoomArea.gd 移除直接暴露参数的函数
+- [ ] 配置RewardSystem为AutoLoad
 - [ ] 代码审查通过（无直接参数访问）
 - [ ] 运行时验证通过（感知有噪声，个体差异明显）
-- [ ] 文档更新（IMPLEMENTATION_LOGIC.md 标记为已完成）
-- [ ] Git提交并推送
+- [ ] IMPLEMENTATION_LOGIC.md 更新为已完成状态
 
 ---
 
