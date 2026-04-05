@@ -60,10 +60,14 @@ func _get_current_class(hour: int) -> Dictionary:
 	
 	# 找到当前应该进行的课程
 	var last_class = {}
+	var last_time = 0.0
 	for class_time in SCHEDULE.keys():
 		if current_hour >= class_time:
-			last_class = SCHEDULE[class_time]
-			last_class["time"] = class_time
+			last_class = SCHEDULE[class_time].duplicate()
+			last_time = class_time
+	
+	if not last_class.is_empty():
+		last_class["time"] = last_time
 	
 	return last_class
 
