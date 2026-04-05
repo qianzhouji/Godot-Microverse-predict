@@ -1930,10 +1930,19 @@ func initiate_conversation(other_character: Node2D, char_node = null):
 func _execute_default_decision(target_character):
 	print("[AIAgent] %s 使用默认决策逻辑" % target_character.name)
 	
+	# 首先检查ScheduleSystem是否有课程表任务
+	if ScheduleSystem and ScheduleSystem.is_school_day:
+		var schedule_tasks = _get_schedule_tasks_for_character(target_character)
+		if not schedule_tasks.is_empty():
+			print("[AIAgent] %s 使用ScheduleSystem的课程表任务" % target_character.name)
+			target_character.set_meta("tasks", schedule_tasks)
+			_add_memory(target_character, "今天有新的课程安排，你准备按照课表进行活动。")
+			return
+	
 	# 获取当前任务
 	var tasks = target_character.get_meta("tasks", [])
 	if tasks.is_empty():
-		# 如果没有任务，生成默认任务
+		# 如果没有任务且不是上学日，生成默认任务
 		_generate_default_tasks(target_character)
 		return
 	
@@ -2685,3 +2694,99 @@ func _execute_exploration_behavior() -> void:
 	if character and character.has_method("move_to"):
 		character.move_to(explore_target)
 		_add_memory(character, "你在当前区域随意走动，思考下一步该做什么")
+
+# ========== ScheduleSystem 集成 ==========
+
+# 从ScheduleSystem获取当前角色的课程表任务
+func _get_schedule_tasks_for_character(target_character: Node) -> Array:
+	var schedule_tasks = []
+	
+	# 获取角色类型
+	if not target_character.has_meta("character_data"):
+		return schedule_tasks
+	
+	var data = target_character.get_meta("character_data")
+	var role_type = data.get("role_type", "")
+	var personality = CharacterPersonality.get_personality(target_character.name)
+	
+	# 根据角色类型和当前时间获取相应任务
+	if DayNightSystem:
+		var current_hour = DayNightSystem.current_hour
+		
+		# 上午课程
+		if current_hour < 10.75:  # 午休前
+			if current_hour < 8.75:
+				_add_schedule_task(schedule_tasks, target_character, "班主任课", "教室（主教学区）", "课堂发言", 8.0, role_type, personality)
+			elif current_hour < 9.666:
+				_add_schedule_task(schedule_tasks, target_character, "英语课", "教室（主教学区）", "课堂发言", 8.916, role_type, personality)
+			else:
+				_add_schedule_task(schedule_tasks, target_character, "小组讨论", "教室（小组讨论区）", "小组合作", 9.833, role_type, personality)
+		
+		# 午休
+		elif current_hour < 11.75:
+			_add_schedule_task(schedule_tasks, target_character, "午休", "食堂", "同伴互动", 10.75, role_type, personality)
+		
+		# 下午课程
+		else:
+			if current_hour < 12.5:
+				_add_schedule_task(schedule_tasks, target_character, "数学课", "教室（主教学区）", "课堂发言", 11.75, role_type, personality)
+			else:
+				_add_schedule_task(schedule_tasks, target_character, "体育活动", "体育馆", "体育活动", 12.666, role_type, personality)
+	
+	return schedule_tasks
+
+# 辅助函数：添加单个课程任务
+func _add_schedule_task(task_list: Array, character: Node, subject: String, room: String, activity: String, start_time: float, role_type: String, personality: Dictionary):
+	var priority = 3  # 默认优先级
+	var description = ""
+	
+	# 根据角色类型个性化
+	if role_type == "depression_risk_student":
+		# 抑郁风险学生：高努力情境低优先级
+		if room == "教室（主教学区）" and activity == "课堂发言":
+			priority = 2
+			description = "尝试参与" + subject + "，但可能会感到疲惫"
+		elif room == "体育馆":
+			priority = 1
+			description = subject + "时间，可能会选择旁观"
+		elif room == "食堂":
+			priority = 2
+			description = "午餐时间，可能会独自用餐"
+		else:
+			description = "参与" + subject
+	elif role_type == "healthy_student":
+		# 健康学生：正常参与
+		priority = 4
+		description = "积极参与" + subject
+	elif role_type == "teacher":
+		# 教师：教学任务最高优先级
+		priority = 5
+		description = "教授" + subject
+	
+	var task = {
+		"id": "schedule_" + subject + "_" + character.name,
+		"name": subject,
+		"description": description,
+		"target_room": room,
+		"activity_type": activity,
+		"start_time": start_time,
+		"duration": 45.0 if subject != "午休" else 60.0,
+		"priority": priority,
+		"from_schedule": true
+	}
+	
+	task_list.append(task)
+
+# 公共接口：添加任务（供ScheduleSystem调用）
+func add_task(task: Dictionary) -> void:
+	var tasks = character.get_meta("tasks", [])
+	tasks.append(task)
+	# 按优先级排序
+	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
+	character.set_meta("tasks", tasks)
+	print("[AIAgent] %s 添加任务：%s（优先级：%d）" % [character.name, task.get("name", "未命名"), task.get("priority", 0)])
+
+# 公共接口：清除所有任务
+func clear_tasks() -> void:
+	character.set_meta("tasks", [])
+	print("[AIAgent] %s 清除所有任务" % character.name)
