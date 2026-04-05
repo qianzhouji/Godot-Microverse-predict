@@ -1301,23 +1301,28 @@ func _generate_initial_tasks():
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
-	prompt += "\n\n请根据你的职位、性格和当前状态，生成3个你当前最想做的任务。这些任务应该："
-	prompt += "\n- 符合你的职位和工作职责"
-	prompt += "\n- 体现你的性格特点"
-	prompt += "\n- 考虑你当前的心情、健康和财务状况"
-	prompt += "\n- 包括工作任务和个人事务"
-	prompt += "\n- 每个任务用一句话描述（20-50字）"
-	prompt += "\n\n请按以下格式输出，每行一个任务，格式为：任务描述|任务类型"
-	prompt += "\n任务类型说明："
-	prompt += "\n- important_urgent: 重要且略紧急（如一周后的考试、几天后的会议）"
-	prompt += "\n- normal_work: 普通工作（如完成作业、组织活动、撰写稿件，不紧急）"
-	prompt += "\n- daily: 日常任务（如吃饭、睡觉、娱乐休息）"
-	prompt += "\n- social: 社交任务（如与同学交流、小组讨论）"
+	prompt += "\n\n请根据你的职位、性格和当前状态，生成3个你当前最想做的任务，并为每个任务判断渴望程度（1-10）。"
+	prompt += "\n\n渴望程度判断标准："
+	prompt += "\n- 10: 人生大事（极少使用）"
+	prompt += "\n- 9: 紧急任务（突发事件、DDL迫在眉睫、严重生病）"
+	prompt += "\n- 8: 课程任务（上课时间强制）"
+	prompt += "\n- 6: 重要且略紧急（一周后的考试、几天后的会议）"
+	prompt += "\n- 4: 普通工作（作业、稿件、活动，不紧急）"
+	prompt += "\n- 3: 日常任务（吃饭、睡觉、休息）"
+	prompt += "\n- 2: 低优先级（可延后）"
+	prompt += "\n- 1: 最低（几乎不想做）"
+	prompt += "\n\n判断时请考虑："
+	prompt += "\n- 你的性格特点（如抑郁倾向的Agent可能对社交任务渴望较低）"
+	prompt += "\n- 当前心情和健康状况"
+	prompt += "\n- 任务的紧急程度和重要性"
+	prompt += "\n- 是否符合你的角色职责"
+	prompt += "\n\n请按以下格式输出，每行一个任务："
+	prompt += "\n任务描述|渴望程度（1-10的数字）"
 	prompt += "\n\n例如："
-	prompt += "\n准备下周的数学考试|important_urgent"
-	prompt += "\n完成英语作业|normal_work"
-	prompt += "\n去食堂吃午饭|daily"
-	prompt += "\n\n请生成3个任务："
+	prompt += "\n准备下周的数学考试|6"
+	prompt += "\n完成英语作业|4"
+	prompt += "\n去食堂吃午饭|3"
+	prompt += "\n\n请生成3个任务并判断渴望程度："
 	
 	# 使用APIManager生成任务
 	var character_name = character.name if character else "Unknown"
@@ -1367,17 +1372,15 @@ func _on_generate_tasks_completed(result, _response_code, headers, body, char_no
 			var parts = line.split("|")
 			if parts.size() >= 2:
 				var description = parts[0].strip_edges()
-				var task_type = parts[1].strip_edges().to_lower()
+				var priority_str = parts[1].strip_edges()
+				var priority = int(priority_str) if priority_str.is_valid_int() else 3
 				
-				# 验证任务类型
-				var valid_types = ["important_urgent", "normal_work", "daily", "social"]
-				if task_type not in valid_types:
-					task_type = "normal_work"  # 默认类型
+				# 确保优先级在1-10范围内
+				priority = max(1, min(10, priority))
 				
 				tasks.append({
 					"description": description,
-					"task_type": task_type,
-					"priority": 0,  # 初始为0，由Agent后续评估
+					"priority": priority,
 					"created_at": Time.get_unix_time_from_system(),
 					"completed": false
 				})
