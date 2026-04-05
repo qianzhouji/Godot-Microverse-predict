@@ -89,7 +89,6 @@ func generate_dialog():
 	# 获取说话者的详细状态信息（包括记忆）
 	var speaker_status = get_character_status_info(speaker)
 	
-	# 获取公司基本信息和员工名单信息
 	var company_basic_info = get_company_basic_info()
 	var company_info = get_company_employees_info()
 	
