@@ -16973,50 +16973,30 @@ room_desc = "教室的南侧是小组讨论区，有四张课桌，适合课堂�
 [node name="RoomArea_MeetingRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=135360772]
 position = Vector2(526.5, 516)
 shape = SubResource("RectangleShape2D_f7hqq")
-script = ExtResource("30_yhhlg")
-room_name = "图书馆"
-room_desc = "图书馆有安静的阅读座位，适合自习和阅读，图书管理员在入口处"
 
 [node name="RoomArea_HrOfficeRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=689550919]
 position = Vector2(176, 132.75)
 shape = SubResource("RectangleShape2D_yhhlg")
-script = ExtResource("30_yhhlg")
-room_name = "洗手间"
-room_desc = "洗手间门口有洗漱台，里面有隔间"
 
 [node name="RoomArea_ToiletRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1761242352]
 position = Vector2(480, 54)
 shape = SubResource("RectangleShape2D_8h615")
-script = ExtResource("30_yhhlg")
-room_name = "教师办公室"
-room_desc = "教师办公室有班主任和校长的办公桌，是学生寻求帮助和交流的地方"
 
 [node name="RoomArea_BossOfficeRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1940511280]
 position = Vector2(944, 516.5)
 shape = SubResource("RectangleShape2D_loaku")
-script = ExtResource("30_yhhlg")
-room_name = "教室（主教学区）"
-room_desc = "教室的北侧是主教学区，有多个课桌，用于日常课堂教学和课外活动"
 
 [node name="RoomArea_OfficeRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=703699998]
 position = Vector2(896, 213.5)
 shape = SubResource("RectangleShape2D_rryi1")
-script = ExtResource("30_yhhlg")
-room_name = "体育馆"
-room_desc = "体育馆内有运动场地和器材，适合体育活动和锻炼"
 
 [node name="RoomArea_GymRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1063944770]
 position = Vector2(479.5, 324.5)
 shape = SubResource("RectangleShape2D_qy4lc")
-script = ExtResource("30_yhhlg")
-room_name = "食堂"
-room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、饮水机和多个座位"
 
 [node name="RoomArea_TeaRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1872006611]
 position = Vector2(480, 166)
 shape = SubResource("RectangleShape2D_10dvn")
-script = ExtResource("30_yhhlg")
-room_name = "学校前台"
 room_desc = "学校前台是访客登记和学生咨询的地方"
 
 [node name="RoomArea_ReceptionRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=461380128]
