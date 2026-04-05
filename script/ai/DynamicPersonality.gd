@@ -59,11 +59,7 @@ static func update_trait(character: Node, trait_name: String, delta: float, reas
 			character.name, trait_name, old_value, new_value
 		])
 
-# 根据事件调整特质（由外部系统调用，内部不再预设触发规则）
-static func apply_event_effect(character: Node, event_type: String, event_data: Dictionary = {}) -> void:
-	# 此函数保留供外部系统调用，具体的特质变化规则由外部系统定义
-	# 不再内置自动触发逻辑
-	pass
+
 
 # 获取默认特质值
 static func _get_default_traits(character_name: String) -> Dictionary:
