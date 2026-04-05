@@ -265,4 +265,4 @@ func get_room_objective_params_internal(room_name: String) -> Dictionary:
 
 ---
 
-*本文档由AI助手百舟楫创建，用于指导感知层与系统层分离的实施工作。*
+*本文档由千舟楫的助手百舟楫创建，用于指导感知层与系统层分离的实施工作。*
