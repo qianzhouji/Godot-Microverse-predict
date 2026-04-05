@@ -19,54 +19,100 @@ extends Area2D
 # 活动类型标签（用于AI决策参考）
 @export var activity_types: Array[String] = []
 
-# 获取情境参数的格式化描述（用于AI prompt）
-func get_situation_params_description() -> String:
-	var desc = "\n【当前情境参数】"
+# ============================================
+# ⭐ 感知层与系统层分离说明 ⭐
+# ============================================
+# 以下函数已弃用或修改，以符合"Agent不可见客观参数"原则
+#
+# 设计原则：
+# - Agent不能直接读取 initial_reward_rate, reward_decay_rate, effort_level
+# - Agent只能通过 RewardSystem 接收系统发放的"奖赏"数值
+# - Agent通过 PerceptionSystem 对奖赏进行贝叶斯推断
+#
+# 正确的信息获取方式：
+# - 客观收益计算: RewardSystem.distribute_reward()
+# - 主观感知参数: PerceptionSystem.get_perceived_params()
+# - 情境基本信息: get_basic_description() (仅名称、描述、活动类型)
+
+# 获取情境的基本描述（仅包含Agent可见信息）
+# ⭐ 修改：不再包含客观参数S,a,E
+func get_basic_description() -> String:
+	"""
+	获取房间的基本描述信息（Agent可见）
 	
-	# 初始收益率描述
-	var rate_desc = "中"
-	if initial_reward_rate >= 0.7:
-		rate_desc = "高"
-	elif initial_reward_rate <= 0.4:
-		rate_desc = "低"
-	desc += "\n- 初始收益率：%.0f%%（%s）" % [initial_reward_rate * 100, rate_desc]
-	
-	# 收益衰减率描述
-	var decay_desc = "中"
-	if reward_decay_rate >= 0.6:
-		decay_desc = "快"
-	elif reward_decay_rate <= 0.3:
-		decay_desc = "慢"
-	desc += "\n- 收益衰减率：%.0f%%（%s）" % [reward_decay_rate * 100, decay_desc]
-	
-	# 努力水平描述
-	var effort_desc = "中"
-	if effort_level >= 0.6:
-		effort_desc = "高"
-	elif effort_level <= 0.3:
-		effort_desc = "低"
-	desc += "\n- 努力水平：%.0f%%（%s）" % [effort_level * 100, effort_desc]
-	
-	# 添加对AI行为的影响说明
-	desc += "\n\n【情境参数对你行为的影响】"
-	desc += "\n根据边际价值定理(MVT)，你在本情境中的最优停留时间 T 满足："
-	desc += "\nlog(T) = log[η_s · log(S) − log(p_base) − β_effort · effort] − η_a · log(a)"
-	
-	if initial_reward_rate >= 0.7:
-		desc += "\n- 本情境初始奖赏丰富，你可能会被吸引而停留较久"
-	elif initial_reward_rate <= 0.4:
-		desc += "\n- 本情境初始奖赏较低，你可能不会投入太多时间"
-	
-	if reward_decay_rate >= 0.6:
-		desc += "\n- 奖赏消耗速度快，你需要快速行动或及时离开"
-	
-	if effort_level >= 0.6:
-		desc += "\n- 本情境需要付出较多努力，高努力敏感性的你可能会回避或提前离开"
-		desc += "\n- 如果你当前抑郁水平较高，可能会因为努力成本而减少参与"
-	elif effort_level <= 0.3:
-		desc += "\n- 本情境努力成本较低，即使高努力敏感性的你也可能愿意参与"
+	注意：此函数只返回情境的名称、描述和活动类型
+	不包含客观参数(S,a,E)，Agent需要通过体验采样间接感知
+	"""
+	var desc = "\n【当前情境】"
+	desc += "\n- 名称：%s" % room_name
+	desc += "\n- 描述：%s" % room_desc
 	
 	if activity_types.size() > 0:
-		desc += "\n- 本情境适合的活动类型：" + ", ".join(activity_types)
+		desc += "\n- 适合的活动类型：" + ", ".join(activity_types)
+	
+	desc += "\n\n（你需要通过亲身体验来感知这个情境的特征）"
 	
 	return desc
+
+# ❌ 已弃用: get_situation_params_description()
+# 原因: 此函数直接返回客观参数S,a,E给AI Prompt，违反"Agent不可见客观参数"原则
+# 替代方案: 
+#   - 使用 get_basic_description() 获取基本信息
+#   - 使用 PerceptionSystem.get_belief_description() 获取感知描述
+#   - 客观参数只能通过 RewardSystem 间接获取
+
+# 保留旧函数但标记为弃用，返回警告信息
+func get_situation_params_description() -> String:
+	push_warning("[RoomArea] get_situation_params_description() 已弃用！" +
+				 "Agent不应直接访问客观参数S,a,E。" +
+				 "请使用 get_basic_description() 或 PerceptionSystem.get_belief_description()")
+	
+	# 返回基本信息而非完整参数
+	return get_basic_description() + "\n\n[警告：尝试直接访问客观参数，已阻止]"
+
+# ============================================
+# 系统层内部接口（仅供系统层组件使用）
+# ============================================
+# 以下函数仅供 RewardSystem, RoomManager 等系统层组件调用
+# Agent不应直接调用这些函数
+
+# 获取客观情境参数（系统层内部使用）
+# ⚠️ 警告：此函数仅供系统层组件调用，Agent不应直接访问
+func _get_objective_params_internal() -> Dictionary:
+	"""
+	获取房间的客观参数（系统层内部使用）
+	
+	返回:
+		{"S": 初始收益率, "a": 衰减率, "E": 努力成本}
+	
+	⚠️ 警告：此函数仅供RewardSystem等系统层组件调用
+	Agent不应直接调用此函数，应通过RewardSystem接收奖赏
+	"""
+	return {
+		"S": initial_reward_rate,
+		"a": reward_decay_rate,
+		"E": effort_level
+	}
+
+# 计算客观收益（系统层内部使用）
+# G(t) = (S/a)[1 - exp(-at)]
+# ⚠️ 警告：此函数仅供系统层组件调用
+func _calculate_objective_gain_internal(time: float) -> float:
+	"""
+	计算指定时间的客观收益（系统层内部使用）
+	
+	参数:
+		time: 停留时间
+	
+	返回:
+		客观收益值（0-1）
+	
+	⚠️ 警告：此函数仅供系统层组件调用
+	Agent不应直接调用此函数
+	"""
+	var a = reward_decay_rate
+	if a < 0.001:
+		a = 0.001
+	
+	var gain = (initial_reward_rate / a) * (1.0 - exp(-a * time))
+	return clamp(gain, 0.0, 1.0)
