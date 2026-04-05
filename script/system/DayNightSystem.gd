@@ -1,6 +1,7 @@
 extends Node
 
-class_name DayNightSystem
+# DayNightSystem - 游戏时间管理系统
+# 注意：作为AutoLoad使用，不需要class_name
 
 # 游戏时间配置
 const REAL_SECONDS_PER_GAME_HOUR: float = 60.0  # 1现实分钟 = 1游戏小时
