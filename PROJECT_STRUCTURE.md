@@ -395,4 +395,4 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 
 ---
 
-*本文档由AI助手百舟楫维护，用于项目结构管理和新人上手。*
+*本文档由为项目结构维护文档。*
