@@ -17,8 +17,9 @@ const DEPRESSION_PRIOR_S_VAR = 0.15
 const DEPRESSION_PRIOR_A_MEAN = 0.6
 const DEPRESSION_PRIOR_A_VAR = 0.15
 
-# 感知噪声基准
-const BASE_PERCEPTION_NOISE = 0.1
+# 感知噪声基准（极小，确保Agent能较准确感知客观收益）
+# 注意：主要噪声应在决策层（ε），感知层噪声仅表示轻微的不确定性
+const BASE_PERCEPTION_NOISE = 0.02  # 从0.1降低到0.02，标准差仅2%
 
 # 每个Agent对每个情境的信念缓存
 # 结构: {agent_name: {room_name: BeliefState}}
@@ -60,14 +61,20 @@ static func get_belief(agent_name: String, room_name: String, is_depression_risk
 	
 	return agent_beliefs[agent_name][room_name]
 
-# 感知收益（添加噪声）
+# 感知收益（添加极小的感知噪声）
+# 理论依据：主要噪声应在决策层（公式中的ε），感知层噪声仅表示轻微的不确定性
+# 设计原则：噪声足够小，确保Agent能较准确感知客观收益，但仍有个体差异
 static func perceive_gain(actual_gain: float, eta_s: float, eta_a: float) -> float:
 	# 感知精度由eta_s和eta_a共同决定
-	# 高eta → 低噪声（更精确）
+	# 高eta → 更低的噪声（更精确）
 	var avg_eta = (eta_s + eta_a) / 2.0
-	var noise_std = BASE_PERCEPTION_NOISE * (1.0 - avg_eta * 0.5)
 	
-	# 添加高斯噪声
+	# 噪声公式：基准噪声 × (1 - 平均感知权重 × 0.3)
+	# 当eta=0.5时，噪声 = 0.02 × 0.85 = 0.017（标准差1.7%）
+	# 当eta=1.0时，噪声 = 0.02 × 0.7 = 0.014（标准差1.4%）
+	var noise_std = BASE_PERCEPTION_NOISE * (1.0 - avg_eta * 0.3)
+	
+	# 添加高斯噪声（极小）
 	var noise = randfn(0.0, noise_std)
 	var perceived = actual_gain + noise
 	
