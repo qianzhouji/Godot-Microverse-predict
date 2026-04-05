@@ -29,7 +29,14 @@ static func update_trait(character: Node, trait_name: String, delta: float, reas
 	
 	var traits = get_dynamic_traits(character)
 	var old_value = traits.get(trait_name, 0.5)
-	var new_value = clamp(old_value + delta, 0.0, 1.0)
+	var new_value = old_value + delta
+	
+	# 应用边界保护（防止过度偏离基线）
+	if trait_name in ["p_base", "eta_s", "eta_a", "beta_effort"]:
+		new_value = _apply_boundary_protection(character, trait_name, new_value)
+	
+	# 确保在有效范围内
+	new_value = clamp(new_value, 0.0, 1.0)
 	
 	# 只有变化超过阈值才记录
 	if abs(new_value - old_value) >= CHANGE_THRESHOLD:
@@ -97,6 +104,226 @@ static func _get_trait_display_name(trait_name: String) -> String:
 		"beta_effort": "努力敏感性"
 	}
 	return names.get(trait_name, trait_name)
+
+# ============================================
+# 动态更新规则 - 抑郁水平与认知机制
+# ============================================
+
+# 应用任务反馈影响
+static func apply_task_feedback(character: Node, success: bool, effort_level: float = 0.5) -> void:
+	"""
+	应用任务完成/失败对认知机制的影响
+	
+	参数:
+		character: 角色节点
+		success: 任务是否成功
+		effort_level: 任务努力水平(0-1)，影响变化幅度
+	"""
+	if not character:
+		return
+	
+	# 获取角色类型（抑郁vs健康）
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	
+	# 个体差异：抑郁Agent对负面事件更敏感，恢复更慢
+	var sensitivity = 1.5 if is_depression else 0.8
+	var recovery_rate = 0.7 if is_depression else 1.2
+	
+	if success:
+		# 任务成功：降低努力敏感性，提升离开阈值，缓解抑郁
+		var delta_beta = -0.05 * recovery_rate * effort_level
+		var delta_p_base = 0.03 * recovery_rate
+		var delta_depression = -0.02 * recovery_rate
+		
+		update_trait(character, "beta_effort", delta_beta, 
+					 "任务成功增强自信，降低努力敏感性")
+		update_trait(character, "p_base", delta_p_base, 
+					 "任务成功提升对环境奖赏的估计")
+		update_trait(character, "daily_depression_level", delta_depression, 
+					 "任务成功缓解抑郁情绪")
+	else:
+		# 任务失败：增加努力敏感性，降低离开阈值，加重抑郁
+		var delta_beta = 0.08 * sensitivity * effort_level
+		var delta_p_base = -0.05 * sensitivity
+		var delta_depression = 0.05 * sensitivity
+		
+		update_trait(character, "beta_effort", delta_beta, 
+					 "任务失败增加努力成本感知（抑郁恶化）")
+		update_trait(character, "p_base", delta_p_base, 
+					 "任务失败降低对环境奖赏的估计")
+		update_trait(character, "daily_depression_level", delta_depression, 
+					 "任务失败加重抑郁情绪")
+
+# 应用社交互动反馈影响
+static func apply_social_feedback(character: Node, positive: bool, intensity: float = 1.0) -> void:
+	"""
+	应用社交互动对认知机制的影响
+	
+	参数:
+		character: 角色节点
+		positive: 互动是否积极（被接纳vs被拒绝）
+		intensity: 互动强度(0-1)
+	"""
+	if not character:
+		return
+	
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	var sensitivity = 1.5 if is_depression else 0.8
+	
+	if positive:
+		# 积极社交：改善情绪，提升奖赏感知
+		update_trait(character, "daily_depression_level", -0.03 * intensity, 
+					 "获得同伴支持，情绪改善")
+		update_trait(character, "eta_s", 0.02 * intensity, 
+					 "积极体验提升对初始奖赏的敏感度")
+	else:
+		# 消极社交：加重抑郁，增加回避
+		update_trait(character, "daily_depression_level", 0.06 * intensity * sensitivity, 
+					 "社交 rejection 加重抑郁")
+		update_trait(character, "beta_effort", 0.04 * intensity * sensitivity, 
+					 "社交回避倾向增加")
+		update_trait(character, "eta_a", 0.03 * intensity * sensitivity, 
+					 "负面预期增强，高估奖赏衰减")
+
+# 应用教师评价影响
+static func apply_teacher_feedback(character: Node, positive: bool) -> void:
+	"""
+	应用教师评价对认知机制的影响
+	
+	参数:
+		character: 角色节点
+		positive: 评价是否积极（表扬vs批评）
+	"""
+	if not character:
+		return
+	
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	var sensitivity = 1.5 if is_depression else 0.8
+	
+	if positive:
+		# 表扬：降低努力敏感性，改善情绪
+		update_trait(character, "beta_effort", -0.04, 
+					 "获得认可，降低努力敏感性")
+		update_trait(character, "daily_depression_level", -0.04, 
+					 "获得认可，情绪改善")
+	else:
+		# 批评：增加努力敏感性，加重抑郁
+		update_trait(character, "beta_effort", 0.06 * sensitivity, 
+					 "批评增加努力成本感知")
+		update_trait(character, "daily_depression_level", 0.05 * sensitivity, 
+					 "批评加重抑郁情绪")
+
+# 每日PHQ-9自评更新
+static func daily_phq9_update(character: Node, day_events: Array = []) -> Dictionary:
+	"""
+	每日结束时根据当天经历更新PHQ-9抑郁水平和认知参数
+	
+	参数:
+		character: 角色节点
+		day_events: 当日事件列表 [{type, valence, intensity}]
+	
+	返回:
+		更新后的特质字典
+	"""
+	if not character:
+		return {}
+	
+	var traits = get_dynamic_traits(character)
+	var old_depression = traits.get("daily_depression_level", 0.5)
+	
+	# 基于当日事件计算净情绪变化
+	var net_mood_change = 0.0
+	for event in day_events:
+		var valence = event.get("valence", 0)  # -1=负面, 0=中性, 1=正面
+		var intensity = event.get("intensity", 0.5)
+		net_mood_change += valence * intensity * 0.02
+	
+	# 应用自然恢复（睡眠、休息）
+	var natural_recovery = -0.01  # 每天自然恢复1%
+	
+	# 计算新的抑郁水平
+	var new_depression = old_depression + net_mood_change + natural_recovery
+	new_depression = clamp(new_depression, 0.0, 1.0)
+	
+	# 更新抑郁水平
+	if abs(new_depression - old_depression) >= 0.01:
+		update_trait(character, "daily_depression_level", new_depression - old_depression, 
+					 "每日PHQ-9自评更新")
+	
+	# 根据抑郁水平调整认知参数（高抑郁恶化认知）
+	_apply_depression_cognitive_effects(character, new_depression)
+	
+	return get_dynamic_traits(character)
+
+# 应用抑郁水平对认知参数的影响
+static func _apply_depression_cognitive_effects(character: Node, depression_level: float) -> void:
+	"""
+	根据抑郁水平自动调整认知参数
+	高抑郁水平会恶化认知功能
+	"""
+	if depression_level > 0.6:
+		# 高抑郁水平
+		update_trait(character, "beta_effort", 0.02, 
+					 "高抑郁水平导致努力敏感性升高")
+		update_trait(character, "p_base", -0.02, 
+					 "高抑郁水平降低对环境奖赏的估计")
+		update_trait(character, "eta_a", 0.01, 
+					 "高抑郁水平导致悲观预期")
+	elif depression_level < 0.3:
+		# 低抑郁水平（恢复）
+		update_trait(character, "beta_effort", -0.01, 
+					 "情绪改善，努力敏感性降低")
+		update_trait(character, "p_base", 0.01, 
+					 "情绪改善，对环境更乐观")
+
+# ============================================
+# 边界保护机制
+# ============================================
+
+# 获取基线值
+static func _get_baseline_value(character: Node, trait_name: String) -> float:
+	"""
+	获取角色的基线认知参数值
+	"""
+	if not character:
+		return 0.5
+	
+	var personality = CharacterPersonality.get_personality(character.name)
+	if personality.has("cognitive_mechanism"):
+		var cm = personality["cognitive_mechanism"]
+		return cm.get(trait_name, 0.5)
+	
+	return 0.5
+
+# 应用边界保护（防止参数偏离基线太多）
+static func _apply_boundary_protection(character: Node, trait_name: String, new_value: float) -> float:
+	"""
+	应用边界保护，确保参数不会过度偏离基线
+	保持个体稳定性
+	"""
+	var baseline = _get_baseline_value(character, trait_name)
+	var max_deviation = 0.2  # 最大偏离20%
+	
+	return clamp(new_value, baseline - max_deviation, baseline + max_deviation)
+
+# 获取PHQ-9等级描述
+static func get_phq9_level_description(depression_level: float) -> String:
+	"""
+	根据抑郁水平返回PHQ-9等级描述
+	"""
+	if depression_level < 0.15:
+		return "无抑郁 (PHQ-9: 0-4)"
+	elif depression_level < 0.33:
+		return "轻度抑郁 (PHQ-9: 5-9)"
+	elif depression_level < 0.52:
+		return "中度抑郁 (PHQ-9: 10-14)"
+	elif depression_level < 0.70:
+		return "中重度抑郁 (PHQ-9: 15-19)"
+	else:
+		return "重度抑郁 (PHQ-9: 20-27)"
 
 # 将动态特质格式化为 prompt 文本
 static func get_traits_for_prompt(character: Node) -> String:
