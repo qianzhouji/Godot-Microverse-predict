@@ -28,6 +28,7 @@ APIManager="*res://script/ai/APIManager.gd"
 GameSaveManager="*res://script/GameSaveManager.gd"
 SaveLoadUIManager="*res://scene/ui/SaveLoadUIManager.tscn"
 MemoryManager="*res://script/ai/memory/MemoryManager.gd"
+RewardSystem="*res://script/system/RewardSystem.gd"
 
 [display]
 
