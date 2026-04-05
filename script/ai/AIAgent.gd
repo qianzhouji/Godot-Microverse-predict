@@ -719,6 +719,9 @@ func make_decision():
 	# 评估未设置优先级的任务
 	_evaluate_task_priorities()
 	
+	# 检查当前是否应该上课（由TaskManager管理）
+	_check_current_class()
+	
 	# 生成场景描述
 	var scene_description = generate_scene_description()
 	print("[AIAgent] %s 的场景描述：\n%s" % [character.name, scene_description])
@@ -1301,28 +1304,33 @@ func _generate_initial_tasks():
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
-	prompt += "\n\n请根据你的职位、性格和当前状态，生成3个你当前最想做的任务，并为每个任务判断渴望程度（1-10）。"
-	prompt += "\n\n渴望程度判断标准："
-	prompt += "\n- 10: 人生大事（极少使用）"
+	prompt += "\n\n请根据你的职位、性格和当前状态，生成3个你当前想做的任务，并为每个任务判断渴望程度（1-10）。"
+	prompt += "\n\n【重要】渴望程度判断标准（请实事求是，大部分日常任务应该是3-5）："
+	prompt += "\n- 10: 人生大事（极少使用，如生命威胁）"
 	prompt += "\n- 9: 紧急任务（突发事件、DDL迫在眉睫、严重生病）"
-	prompt += "\n- 8: 课程任务（上课时间强制）"
-	prompt += "\n- 6: 重要且略紧急（一周后的考试、几天后的会议）"
-	prompt += "\n- 4: 普通工作（作业、稿件、活动，不紧急）"
-	prompt += "\n- 3: 日常任务（吃饭、睡觉、休息）"
-	prompt += "\n- 2: 低优先级（可延后）"
-	prompt += "\n- 1: 最低（几乎不想做）"
+	prompt += "\n- 8: 课程任务（上课时间强制，必须去）"
+	prompt += "\n- 6: 重要且略紧急（一周后的考试，需要准备）"
+	prompt += "\n- 4-5: 普通工作（日常作业、活动，可做可不做）"
+	prompt += "\n- 3: 日常任务（吃饭、睡觉、休息，顺其自然）"
+	prompt += "\n- 2: 低优先级（可延后，不太想做）"
+	prompt += "\n- 1: 最低（几乎不想做，被迫才做）"
+	prompt += "\n\n【注意】作为学生，大部分日常任务的渴望程度应该是3-5，不要高估："
+	prompt += "\n- 普通作业、稿件、活动 → 4或5（可做可不做）"
+	prompt += "\n- 吃饭、休息、娱乐 → 3（顺其自然）"
+	prompt += "\n- 社交活动 → 根据性格（外向6-7，内向2-3，抑郁倾向1-2）"
+	prompt += "\n- 只有真正紧急或重要的事情才给6以上"
 	prompt += "\n\n判断时请考虑："
-	prompt += "\n- 你的性格特点（如抑郁倾向的Agent可能对社交任务渴望较低）"
+	prompt += "\n- 你的性格特点（抑郁倾向的Agent对大多数事情渴望都较低）"
 	prompt += "\n- 当前心情和健康状况"
-	prompt += "\n- 任务的紧急程度和重要性"
-	prompt += "\n- 是否符合你的角色职责"
+	prompt += "\n- 任务的实际紧急程度"
+	prompt += "\n- 不要高估普通任务的渴望程度"
 	prompt += "\n\n请按以下格式输出，每行一个任务："
 	prompt += "\n任务描述|渴望程度（1-10的数字）"
-	prompt += "\n\n例如："
-	prompt += "\n准备下周的数学考试|6"
-	prompt += "\n完成英语作业|4"
-	prompt += "\n去食堂吃午饭|3"
-	prompt += "\n\n请生成3个任务并判断渴望程度："
+	prompt += "\n\n示例（注意：这些是参考，请根据你的实际情况判断）："
+	prompt += "\n准备下周的数学考试|5（需要准备，但不紧急）"
+	prompt += "\n完成今天的英语作业|4（日常任务）"
+	prompt += "\n去食堂吃午饭|3（饿了就去，不饿就等等）"
+	prompt += "\n\n请生成3个任务并如实判断渴望程度（大部分应该是3-5）："
 	
 	# 使用APIManager生成任务
 	var character_name = character.name if character else "Unknown"
@@ -3022,3 +3030,46 @@ func _evaluate_task_priorities():
 	# 重新排序任务
 	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
 	character.set_meta("tasks", tasks)
+
+# 检查当前是否应该上课
+func _check_current_class():
+	"""检查当前时间是否有课程，如果有则强制添加课程任务"""
+	var tm = get_node_or_null("/root/TaskManager")
+	if not tm:
+		return
+	
+	var current_class = tm.get_current_class_info()
+	if not current_class or current_class.is_empty():
+		return
+	
+	var class_type = current_class.get("type", "")
+	if class_type != "class":
+		return  # 不是上课时间
+	
+	var subject = current_class.get("subject", "")
+	var room = current_class.get("room", "")
+	
+	# 检查是否已经有这个课程任务
+	var tasks = character.get_meta("tasks", [])
+	for task in tasks:
+		if task.get("type") == "class" and subject in task.get("description", ""):
+			return  # 已有课程任务
+	
+	# 添加课程任务
+	var personality = CharacterPersonality.get_personality(character.name)
+	var role_type = personality.get("role_type", "")
+	
+	var class_task = {
+		"description": "上课：" + subject + "（在" + room + "）",
+		"priority": 8,  # 课程任务优先级8
+		"type": "class",
+		"target_room": room,
+		"created_at": Time.get_unix_time_from_system(),
+		"completed": false
+	}
+	
+	tasks.append(class_task)
+	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
+	character.set_meta("tasks", tasks)
+	
+	print("[AIAgent] %s 添加课程任务：%s（优先级：8）" % [character.name, subject])
