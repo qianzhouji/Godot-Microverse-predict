@@ -6,6 +6,29 @@
 
 ---
 
+## 目录
+
+- [一、项目架构总览](#一项目架构总览)
+  - [1.1 三层架构与代码映射](#11-三层架构与代码映射)
+  - [1.2 核心数据流](#12-核心数据流)
+- [二、核心模块详解](#二核心模块详解)
+  - [2.1 RoomArea.gd](#21-roomareagd)
+  - [2.2 PerceptionSystem.gd](#22-perceptionsystemgd)
+  - [2.3 UtilitySystem.gd](#23-utilitysystemgd)
+  - [2.4 AIAgent.gd](#24-aiagentgd)
+  - [2.5 CharacterPersonality.gd](#25-characterpersonalitygd)
+  - [2.6 DynamicPersonality.gd](#26-dynamicpersonalitygd)
+  - [2.7 MemoryManager.gd](#27-memorymanagergd)
+  - [2.8 DailyReflectionSystem.gd](#28-dailyreflectionsystemgd)
+  - [2.9 RewardSystem.gd](#29-rewardsystemgd)
+  - [2.10 AgentRewardReceiver.gd](#210-agentrewardreceivergd)
+  - [2.11 DayNightSystem.gd](#211-daynightsystemgd)
+  - [2.12 ScheduleSystem.gd](#212-schedulesystemgd)
+- [三、关键实现问题](#三关键实现问题)
+- [四、待办事项](#四待办事项)
+
+---
+
 ## 一、项目架构总览
 
 ### 1.1 三层架构与代码映射（2026-04-05更新：感知层与系统层分离完成）
