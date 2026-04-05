@@ -259,30 +259,51 @@ func get_environment_info() -> String:
 		"Office":
 			environment_info = "这是一家现代化的公司，有多个工作区、会议室和休息区。办公室装修简洁明亮，有大窗户可以看到外面的景色。"
 		"School":
-			environment_info = "这是一个学校。"
+			environment_info = "这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
 		"Jail":
 			environment_info = "这是监狱。"
 		_:
 			# 默认描述
-			environment_info = "。"
+			environment_info = "这是一个室内场所。"
 	
-	# 添加时间信息
-	var time = Time.get_time_dict_from_system()
-	var hour = time.hour
+	# 添加时间信息（使用游戏内时间DayNightSystem）
 	var time_description = ""
 	
-	if hour >= 6 and hour < 9:
-		time_description = "现在是早晨，办公室刚开始一天的工作。"
-	elif hour >= 9 and hour < 12:
-		time_description = "现在是上午，办公室正处于工作高峰期。"
-	elif hour >= 12 and hour < 14:
-		time_description = "现在是午餐时间，一些同事可能去吃午饭了。"
-	elif hour >= 14 and hour < 18:
-		time_description = "现在是下午，大家都在专注工作。"
-	elif hour >= 18 and hour < 21:
-		time_description = "现在是傍晚，一些同事开始准备下班。"
+	if DayNightSystem:
+		var current_hour = DayNightSystem.current_hour
+		var weekday = DayNightSystem.get_weekday_name()
+		
+		if DayNightSystem.is_weekend():
+			time_description = "现在是" + weekday + "周末，学校放假，学生可以自由活动。"
+		elif current_hour >= 7 and current_hour < 8:
+			time_description = "现在是早晨" + DayNightSystem.get_current_time() + "，学生们陆续到校，准备开始一天的学习。"
+		elif current_hour >= 8 and current_hour < 12:
+			time_description = "现在是上午" + DayNightSystem.get_current_time() + "，正在上课，教室里传来老师的讲课声。"
+		elif current_hour >= 12 and current_hour < 14:
+			time_description = "现在是中午" + DayNightSystem.get_current_time() + "，午餐时间，食堂里坐满了用餐的学生。"
+		elif current_hour >= 14 and current_hour < 17:
+			time_description = "现在是下午" + DayNightSystem.get_current_time() + "，下午的课程正在进行中。"
+		elif current_hour >= 17 and current_hour < 19:
+			time_description = "现在是傍晚" + DayNightSystem.get_current_time() + "，放学了，学生们陆续离开学校。"
+		else:
+			time_description = "现在是" + DayNightSystem.get_current_time() + "，学校已经放学，校园里很安静。"
 	else:
-		time_description = "现在是夜晚，办公室只有少数人在加班。"
+		# 备用：使用真实时间
+		var time = Time.get_time_dict_from_system()
+		var hour = time.hour
+		
+		if hour >= 6 and hour < 9:
+			time_description = "现在是早晨，学校刚开始一天的学习。"
+		elif hour >= 9 and hour < 12:
+			time_description = "现在是上午，学生们正在上课。"
+		elif hour >= 12 and hour < 14:
+			time_description = "现在是午餐时间，学生们正在食堂用餐。"
+		elif hour >= 14 and hour < 18:
+			time_description = "现在是下午，课程正在进行中。"
+		elif hour >= 18 and hour < 21:
+			time_description = "现在是傍晚，学生们已经放学。"
+		else:
+			time_description = "现在是夜晚，学校已经安静。"
 	
 	environment_info += "\n" + time_description
 	return environment_info
