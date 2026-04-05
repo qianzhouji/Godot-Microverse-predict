@@ -1408,6 +1408,12 @@ func _on_generate_tasks_completed(result, _response_code, headers, body, char_no
 	metadata["tasks"] = tasks
 	target_character.set_meta("character_data", metadata)
 	
+	# 记录内心独白日志
+	if Logger:
+		for task in tasks:
+			var monologue = _generate_task_monologue(target_character, task)
+			Logger.log_monologue(target_character.name, task.description, monologue)
+	
 	# 添加任务生成记忆
 	var memory_text = "你为自己制定了新的任务计划，包含了%d个重要任务，准备开始执行。" % tasks.size()
 	MemoryManager.add_memory(target_character, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
@@ -2084,6 +2090,12 @@ func move_to_target(target_info: Dictionary, char_node = null):
 				target_position = target_info.target.position
 		
 		print("[AIAgent] %s 开始移动到 %s" % [target_character.name, target_name])
+		
+		# 记录活动日志
+		if Logger:
+			var current_room = target_character.get_meta("current_room", "未知位置")
+			Logger.log_movement(target_character.name, current_room, target_name)
+		
 		target_controller.move_to(target_position)
 
 # 发起对话
@@ -2094,6 +2106,12 @@ func initiate_conversation(other_character: Node2D, char_node = null):
 	if current_state != State.TALKING:
 		current_state = State.TALKING
 		print("[AIAgent] %s 尝试开始与 %s 对话" % [target_character.name, other_character.name])
+		
+		# 记录对话日志
+		if Logger:
+			var current_room = target_character.get_meta("current_room", "未知位置")
+			Logger.log_conversation_start(target_character.name, other_character.name, current_room)
+		
 		character_manager.current_character = target_character
 		dialog_manager._try_start_conversation()
 
@@ -3117,3 +3135,32 @@ func _check_current_class():
 	character.set_meta("tasks", tasks)
 	
 	print("[AIAgent] %s 添加课程任务：%s（优先级：8）" % [character.name, subject])
+
+# 生成任务内心独白
+func _generate_task_monologue(character_node, task: Dictionary) -> String:
+	"""根据角色人设和任务生成内心独白"""
+	var personality = CharacterPersonality.get_personality(character_node.name)
+	var role_type = personality.get("role_type", "")
+	var beta_effort = personality.get("cognitive_mechanism", {}).get("beta_effort", 0.5)
+	var task_desc = task.get("description", "")
+	var priority = task.get("priority", 5)
+	
+	# 根据角色类型和任务生成不同的内心独白
+	if role_type == "depression_risk_student":
+		if beta_effort > 0.6:
+			if priority < 4:
+				return "这个任务感觉好麻烦...不太想做，但又不得不做..."
+			else:
+				return "虽然有点难，但还是要试试看..."
+		else:
+			return "这个任务看起来还行，准备开始吧。"
+	elif role_type == "teacher":
+		return "作为老师，我需要认真完成这个任务。"
+	else:
+		# 健康学生
+		if priority >= 6:
+			return "这个任务很重要，我要认真完成！"
+		elif priority >= 4:
+			return "这个任务需要做，但不是很紧急。"
+		else:
+			return "这个任务可以慢慢来，先休息一下吧。"

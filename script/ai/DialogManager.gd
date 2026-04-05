@@ -196,6 +196,14 @@ func _on_conversation_ended(conversation_id: String):
 
 func _on_dialog_generated(conversation_id: String, speaker_name: String, dialog_text: String):
 	print("[DialogManager] 对话生成：%s 说：%s" % [speaker_name, dialog_text])
+	
+	# 记录对话日志
+	if Logger and dialog_service:
+		var conversation = dialog_service.active_conversations.get(conversation_id)
+		if conversation:
+			var listener_name = conversation.listener.name if conversation.speaker.name == speaker_name else conversation.speaker.name
+			var current_room = conversation.speaker.get_meta("current_room", "未知位置")
+			Logger.log_dialogue(speaker_name, listener_name, dialog_text, current_room)
 
 # 添加一些便利方法来访问对话服务功能
 func get_active_conversation_count() -> int:
