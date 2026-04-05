@@ -9,7 +9,7 @@ const CURRENT_TASK_PRIORITY: int = 8  # 当前课程任务优先级
 const NORMAL_TASK_PRIORITY: int = 3  # 普通任务优先级
 
 # 课程时间表
-const SCHEDULE = {\t# 时间(小时) -> 课程信息
+const SCHEDULE = { # 时间(小时) -> 课程信息
 	8.0: {"subject": "班主任课", "teacher": "TeacherWang", "room": "教室（主教学区）", "type": "class"},
 	8.75: {"subject": "课间休息", "type": "break"},
 	8.916: {"subject": "英语课", "teacher": "TeacherChen", "room": "教室（主教学区）", "type": "class"},
