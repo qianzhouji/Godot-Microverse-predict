@@ -1,297 +1,282 @@
-# Microverse
+# Godot-Microverse-predict
 
-**中文** \| [English](README_EN.md)
+**抑郁风险学生校园情境模拟系统**
 
-::: {align="center"}
-[![KsanaDock](asset/pics/KsanaDock.png)](https://www.ksanadock.com)
+---
 
-**KsanaDock \| 时空码头**
+## 项目简介
 
-帮助你轻松 DIY 自己版本的 Microverse，生成独特的 AI 世界和角色。
+这是一个基于**努力决策理论**和**边际价值定理(MVT)**的AI Agent模拟系统，用于探究**抑郁风险青少年**与**健康青少年**在动态社会情境中的认知机制差异。
 
-[点击访问 www.ksanadock.com](https://www.ksanadock.com)
-:::
+通过构建虚拟校园环境，模拟学生在不同情境（课堂、食堂、体育馆等）中的行为决策过程，追踪抑郁症状的演化轨迹，为青少年心理健康干预提供理论依据。
 
-------------------------------------------------------------------------
+---
 
-一个模拟上帝类的沙盒游戏，基于Godot 4开发的多智能体AI社交模拟系统。在这个虚拟世界中，AI角色拥有独立的思维和记忆，能够自主进行社交互动、完成任务，并在持续的交流中发展出复杂的社会关系。
+## 核心研究问题
 
-## 📸 项目效果预览
+**抑郁风险学生是否在努力导向决策中存在系统性偏差？**
 
-::: {align="center"}
-![项目效果预览](asset/pics/office.png)
+具体而言：
+- 抑郁风险学生是否对**努力成本**过度敏感？
+- 抑郁风险学生是否对**奖赏衰减**感知异常？
+- 这些认知偏差如何影响其**情境选择**和**社交行为**？
 
-*办公室场景中的AI角色互动效果*
-:::
+---
 
-## 🌟 项目特色
+## 理论框架：边际价值定理 (MVT)
 
--   **抑郁风险学生模拟**: 基于努力决策理论和边际价值定理(MVT)，模拟抑郁风险学生与健康学生的行为差异
--   **三层认知架构**: 客观现实（系统层）→ 感知推断（认知层）→ 效用评估（决策层）
--   **MVT驱动行为**: 使用边际价值定理计算最优停留时间，驱动Agent情境选择行为
--   **动态人格系统**: 事件驱动特质更新，每日反思调整认知参数，追踪PHQ-9抑郁水平
--   **课程表系统**: 完整的学校日程，个性化任务分配，区分上学日和周末
--   **时间管理系统**: 游戏内时间缩放（1分钟=1小时），自动推进日夜循环
--   **本地LLM支持**: 支持Ollama本地部署，无需API密钥即可运行
--   **沙盒式AI社会**: 类似斯坦福AI小镇，AI角色在开放世界中自主生活和互动
--   **多智能体生态系统**: 13个AI角色（2抑郁+6健康+5教师），复杂的社会互动网络
--   **智能对话系统**: 基于大语言模型的自然对话，支持多种API提供商
--   **持久化记忆系统**: AI角色具备长期记忆能力，能够记住历史对话和事件
--   **多AI服务集成**: 支持OpenAI、Claude、Gemini、DeepSeek、豆包、Kimi、Ollama等
+### 客观收益函数（系统维护，Agent不可见）
+```
+G(t) = (S/a)[1 - exp(-at)]
+```
+- **S**: 初始收益率
+- **a**: 收益衰减率
+- **t**: 停留时间
 
-## 🎮 沙盒游戏特性
+### Agent感知与决策
+```
+U(G) = G^α - β_effort × E
+```
+- **α**: 收益敏感性（0<α≤1）
+- **β_effort**: 努力敏感性（核心差异参数）
+- **E**: 努力成本
 
-### 🤖 AI角色生态系统
+### 最优停留时间
+```
+T* = argmax_T [(Ĝ(T)^α - β_effort × E) / (T + d)]
+```
 
--   8个预设AI角色，每个都有独特的性格、背景故事和行为模式
--   角色可以在虚拟世界中自由移动、探索和互动
--   支持角色状态管理、情绪变化和自主行为决策
--   AI角色会根据环境和社交情况做出真实的反应
+**个体差异**：
+| 参数 | 健康Agent | 抑郁风险Agent |
+|------|----------|--------------|
+| 收益敏感性 α | 0.8 | 0.5-0.6 |
+| 努力敏感性 β_effort | 0.4 | **0.8** |
 
-### 💬 自然社交系统
+**结果**：相同客观收益，抑郁Agent的主观效用显著降低
 
--   基于大语言模型的自然语言对话，支持多轮深度交流
--   动态对话气泡UI，实时显示角色间的交流
--   完整的对话历史记录和回放功能
--   支持群体讨论、私人对话和随机社交互动
+---
 
-### 🧠 智能记忆与学习
+## 三层认知架构
 
--   持久化长期记忆存储系统
--   AI角色能够学习和适应环境变化
--   记忆的格式化存储和智能检索
--   基于记忆的个性化行为发展
+### Layer 1: 客观现实（系统层）
+- **性质**: 物理存在，所有Agent共享相同客观参数
+- **内容**: 真实情境参数（S, a, E）、真实收益函数
+- **访问**: Agent不可见，通过RewardSystem间接获取奖赏
 
-### 📋 自主任务生态
+### Layer 2: 感知推断（认知层）
+- **性质**: 贝叶斯更新过程，个体差异显著
+- **机制**: 先验信念 → 体验采样 → 贝叶斯更新
+- **噪声**: 感知噪声极小（σ=2%），主要噪声在决策层
 
--   任务的自动创建、智能分配和实时跟踪
--   基于优先级的任务管理系统
--   任务完成状态的动态监控
--   AI角色间的任务协作和竞争机制
+### Layer 3: 效用评估（决策层）
+- **性质**: 非线性效用计算，个体差异核心体现
+- **公式**: U(G) = G^α - β_effort × E
+- **结果**: 计算最优停留时间T*，驱动行为决策
 
-## 🛠️ 技术栈
+---
 
--   **游戏引擎**: Godot 4.3+
--   **编程语言**: GDScript
--   **AI集成**: REST API调用
--   **数据存储**: JSON格式本地存储
--   **UI框架**: Godot内置UI系统
+## 你会得到什么
 
-## 📋 系统要求
+### 1. 可运行的模拟系统
+- 完整的Godot 4.x项目
+- 13个AI角色（2抑郁风险 + 6健康 + 5教师）
+- 5个校园情境（教室、食堂、走廊、体育馆）
+- 完整的课程表系统（上午3节 + 午休 + 下午2节）
 
-### 开发环境
+### 2. 行为数据输出
+- **情境停留时间分布**: 抑郁Agent vs 健康Agent的差异
+- **社交互动频率**: 追踪社交回避行为
+- **PHQ-9轨迹**: 每日抑郁水平变化
+- **认知参数演化**: β_effort、α等参数的动态变化
 
--   Godot 4.3或更高版本
+### 3. 理论验证工具
+- MVT模型的计算实现
+- 贝叶斯感知系统
+- 动态人格调整机制
+- 每日反思与认知更新
 
-### 支持平台
+### 4. 可视化观察
+- 角色在校园中的实时移动
+- 对话系统的自然交互
+- 任务执行的优先级变化
+- 时间推进（1现实分钟 = 1游戏小时）
 
--   **Windows**: Windows 10/11 (64位)
--   **macOS**: macOS 10.15+ (Intel/Apple Silicon)
--   **Linux**: Ubuntu 18.04+, Fedora 32+, Arch Linux等主流发行版
--   **Android**: Android 6.0+ (API Level 23+)
+---
 
-### 硬件要求
+## 核心功能
 
--   **最低配置**: 4GB RAM, 1GB可用存储空间
--   **推荐配置**: 8GB RAM, 2GB可用存储空间
--   **网络**: 稳定的互联网连接（用于AI API调用）
+### 🤖 三类核心智能体
 
-### 注意事项
+#### 1. 抑郁风险学生智能体（观测对象）
+- **特征**: 高努力敏感性（β_effort ≈ 0.8），收益敏感性降低（α ≈ 0.5-0.6）
+- **追踪指标**: 每日PHQ-9自评、情境停留时间、社交互动频率
+- **行为表现**: 回避高努力情境（课堂发言、体育活动），偏好低努力情境（食堂、走廊）
 
--   Android平台需要额外的平台特定配置
--   支持本地LLM（Ollama），无需API密钥
--   使用云端API需要有效的API密钥
+#### 2. 健康学生智能体（环境群体）
+- **特征**: 正常认知参数（β_effort ≈ 0.4, α ≈ 0.8）
+- **功能**: 构成社会互动网络，提供比较基准，形成群体规范
 
-## 🚀 快速开始
+#### 3. 教师智能体（制度性环境）
+- **特征**: 提供评价反馈，分配机会和任务
+- **角色**: 班主任、数学老师、英语老师、校长、图书管理员
+
+---
+
+### 📚 课程表系统
+
+| 时间 | 课程 | 地点 | 负责教师 |
+|------|------|------|---------|
+| 8:00 | 班主任课 | 教室（主教学区） | TeacherWang |
+| 8:55 | 英语课 | 教室（主教学区） | TeacherChen |
+| 9:50 | 小组讨论 | 教室（小组讨论区） | - |
+| 10:45 | 午休 | 食堂 | - |
+| 11:45 | 数学课 | 教室（主教学区） | TeacherLi |
+| 12:40 | 体育活动 | 体育馆 | - |
+
+**个性化任务分配**:
+- 抑郁风险学生：高努力情境低优先级（可能回避）
+- 健康学生：正常参与所有活动
+- 教师：按课程表教学
+
+---
+
+### 🧠 动态人格系统
+
+**可调整特质**（事件驱动更新，20%边界保护）：
+- self_efficacy（自我效能感）
+- effort_sensitivity（努力敏感性）
+- motivation_level（动机水平）
+- attachment_security（依恋安全感）
+- pleasure_anticipation（快感预期）
+- reward_sensitivity（奖赏敏感性）
+
+**更新触发**:
+- 任务成功/失败
+- 社交互动
+- 教师表扬/批评
+- 每日反思（LLM-based）
+
+---
+
+### 🌙 每日反思系统
+
+**流程**:
+1. 收集当日记忆
+2. LLM分析情绪状态
+3. 决定四项认知参数调整
+4. 完整PHQ-9九项评估
+5. 更新抑郁水平
+
+**调整幅度**:
+| 严重程度 | 幅度 |
+|---------|------|
+| 1（轻微） | ±1% |
+| 2（轻度） | ±3% |
+| 3（中度） | ±5% |
+| 4（重度） | ±8% |
+| 5（严重） | ±12% |
+
+---
+
+## 快速开始
 
 ### 方式1：使用本地LLM（推荐，无需API密钥）
 
 #### 1. 安装Ollama
-
 ```bash
 # macOS
 brew install ollama
-
-# 启动Ollama服务
 brew services start ollama
 ```
 
 #### 2. 下载模型
-
 ```bash
-# 下载通义千问1.5B模型（中文优化，速度快）
 ollama pull qwen2.5:1.5b
-
-# 验证模型
-ollama list
+ollama list  # 验证
 ```
 
 #### 3. 运行项目
-
-1.  启动Godot编辑器
-2.  导入项目（选择`project.godot`）
-3.  按F6运行项目
-4.  项目会自动连接本地Ollama服务
+1. 启动Godot编辑器
+2. 导入项目（选择`project.godot`）
+3. 按F6运行
 
 ### 方式2：使用云端API
 
-#### 1. 克隆项目
+1. 克隆项目
+2. 在Godot中运行项目
+3. 按ESC打开设置
+4. 选择API提供商（OpenAI、Kimi等）
+5. 输入API密钥
 
-```bash
-git clone https://github.com/qianzhouji/Godot-Microverse-predict.git
-cd Godot-Microverse-predict
+---
+
+## 系统要求
+
+- **Godot**: 4.3+
+- **操作系统**: Windows 10/11, macOS 10.15+, Linux
+- **内存**: 8GB RAM（推荐）
+- **存储**: 2GB可用空间
+- **网络**: 本地LLM无需网络，云端API需要网络
+
+---
+
+## 项目结构
+
+```
+res://
+├── script/
+│   ├── ai/              # AI系统层
+│   │   ├── AIAgent.gd           # Agent决策中枢
+│   │   ├── PerceptionSystem.gd  # 贝叶斯感知
+│   │   ├── UtilitySystem.gd     # MVT效用计算
+│   │   ├── DailyReflectionSystem.gd  # 每日反思
+│   │   └── APIManager.gd        # API管理
+│   ├── system/          # 系统层
+│   │   ├── RewardSystem.gd      # 奖赏发放
+│   │   ├── DayNightSystem.gd    # 时间系统
+│   │   └── ScheduleSystem.gd    # 课程表
+│   └── CharacterPersonality.gd  # 角色人设
+├── scene/
+│   ├── maps/School.tscn         # 学校场景
+│   └── characters/              # 13个角色
+└── project.godot
 ```
 
-#### 2. 配置API
+---
 
-1.  运行游戏
-2.  按ESC键打开设置界面
-3.  在API设置中选择服务商并输入API密钥
-4.  支持的服务商：
-    -   OpenAI (GPT-3.5, GPT-4)
-    -   Anthropic Claude
-    -   Google Gemini
-    -   DeepSeek
-    -   字节跳动豆包
-    -   月之暗面Kimi
-    -   Ollama (本地部署)
+## 技术栈
 
-### 3. 开始游戏
+- **游戏引擎**: Godot 4.3+
+- **编程语言**: GDScript
+- **AI模型**: Ollama (本地) / OpenAI / Kimi / 等
+- **理论框架**: 边际价值定理(MVT)、努力决策理论
+- **评估工具**: PHQ-9抑郁量表
 
-1.  选择地图（学校场景）
-2.  使用WASD键移动角色
-3.  按T键开始与AI角色对话
-4.  按L键结束对话
-5.  按\`键打开控制台
+---
 
-## 🎯 使用说明
+## 相关文档
 
-### 基本操作
+- [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md) - 完整项目结构
+- [IMPLEMENTATION_LOGIC.md](./IMPLEMENTATION_LOGIC.md) - 实现逻辑
+- [DYNAMIC_PERSONALITY_AND_REFLECTION.md](./DYNAMIC_PERSONALITY_AND_REFLECTION.md) - 动态人格与反思
 
--   **移动**: WASD键或方向键
--   **坐下**: 空格键
--   **开始对话**: T键
--   **结束对话**: L键
--   **打开设置**: ESC键
--   **保存/加载**: F1键
--   **控制台**: \`键（反引号）
+---
 
-### AI角色介绍
+## 引用
 
--   **Alice**: 友善的项目经理
--   **Grace**: 专业的数据分析师
--   **Jack**: 创意十足的设计师
--   **Joe**: 技术专家
--   **Lea**: 市场营销专家
--   **Monica**: HR专员
--   **Stephen**: 财务分析师
--   **Tom**: 软件开发工程师
+如果您在研究中使用了本项目，请引用：
 
-### 高级功能
-
--   **记忆查看**: 在控制台中查看AI角色的记忆
--   **任务管理**: 给AI角色分配和管理任务
--   **场景切换**: 支持多个场景地图
--   **存档系统**: 保存和加载游戏状态
-
-## 🔧 开发指南
-
-### 项目结构
-
-```         
-office/
-├── asset/          # 游戏资源文件
-├── scene/          # 场景文件
-├── script/         # 脚本文件
-│   ├── ai/         # AI相关脚本
-│   └── ui/         # UI相关脚本
-└── docs/           # 文档文件
+```
+基于边际价值定理的抑郁风险学生校园情境模拟系统
+GitHub: https://github.com/qianzhouji/Godot-Microverse-predict
 ```
 
-### 核心系统
+---
 
--   **APIManager**: API调用管理
--   **DialogManager**: 对话系统管理
--   **MemoryManager**: 记忆系统管理
--   **CharacterManager**: 角色管理
--   **TaskManager**: 任务管理
+## 许可证
 
-### 扩展开发
+MIT License
 
--   添加新的AI角色
--   创建新的场景地图
--   集成新的AI服务提供商
--   扩展对话功能
+---
 
-## 🎮 Steam版本即将上线
-
-::: {align="center"}
-![Microverse In Box 盒中小世界](asset/pics/Cover.png)
-
-**《Microverse In Box 盒中小世界》即将登陆Steam平台！**
-
-[![Steam](https://img.shields.io/badge/Steam-000000?style=for-the-badge&logo=steam&logoColor=white)](https://store.steampowered.com/app/3902630/Microverse_In_Box/)
-
-[🎯 **添加到Steam愿望单**](https://store.steampowered.com/app/3902630/Microverse_In_Box/) \| [📖 **查看Steam页面**](https://store.steampowered.com/app/3902630/Microverse_In_Box/)
-
-------------------------------------------------------------------------
-
-**📝 关于本开源项目**: 本仓库开源的是《Microverse In Box》游戏在2025年6月的初版Demo，为开发者和爱好者提供学习和参考。完整版游戏将在Steam平台发布，包含更多功能、优化和内容。
-:::
-
-## 🤝 贡献指南
-
-欢迎贡献代码！请遵循以下步骤：
-
-1.  Fork本项目
-2.  创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3.  提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4.  推送到分支 (`git push origin feature/AmazingFeature`)
-5.  创建Pull Request
-
-## 📝 许可证
-
-本项目采用MIT许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
--   Godot游戏引擎团队
--   各AI服务提供商
--   开源社区的贡献者们
--   美术素材来源: [LimeZu](https://limezu.itch.io/) - 感谢这位优秀艺术家提供的精美游戏素材
--   dartnode赠送的服务器 [![Powered by DartNode](https://dartnode.com/branding/DN-Open-Source-sm.png)](https://dartnode.com "Powered by DartNode - Free VPS for Open Source")
-
-## 📞 联系方式
-
-::: {align="center"}
-![时空码头名片](asset/pics/时空码头.png)
-:::
-
-如有问题或建议，请通过以下方式联系：
-
--   提交Issue: [GitHub Issues](https://github.com/KsanaDock/Microverse/issues)
--   官方网站: [时空码头KsanaDock](https://www.ksanadock.com)
-
-## 🌐 关注我们
-
-::: {align="center"}
-### 在社交媒体上关注我们的最新动态
-
-+-----------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------+
-| [![小红书](https://img.shields.io/badge/小红书-FF2442?style=for-the-badge&logo=xiaohongshu&logoColor=white){alt="小红书"} \ | [![Bilibili](https://img.shields.io/badge/Bilibili-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white){alt="Bilibili"} \ | [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white){alt="GitHub"} \     |
-| **小红书** \                                                                                                                | **哔哩哔哩** \                                                                                                                 | **GitHub** \                                                                                                               |
-| ~创意分享与交流~](https://www.xiaohongshu.com/user/profile/653c5f81000000000301f274)                                        | ~中文视频内容~](https://space.bilibili.com/336052319)                                                                          | ~项目源码与更新~](https://github.com/KsanaDock)                                                                            |
-+-----------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------+
-| [![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=x&logoColor=white){alt="X"} \                          | [![Steam](https://img.shields.io/badge/Steam-000000?style=for-the-badge&logo=steam&logoColor=white){alt="Steam"} \             | [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white){alt="YouTube"} \ |
-| **X (Twitter)** \                                                                                                           | **Steam** \                                                                                                                    | **YouTube** \                                                                                                              |
-| ~最新资讯与讨论~](https://x.com/KsanaDock)                                                                                  | ~游戏发布与更新~](https://store.steampowered.com/app/3902630/Microverse_In_Box/)                                               | ~演示视频与教程~](https://www.youtube.com/@KsanaDock)                                                                      |
-+-----------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------------------+
-:::
-
-------------------------------------------------------------------------
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=KsanaDock/Microverse&type=date&legend=top-left)](https://www.star-history.com/#KsanaDock/Microverse&type=date&legend=top-left)
-
-**注意**: 使用本项目需要有效的AI服务API密钥。请确保遵守各AI服务提供商的使用条款和条件。
+*本项目为学术研究用途，旨在探索青少年心理健康问题的计算模型。*
