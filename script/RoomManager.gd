@@ -54,3 +54,49 @@ func get_room_important_locations(room_name: String) -> Dictionary:
 	if rooms.has(room_name):
 		return rooms[room_name].important_locations
 	return {}
+
+# ============================================
+# 系统层内部接口（仅供系统层组件使用）
+# ============================================
+# ⚠️ 警告：此接口仅供RewardSystem等系统层组件调用
+# Agent不应直接调用此函数，应通过RewardSystem间接获取信息
+func get_room_objective_params_internal(room_name: String) -> Dictionary:
+	"""
+	获取房间的客观参数（系统层内部使用）
+	
+	参数:
+		room_name: 房间名称
+	
+	返回:
+		Dictionary: {"S": 初始收益率, "a": 衰减率, "E": 努力成本}
+		如果未找到房间，返回空字典
+	"""
+	# 查找RoomArea节点
+	var room_areas = get_tree().get_nodes_in_group("room_area")
+	for area in room_areas:
+		if area.room_name == room_name:
+			return {
+				"S": area.initial_reward_rate,   # 初始收益率 (Agent不可见)
+				"a": area.reward_decay_rate,      # 收益衰减率 (Agent不可见)
+				"E": area.effort_level            # 努力成本 (Agent不可见)
+			}
+	
+	push_warning("[RoomManager] 未找到房间: %s" % room_name)
+	return {}
+
+# 获取所有房间的客观参数（用于调试）
+func get_all_rooms_objective_params() -> Dictionary:
+	"""
+	获取所有房间的客观参数（仅供调试使用）
+	"""
+	var all_params = {}
+	var room_areas = get_tree().get_nodes_in_group("room_area")
+	
+	for area in room_areas:
+		all_params[area.room_name] = {
+			"S": area.initial_reward_rate,
+			"a": area.reward_decay_rate,
+			"E": area.effort_level
+		}
+	
+	return all_params
