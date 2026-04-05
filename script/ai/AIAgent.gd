@@ -688,26 +688,22 @@ func _generate_random_task(character_node):
 	# 随机选择一个任务
 	var random_task = tasks_pool[randi() % tasks_pool.size()]
 	
-	# 根据任务类型和角色生成合理优先级
-	var base_priority = 3  # 默认普通任务
+	# 创建任务对象（不预设优先级，由Agent自主判断）
+	# 任务类型作为提示，供Agent决策时参考
+	var task_type = "normal"
+	if "考试" in random_task or "会议" in random_task:
+		task_type = "important_urgent"  # 5-7级：重要且略紧急
+	elif "作业" in random_task or "稿件" in random_task or "活动" in random_task:
+		task_type = "normal_work"  # 4级：普通工作
+	elif "吃饭" in random_task or "睡觉" in random_task or "休息" in random_task:
+		task_type = "daily"  # 3级：日常
+	elif "社交" in random_task or "讨论" in random_task:
+		task_type = "social"  # 2级：社交（抑郁Agent可能回避）
 	
-	# 根据角色类型调整
-	if role_type == "teacher":
-		base_priority = 4  # 教师任务略高
-	elif role_type == "depression_risk_student":
-		# 抑郁Agent可能给社交任务更低优先级
-		if "社交" in random_task or "讨论" in random_task:
-			base_priority = 2
-		else:
-			base_priority = 3
-	
-	# 添加小幅随机波动 (-1 到 +1)
-	var random_priority = clamp(base_priority + (randi() % 3 - 1), 1, 5)
-	
-	# 创建任务对象
 	return {
 		"description": random_task,
-		"priority": random_priority,
+		"task_type": task_type,  # 任务类型提示
+		"priority": 0,  # 初始为0，表示未评估，由Agent自主判断
 		"created_at": Time.get_unix_time_from_system(),
 		"completed": false
 	}
@@ -726,6 +722,9 @@ func make_decision():
 	
 	# 检查并初始化任务系统
 	await _check_and_initialize_tasks()
+	
+	# 评估未设置优先级的任务
+	_evaluate_task_priorities()
 	
 	# 生成场景描述
 	var scene_description = generate_scene_description()
@@ -2188,11 +2187,12 @@ func _rearrange_task_priorities_default(target_character):
 	if tasks.size() < 2:
 		return
 	
-	# 微调前几个任务的优先级（只在原有基础上小幅调整）
-	for i in range(min(3, tasks.size())):
-		var current_priority = tasks[i].get("priority", 3)
-		# 小幅波动 (-1 到 +1)，保持在1-6范围内
-		tasks[i].priority = clamp(current_priority + (randi() % 3 - 1), 1, 6)
+	# 只对未评估的任务（priority=0）让Agent自主判断
+	# 已设置优先级的任务保持不变
+	for i in range(tasks.size()):
+		if tasks[i].get("priority", 0) == 0:
+			# 标记为需要Agent自主评估
+			tasks[i].needs_evaluation = true
 	
 	# 重新排序
 	tasks.sort_custom(func(a, b): return a.priority > b.priority)
@@ -2213,7 +2213,8 @@ func _add_urgent_task_default(target_character):
 	
 	var urgent_task = {
 		"description": urgent_tasks[randi() % urgent_tasks.size()],
-		"priority": 9,  # 紧急任务优先级9（仅次于人生大事10）
+		"task_type": "emergency",  # 紧急类型
+		"priority": 9,  # 紧急任务固定优先级9（突发事件：生病、受伤、DDL迫在眉睫）
 		"created_at": Time.get_unix_time_from_system(),
 		"completed": false
 	}
@@ -2950,3 +2951,68 @@ func add_task(task: Dictionary) -> void:
 func clear_tasks() -> void:
 	character.set_meta("tasks", [])
 	print("[AIAgent] %s 清除所有任务" % character.name)
+
+# 评估任务优先级（Agent自主判断）
+func _evaluate_task_priorities():
+	"""根据任务类型和Agent人设评估未设置优先级的任务"""
+	var tasks = character.get_meta("tasks", [])
+	if tasks.is_empty():
+		return
+	
+	var personality = CharacterPersonality.get_personality(character.name)
+	var role_type = personality.get("role_type", "")
+	var beta_effort = personality.get("cognitive_mechanism", {}).get("beta_effort", 0.5)
+	
+	for task in tasks:
+		# 跳过已设置优先级的任务
+		if task.get("priority", 0) != 0:
+			continue
+		
+		var task_type = task.get("task_type", "normal")
+		var description = task.get("description", "")
+		
+		# 根据任务类型和Agent人设评估优先级
+		match task_type:
+			"emergency":
+				task.priority = 9  # 紧急任务
+			
+			"important_urgent":
+				# 重要且略紧急（如一周后的考试）
+				task.priority = 6
+			
+			"normal_work":
+				# 普通工作（作业、稿件、活动）
+				if role_type == "teacher":
+					task.priority = 4  # 教师工作
+				else:
+					task.priority = 4  # 学生作业
+			
+			"daily":
+				# 日常任务（吃饭、睡觉、休息）
+				task.priority = 3
+			
+			"social":
+				# 社交任务，抑郁Agent可能回避
+				if role_type == "depression_risk_student" and beta_effort > 0.6:
+					task.priority = 2  # 回避社交
+				else:
+					task.priority = 3
+			
+			_:
+				# 默认根据描述判断
+				if "考试" in description or "DDL" in description or "截止" in description:
+					task.priority = 6
+				elif "作业" in description or "稿件" in description or "活动" in description:
+					task.priority = 4
+				elif "吃饭" in description or "睡觉" in description:
+					task.priority = 3
+				else:
+					task.priority = 3  # 默认普通
+		
+		# 移除评估标记
+		if task.has("needs_evaluation"):
+			task.erase("needs_evaluation")
+	
+	# 重新排序任务
+	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
+	character.set_meta("tasks", tasks)
