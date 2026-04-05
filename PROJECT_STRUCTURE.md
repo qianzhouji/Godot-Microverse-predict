@@ -98,7 +98,16 @@ res://
   - 管理每日抑郁水平（PHQ-9）
   - 动态调整认知机制参数
   - 外部显式调用更新（无自动触发）
-- **可调整特质**: self_efficacy, effort_sensitivity, motivation_level, attachment_security, pleasure_anticipation, reward_sensitivity
+- **可调整特质**: p_base, eta_s, eta_a, beta_effort, daily_depression_level
+- **更新规则**:
+  - 任务成功: beta_effort↓, p_base↑, 抑郁↓
+  - 任务失败: beta_effort↑, p_base↓, 抑郁↑
+  - 积极社交: 抑郁↓, eta_s↑
+  - 消极社交: beta_effort↑, eta_a↑, 抑郁↑
+  - 教师表扬: beta_effort↓, 抑郁↓
+  - 教师批评: beta_effort↑, 抑郁↑
+- **个体差异**: 抑郁Agent负面×1.5/正面×0.7，健康Agent负面×0.8/正面×1.2
+- **边界保护**: 偏离基线≤20%
 
 #### DialogManager.gd
 - **路径**: `res://script/ai/DialogManager.gd`
@@ -141,12 +150,16 @@ res://
 #### DailyReflectionSystem.gd ⭐ 2026-04-05新增
 - **路径**: `res://script/ai/DailyReflectionSystem.gd`
 - **类型**: Node (静态类)
-- **职责**: 每日反思与认知机制动态调整系统
+- **职责**: 每日反思与认知机制动态调整系统（LLM-based）
 - **核心功能**:
   - `conduct_daily_reflection()` - 执行完整每日反思流程
-  - `_analyze_reflection()` - LLM分析当日经历
-  - `_decide_cognitive_adjustments()` - 决定四项参数调整
-  - `_calculate_adjustment_magnitude()` - 动态幅度计算
+  - `_analyze_reflection()` - LLM分析当日经历，输出{情绪主题, 关键事件, 认知变化}
+  - `_decide_cognitive_adjustments()` - LLM判断四项参数调整方向和严重程度(1-5)
+  - `_calculate_adjustment_magnitude()` - 动态幅度计算（严重程度→基础幅度×个体差异）
+  - `_conduct_phq9_assessment()` - 完整PHQ-9九项评估
+- **严重程度映射**: 1→1%, 2→3%, 3→5%, 4→8%, 5→12%
+- **个体差异**: 抑郁Agent负面×1.5，健康Agent负面×0.8
+- **PHQ-9评估**: 九项症状，总分0-27，五个等级
   - `_conduct_phq9_assessment()` - 完整PHQ-9九项评估
 - **调整幅度设计**:
   - 严重程度1-5映射到1%-12%
