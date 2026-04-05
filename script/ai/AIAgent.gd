@@ -3061,16 +3061,16 @@ func _check_nearby_characters():
 		# 抑郁Agent社交回避，对话概率低
 		talk_probability = 0.1  # 10%概率
 	elif extraversion > 70:
-		// 外向Agent喜欢社交
-		talk_probability = 0.4  // 40%概率
+		# 外向Agent喜欢社交
+		talk_probability = 0.4  # 40%概率
 	elif extraversion < 40:
-		// 内向Agent不太主动
-		talk_probability = 0.15  // 15%概率
+		# 内向Agent不太主动
+		talk_probability = 0.15  # 15%概率
 	else:
-		// 普通Agent
-		talk_probability = 0.25  // 25%概率
+		# 普通Agent
+		talk_probability = 0.25  # 25%概率
 	
-	// 随机决定是否发起对话
+	# 随机决定是否发起对话
 	if randf() < talk_probability:
 		print("[AIAgent] %s 发现附近角色 %s，决定发起对话" % [character.name, nearby_char.name])
 		initiate_conversation(nearby_char)
