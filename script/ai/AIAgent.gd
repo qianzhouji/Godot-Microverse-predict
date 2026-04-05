@@ -271,24 +271,27 @@ func get_environment_info() -> String:
 	# 添加时间信息（使用游戏内时间day_night_system）
 	var time_description = ""
 	
-	if day_night_system:
-		var current_hour = day_night_system.current_hour
-		var weekday = day_night_system.get_weekday_name()
+	# 安全获取day_night_system
+	var dns = get_node_or_null("/root/DayNightSystem")
+	
+	if dns:
+		var current_hour = dns.current_hour
+		var weekday = dns.get_weekday_name()
 		
-		if day_night_system.is_weekend():
+		if dns.is_weekend():
 			time_description = "现在是" + weekday + "周末，学校放假，学生可以自由活动。"
 		elif current_hour >= 7 and current_hour < 8:
-			time_description = "现在是早晨" + day_night_system.get_current_time() + "，学生们陆续到校，准备开始一天的学习。"
+			time_description = "现在是早晨" + dns.get_current_time() + "，学生们陆续到校，准备开始一天的学习。"
 		elif current_hour >= 8 and current_hour < 12:
-			time_description = "现在是上午" + day_night_system.get_current_time() + "，正在上课，教室里传来老师的讲课声。"
+			time_description = "现在是上午" + dns.get_current_time() + "，正在上课，教室里传来老师的讲课声。"
 		elif current_hour >= 12 and current_hour < 14:
-			time_description = "现在是中午" + day_night_system.get_current_time() + "，午餐时间，食堂里坐满了用餐的学生。"
+			time_description = "现在是中午" + dns.get_current_time() + "，午餐时间，食堂里坐满了用餐的学生。"
 		elif current_hour >= 14 and current_hour < 17:
-			time_description = "现在是下午" + day_night_system.get_current_time() + "，下午的课程正在进行中。"
+			time_description = "现在是下午" + dns.get_current_time() + "，下午的课程正在进行中。"
 		elif current_hour >= 17 and current_hour < 19:
-			time_description = "现在是傍晚" + day_night_system.get_current_time() + "，放学了，学生们陆续离开学校。"
+			time_description = "现在是傍晚" + dns.get_current_time() + "，放学了，学生们陆续离开学校。"
 		else:
-			time_description = "现在是" + day_night_system.get_current_time() + "，学校已经放学，校园里很安静。"
+			time_description = "现在是" + dns.get_current_time() + "，学校已经放学，校园里很安静。"
 	else:
 		# 备用：使用真实时间
 		var time = Time.get_time_dict_from_system()
@@ -505,10 +508,11 @@ func _refresh_daily_tasks(character_node):
 		if not task.get("completed", false):
 			incomplete_tasks.append(task)
 	
-	# 检查是否是周末
+	# 安全获取day_night_system并检查是否是周末
+	var dns = get_node_or_null("/root/DayNightSystem")
 	var is_weekend = false
-	if day_night_system != null:
-		is_weekend = day_night_system.is_weekend()
+	if dns != null:
+		is_weekend = dns.is_weekend()
 	var target_task_count = 10 if is_weekend else 3  # 周末生成10个任务，平时3个
 	
 	# 生成新任务直到达到目标数量
@@ -551,10 +555,13 @@ func _generate_random_task(character_node):
 	# 根据角色类型和场景生成适合的任务
 	var tasks_pool = []
 	
+	# 安全获取day_night_system（可能在_ready前被调用）
+	var dns = get_node_or_null("/root/DayNightSystem")
+	
 	# 检查是否是上学日
 	var is_school_day = false
-	if day_night_system != null:
-		is_school_day = day_night_system.is_school_day
+	if dns != null:
+		is_school_day = dns.is_school_day
 	var role_type = personality.get("role_type", "")
 	
 	if is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
@@ -2846,9 +2853,10 @@ func _get_schedule_tasks_for_character(target_character: Node) -> Array:
 	var role_type = data.get("role_type", "")
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	
-	# 根据角色类型和当前时间获取相应任务
-	if day_night_system:
-		var current_hour = day_night_system.current_hour
+	# 安全获取day_night_system并根据角色类型和当前时间获取相应任务
+	var dns = get_node_or_null("/root/DayNightSystem")
+	if dns:
+		var current_hour = dns.current_hour
 		
 		# 上午课程
 		if current_hour < 10.75:  # 午休前
