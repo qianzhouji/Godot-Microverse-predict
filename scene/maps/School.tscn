@@ -22,16 +22,13 @@
 [ext_resource type="PackedScene" uid="uid://b6cvfnhl4xvjo" path="res://scene/prefab/FrontChair.tscn" id="17_xf40e"]
 [ext_resource type="PackedScene" uid="uid://ci2i5dc7loyjt" path="res://scene/prefab/Chair.tscn" id="18_r1j2e"]
 [ext_resource type="PackedScene" uid="uid://c2yyfakwg86js" path="res://scene/ui/GlobalSettingsUI.tscn" id="26_ik20s"]
-[ext_resource type="PackedScene" uid="uid://duqkkiin6jsee" path="res://scene/characters/Jack.tscn" id="26_loaku"]
 [ext_resource type="PackedScene" uid="uid://bqhqxqhqhqhqh" path="res://scene/ui/GodUI.tscn" id="27_ik20s"]
-[ext_resource type="PackedScene" uid="uid://o15xfx2su45c" path="res://scene/characters/Alice.tscn" id="28_nrx5g"]
-[ext_resource type="PackedScene" uid="uid://c2slyrs5wkufs" path="res://scene/characters/Grace.tscn" id="29_1e7uo"]
-[ext_resource type="PackedScene" uid="uid://ck7w2wpn6fvo6" path="res://scene/characters/Joe.tscn" id="29_285b5"]
-[ext_resource type="PackedScene" uid="uid://db3hucbh7cc2s" path="res://scene/characters/Lea.tscn" id="29_t3fek"]
-[ext_resource type="PackedScene" uid="uid://hdja5ovupu8s" path="res://scene/characters/Monica.tscn" id="30_t3fek"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaohong.tscn" id="29_vmdq2"]
+[ext_resource type="PackedScene" path="res://scene/characters/StudentXiaoming.tscn" id="30_74cc2"]
 [ext_resource type="Script" uid="uid://bipg4phjpbujy" path="res://script/RoomArea.gd" id="30_yhhlg"]
+[ext_resource type="PackedScene" path="res://scene/characters/TeacherWang.tscn" id="31_0bb36"]
 [ext_resource type="Script" uid="uid://dwbuqa6u6pc8y" path="res://script/RoomManager.gd" id="31_8h615"]
-[ext_resource type="PackedScene" uid="uid://b37ihqa7p6w5t" path="res://scene/characters/Stephen.tscn" id="31_8035k"]
+[ext_resource type="PackedScene" path="res://scene/characters/PrincipalLi.tscn" id="32_45tuo"]
 [ext_resource type="PackedScene" uid="uid://cyhpykj1xrn1n" path="res://scene/characters/Tom.tscn" id="32_vckrt"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_3he53"]
@@ -16934,29 +16931,20 @@ position = Vector2(896, 464)
 [node name="Characters" type="Node2D" parent="." unique_id=703426829]
 script = ExtResource("15_y022p")
 
-[node name="Joe" parent="Characters" unique_id=1284599378 groups=["characters"] instance=ExtResource("29_285b5")]
-position = Vector2(848, 360)
+[node name="StudentXiaohong" parent="Characters" unique_id=1822526265 instance=ExtResource("29_vmdq2")]
+position = Vector2(1016, 400)
 
-[node name="Jack" parent="Characters" unique_id=534441170 groups=["characters"] instance=ExtResource("26_loaku")]
-position = Vector2(752, 360)
+[node name="StudentXiaoming" parent="Characters" unique_id=803814461 instance=ExtResource("30_74cc2")]
+position = Vector2(1098, 298)
 
-[node name="Alice" parent="Characters" unique_id=959508641 instance=ExtResource("28_nrx5g")]
-position = Vector2(976, 360)
+[node name="TeacherWang" parent="Characters" unique_id=834850083 instance=ExtResource("31_0bb36")]
+position = Vector2(677, 97)
 
-[node name="Grace" parent="Characters" unique_id=482427330 instance=ExtResource("29_1e7uo")]
-position = Vector2(256, 208)
+[node name="Tom2" parent="Characters" unique_id=1598745117 instance=ExtResource("32_vckrt")]
+position = Vector2(988, 569)
 
-[node name="Monica" parent="Characters" unique_id=1870807254 instance=ExtResource("30_t3fek")]
-position = Vector2(280, 136)
-
-[node name="Stephen" parent="Characters" unique_id=51032356 instance=ExtResource("31_8035k")]
-position = Vector2(952, 528)
-
-[node name="Tom" parent="Characters" unique_id=911863076 instance=ExtResource("32_vckrt")]
-position = Vector2(1032, 512)
-
-[node name="Lea" parent="Characters" unique_id=394899076 instance=ExtResource("29_t3fek")]
-position = Vector2(120, 512)
+[node name="PrincipalLi" parent="Characters" unique_id=46818008 instance=ExtResource("32_45tuo")]
+position = Vector2(473, 563)
 
 [node name="SettingsLayer" parent="." unique_id=386943111 instance=ExtResource("26_ik20s")]
 
@@ -16964,48 +16952,75 @@ position = Vector2(120, 512)
 
 [node name="GodUI" parent="CanvasLayer" unique_id=1544268040 instance=ExtResource("27_ik20s")]
 
-[node name="RoomArea" type="Area2D" parent="." unique_id=990108184]
+[node name="RoomArea_ClassroomMain" type="Area2D" parent="." unique_id=990108184]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "教室（主教学区）"
+room_desc = "教室的北侧是主教学区，有多个课桌，用于日常课堂教学和课外活动"
+initial_reward_rate = 0.5
+reward_decay_rate = 0.7
+effort_level = 0.8
+activity_types = ["课堂发言"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomMain"]
+position = Vector2(944, 516.5)
+shape = SubResource("RectangleShape2D_loaku")
+
+[node name="RoomArea_ClassroomGroup" type="Area2D" parent="." unique_id=990108185]
 visible = false
 script = ExtResource("30_yhhlg")
 room_name = "教室（小组讨论区）"
 room_desc = "教室的南侧是小组讨论区，有四张课桌，适合课堂发言、小组合作和竞选活动"
+initial_reward_rate = 0.7
+reward_decay_rate = 0.3
+effort_level = 0.6
+activity_types = ["小组合作", "竞选"]
 
-[node name="RoomArea_MeetingRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=135360772]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomGroup"]
 position = Vector2(526.5, 516)
 shape = SubResource("RectangleShape2D_f7hqq")
 
-[node name="RoomArea_HrOfficeRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=689550919]
-position = Vector2(176, 132.75)
-shape = SubResource("RectangleShape2D_yhhlg")
+[node name="RoomArea_Canteen" type="Area2D" parent="." unique_id=990108186]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "食堂"
+room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、饮水机和多个座位"
+initial_reward_rate = 0.8
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = ["同伴互动"]
 
-[node name="RoomArea_ToiletRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1761242352]
-position = Vector2(480, 54)
-shape = SubResource("RectangleShape2D_8h615")
-
-[node name="RoomArea_BossOfficeRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1940511280]
-position = Vector2(944, 516.5)
-shape = SubResource("RectangleShape2D_loaku")
-
-[node name="RoomArea_OfficeRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=703699998]
-position = Vector2(896, 213.5)
-shape = SubResource("RectangleShape2D_rryi1")
-
-[node name="RoomArea_GymRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1063944770]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Canteen"]
 position = Vector2(479.5, 324.5)
 shape = SubResource("RectangleShape2D_qy4lc")
 
-[node name="RoomArea_TeaRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1872006611]
+[node name="RoomArea_Corridor" type="Area2D" parent="." unique_id=990108187]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "走廊"
+room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的地方"
+initial_reward_rate = 0.3
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = ["偶遇互动"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor"]
 position = Vector2(480, 166)
 shape = SubResource("RectangleShape2D_10dvn")
-room_desc = "学校前台是访客登记和学生咨询的地方"
 
-[node name="RoomArea_ReceptionRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=461380128]
+[node name="RoomArea_Gym" type="Area2D" parent="." unique_id=990108188]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "体育馆"
+room_desc = "体育馆内有运动场地和器材，适合体育活动和锻炼"
+initial_reward_rate = 0.8
+reward_decay_rate = 0.7
+effort_level = 0.8
+activity_types = ["体育活动"]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Gym"]
 position = Vector2(176, 516)
 shape = SubResource("RectangleShape2D_jkaac")
-
-[node name="RoomArea_WaitingHallRoomArea#CollisionShape2D" type="CollisionShape2D" parent="." unique_id=856440476]
-position = Vector2(176, 341.75)
-shape = SubResource("RectangleShape2D_285b5")
 
 [node name="RoomManager" type="Node2D" parent="." unique_id=1523979036]
 script = ExtResource("31_8h615")
