@@ -255,9 +255,11 @@ func get_environment_info() -> String:
 	var environment_info = ""
 	
 	# 根据场景名称提供不同的环境描述
+	# 注意：School.tscn的根节点名称是"Office"（历史遗留），但实际是学校场景
 	match current_scene:
 		"Office":
-			environment_info = "这是一家现代化的公司，有多个工作区、会议室和休息区。办公室装修简洁明亮，有大窗户可以看到外面的景色。"
+			# School.tscn的场景根节点名为Office，但实际是学校场景
+			environment_info = "这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
 		"School":
 			environment_info = "这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
 		"Jail":
