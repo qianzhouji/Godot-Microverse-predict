@@ -1646,7 +1646,7 @@ func _execute_task_movement(target_character, current_task):
 	prompt += get_company_employees_info()
 	prompt += "\n" + scene_description
 	prompt += "\n\n你当前的任务是：%s" % current_task.description
-	prompt += "\n\n为了完成这个任务，你需要移动到哪里？请根据当前环境中的物品以及公司员工信息，选择一个最合适的目标。"
+	prompt += "\n\n为了完成这个任务，你需要移动到哪里？请根据当前环境中的物品以及学校师生信息，选择一个最合适的目标。"
 	prompt += "\n请只回复目标的名字，不要有任何其他文字。如果没有合适的目标，请回复'无合适目标'。"
 	print(prompt)
 	# 使用APIManager生成决策

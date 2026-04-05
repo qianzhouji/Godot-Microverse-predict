@@ -133,7 +133,10 @@ func build_dialog_prompt(speaker_personality: Dictionary, listener_personality: 
 	# 获取故事背景和社会规则
 	var background_prompt = BackgroundStoryManager.generate_background_prompt()
 	
-	var prompt = "你是一个员工，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+	var role_type = speaker_personality.get("role_type", "student")
+	var role_description = "教师" if role_type == "teacher" else "学生"
+	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+		role_description,
 		speaker.name,
 		speaker_personality["position"],
 		speaker_personality["personality"],

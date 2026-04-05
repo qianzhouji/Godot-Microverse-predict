@@ -517,11 +517,11 @@ static func get_personality(character_name: String) -> Dictionary:
 		return PERSONALITY_CONFIG[character_name]
 	# 返回默认人设，包含所有必要字段
 	return {
-		"position": "员工",
-		"personality": "普通的办公室职员",
+		"position": "学生",
+		"personality": "普通的中学生",
 		"speaking_style": "正常的交谈方式",
-		"work_duties": "完成日常工作任务",
-		"work_habits": "按时完成工作",
+		"work_duties": "完成学习任务",
+		"work_habits": "按时完成作业",
 		"role_type": "healthy_student",
 		"cognitive_mechanism": {
 			"p_base": 0.5,
