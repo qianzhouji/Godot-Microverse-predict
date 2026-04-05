@@ -558,10 +558,10 @@ func _generate_random_task(character_node):
 	# 安全获取day_night_system（可能在_ready前被调用）
 	var dns = get_node_or_null("/root/DayNightSystem")
 	
-	# 检查是否是上学日
+	# 检查是否是上学日（周一到周五，且不是周末）
 	var is_school_day = false
 	if dns != null:
-		is_school_day = dns.is_school_day
+		is_school_day = not dns.is_weekend()
 	var role_type = personality.get("role_type", "")
 	
 	if is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
