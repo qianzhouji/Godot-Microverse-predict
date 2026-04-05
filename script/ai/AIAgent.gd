@@ -495,7 +495,7 @@ func _refresh_daily_tasks(character_node):
 			print("[AIAgent] %s 的任务已刷新（课程表），当前有 %d 个任务" % [character_node.name, schedule_tasks.size()])
 			return
 	
-	# 如果不是上学日或ScheduleSystem无任务，使用原有逻辑
+	# 如果不是上学日或ScheduleSystem无任务，生成默认任务
 	# 获取当前任务列表
 	var tasks = character_node.get_meta("tasks", [])
 	
@@ -504,18 +504,22 @@ func _refresh_daily_tasks(character_node):
 	for task in tasks:
 		if not task.get("completed", false):
 			incomplete_tasks.append(task)
-			
-	# 重新排序任务（根据优先级从高到低）
-	incomplete_tasks.sort_custom(func(a, b): return a["priority"] > b["priority"])
 	
-	# 如果任务数量少于3个，自动生成新任务
-	while incomplete_tasks.size() < 3:
+	# 检查是否是周末
+	var is_weekend = DayNightSystem and DayNightSystem.is_weekend()
+	var target_task_count = 10 if is_weekend else 3  # 周末生成10个任务，平时3个
+	
+	# 生成新任务直到达到目标数量
+	while incomplete_tasks.size() < target_task_count:
 		# 生成随机任务
 		var new_task = _generate_random_task(character_node)
 		if new_task:
 			incomplete_tasks.append(new_task)
 		else:
 			break
+		
+	# 重新排序任务（根据优先级从高到低）
+	incomplete_tasks.sort_custom(func(a, b): return a["priority"] > b["priority"])
 			
 	# 更新任务列表
 	character_node.set_meta("tasks", incomplete_tasks)
@@ -524,10 +528,15 @@ func _refresh_daily_tasks(character_node):
 	character_node.set_meta("last_task_refresh", Time.get_unix_time_from_system())
 	
 	# 添加任务刷新记忆
-	var memory_text = "你更新了今天的任务计划，共有%d个任务需要完成。" % incomplete_tasks.size()
+	var memory_text = ""
+	if is_weekend:
+		memory_text = "今天是周末，你安排了%d个活动计划。" % incomplete_tasks.size()
+	else:
+		memory_text = "你更新了今天的任务计划，共有%d个任务需要完成。" % incomplete_tasks.size()
 	MemoryManager.add_memory(character_node, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
 	
-	print("[AIAgent] %s 的任务已刷新（默认），当前有 %d 个任务" % [character_node.name, incomplete_tasks.size()])
+	var task_source = "周末" if is_weekend else "默认"
+	print("[AIAgent] %s 的任务已刷新（%s），当前有 %d 个任务" % [character_node.name, task_source, incomplete_tasks.size()])
 
 # 生成随机任务
 func _generate_random_task(character_node):
@@ -537,51 +546,133 @@ func _generate_random_task(character_node):
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(character_node.name)
 	
-	# 根据角色职位和性格生成适合的任务
+	# 根据角色类型和场景生成适合的任务
 	var tasks_pool = []
 	
-	# 通用任务
-	tasks_pool.append("检查邮件")
-	tasks_pool.append("整理工作区")
-	tasks_pool.append("与同事交流")
-	tasks_pool.append("参加会议")
-	tasks_pool.append("休息放松一下")
-	tasks_pool.append("准备明天的工作")
-	tasks_pool.append("回复重要邮件")
-	tasks_pool.append("整理文件")
-	tasks_pool.append("学习新技能")
-	tasks_pool.append("思考工作改进方案")
-	tasks_pool.append("与上级沟通工作进展")
-	tasks_pool.append("帮助同事解决问题")
-	tasks_pool.append("制定工作计划")
-	tasks_pool.append("总结今日工作")
-	tasks_pool.append("准备工作报告")
+	# 检查是否是上学日
+	var is_school_day = DayNightSystem and DayNightSystem.is_school_day
+	var role_type = personality.get("role_type", "")
 	
-	# 根据职位添加特定任务
-	if personality["position"].to_lower().contains("经理") or personality["position"].to_lower().contains("主管"):
-		tasks_pool.append("审核团队报告")
-		tasks_pool.append("分配工作任务")
-		tasks_pool.append("评估团队表现")
-		tasks_pool.append("制定部门策略")
-		tasks_pool.append("与其他部门协调")
-	elif personality["position"].to_lower().contains("销售"):
-		tasks_pool.append("联系潜在客户")
-		tasks_pool.append("准备销售演示")
-		tasks_pool.append("跟进销售线索")
-		tasks_pool.append("更新客户资料")
-		tasks_pool.append("制定销售策略")
-	elif personality["position"].to_lower().contains("技术") or personality["position"].to_lower().contains("工程"):
-		tasks_pool.append("修复技术问题")
-		tasks_pool.append("开发新功能")
-		tasks_pool.append("代码审查")
-		tasks_pool.append("技术文档编写")
-		tasks_pool.append("系统测试")
-	elif personality["position"].to_lower().contains("人力") or personality["position"].to_lower().contains("HR"):
-		tasks_pool.append("审核简历")
-		tasks_pool.append("安排面试")
-		tasks_pool.append("处理员工问题")
-		tasks_pool.append("组织团队活动")
-		tasks_pool.append("更新员工档案")
+	if is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
+		# ========== 学生上学日任务池 ==========
+		tasks_pool.append("认真听讲，做笔记")
+		tasks_pool.append("回答老师提出的问题")
+		tasks_pool.append("与同桌讨论问题")
+		tasks_pool.append("完成课堂练习")
+		tasks_pool.append("阅读课本")
+		tasks_pool.append("整理书包和学习用品")
+		tasks_pool.append("准备下节课的教材")
+		tasks_pool.append("向老师请教不懂的问题")
+		tasks_pool.append("帮助同学解答疑问")
+		tasks_pool.append("参加小组讨论")
+		tasks_pool.append("完成课后作业")
+		tasks_pool.append("复习今天学到的知识")
+		tasks_pool.append("预习明天的课程")
+		tasks_pool.append("整理课堂笔记")
+		tasks_pool.append("思考学习中的问题")
+		
+		# 根据学生类型添加特定任务
+		if role_type == "depression_risk_student":
+			tasks_pool.append("努力集中注意力")
+			tasks_pool.append("尝试参与课堂互动")
+			tasks_pool.append("在座位上休息片刻")
+			tasks_pool.append("深呼吸放松")
+			tasks_pool.append("写下自己的心情")
+		else:  # healthy_student
+			tasks_pool.append("积极举手发言")
+			tasks_pool.append("主动帮助同学")
+			tasks_pool.append("参与班级活动")
+			tasks_pool.append("与同学讨论学习方法")
+			tasks_pool.append("分享学习心得")
+	
+	elif not is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
+		# ========== 学生周末任务池 ==========
+		tasks_pool.append("完成周末作业")
+		tasks_pool.append("阅读课外书籍")
+		tasks_pool.append("复习本周学习内容")
+		tasks_pool.append("预习下周课程")
+		tasks_pool.append("整理学习资料")
+		tasks_pool.append("参加兴趣班或社团活动")
+		tasks_pool.append("进行体育锻炼")
+		tasks_pool.append("与朋友外出游玩")
+		tasks_pool.append("在家休息放松")
+		tasks_pool.append("看电影或听音乐")
+		tasks_pool.append("帮助父母做家务")
+		tasks_pool.append("学习新技能或爱好")
+		tasks_pool.append("外出购物")
+		tasks_pool.append("拜访亲戚朋友")
+		tasks_pool.append("规划下周安排")
+		
+		# 根据学生类型添加特定任务
+		if role_type == "depression_risk_student":
+			tasks_pool.append("在家安静休息")
+			tasks_pool.append("写日记记录心情")
+			tasks_pool.append("独自画画或听音乐")
+			tasks_pool.append("在公园散步")
+			tasks_pool.append("阅读喜欢的书籍")
+		else:  # healthy_student
+			tasks_pool.append("参加朋友聚会")
+			tasks_pool.append("组织户外活动")
+			tasks_pool.append("学习新的运动")
+			tasks_pool.append("探索新的兴趣爱好")
+			tasks_pool.append("与朋友视频聊天")
+	
+	elif role_type == "teacher":
+		# ========== 教师任务池 ==========
+		var position = personality.get("position", "")
+		
+		if position.contains("班主任"):
+			tasks_pool.append("准备教案")
+			tasks_pool.append("批改学生作业")
+			tasks_pool.append("管理班级纪律")
+			tasks_pool.append("与学生谈心")
+			tasks_pool.append("联系家长沟通学生情况")
+			tasks_pool.append("组织班级活动")
+			tasks_pool.append("关注学生心理健康")
+			tasks_pool.append("处理班级突发事件")
+			tasks_pool.append("参加教师会议")
+			tasks_pool.append("制定教学计划")
+		elif position.contains("数学"):
+			tasks_pool.append("准备数学教案")
+			tasks_pool.append("批改数学作业")
+			tasks_pool.append("解答学生数学问题")
+			tasks_pool.append("准备数学测验")
+			tasks_pool.append("辅导数学困难学生")
+			tasks_pool.append("研究数学教学方法")
+			tasks_pool.append("参加数学教研活动")
+			tasks_pool.append("更新数学教学资料")
+		elif position.contains("英语"):
+			tasks_pool.append("准备英语教案")
+			tasks_pool.append("批改英语作业")
+			tasks_pool.append("纠正学生发音")
+			tasks_pool.append("组织英语角活动")
+			tasks_pool.append("播放英语歌曲")
+			tasks_pool.append("推荐英文电影")
+			tasks_pool.append("辅导英语口语")
+			tasks_pool.append("参加英语教研活动")
+		else:
+			# 通用教师任务
+			tasks_pool.append("准备教案")
+			tasks_pool.append("批改作业")
+			tasks_pool.append("解答学生问题")
+			tasks_pool.append("参加教研会议")
+			tasks_pool.append("制定教学计划")
+			tasks_pool.append("与学生交流")
+			tasks_pool.append("整理教学资料")
+			tasks_pool.append("准备考试内容")
+	
+	else:
+		# ========== 备用：通用学校场景任务 ==========
+		tasks_pool.append("整理学习用品")
+		tasks_pool.append("阅读书籍")
+		tasks_pool.append("与同学交流")
+		tasks_pool.append("参加学校活动")
+		tasks_pool.append("休息放松")
+		tasks_pool.append("准备明天的安排")
+		tasks_pool.append("复习知识")
+		tasks_pool.append("整理笔记")
+		tasks_pool.append("学习新技能")
+		tasks_pool.append("思考学习计划")
 	
 	# 随机选择一个任务
 	var random_task = tasks_pool[randi() % tasks_pool.size()]
