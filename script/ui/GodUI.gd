@@ -171,7 +171,6 @@ func _update_character_detail():
 	if not selected_character:
 		# 清空详情显示
 		character_detail.get_node("NameLabel").text = "姓名："
-		character_detail.get_node("HBoxContainer/VBoxContainer/MoneyLabel").text = "存款：0"
 		character_detail.get_node("HBoxContainer/VBoxContainer/MoodLabel").text = "心情：普通"
 		character_detail.get_node("HBoxContainer/VBoxContainer/HealthLabel").text = "健康：良好"
 		character_detail.get_node("TabContainer/人设/PersonalityText").text = "选择一个角色查看人设..."
@@ -193,11 +192,9 @@ func _update_character_detail():
 	character_detail.get_node("NameLabel").text = "姓名：" + selected_character.name
 	
 	# 尝试获取角色属性，如果不存在则使用默认值
-	var money = selected_character.get_meta("money", 0)
 	var mood = selected_character.get_meta("mood", "普通")
 	var health = selected_character.get_meta("health", "良好")
 	
-	character_detail.get_node("HBoxContainer/VBoxContainer/MoneyLabel").text = "存款：" + str(money)
 	character_detail.get_node("HBoxContainer/VBoxContainer/MoodLabel").text = "心情：" + str(mood)
 	character_detail.get_node("HBoxContainer/VBoxContainer/HealthLabel").text = "健康：" + str(health)
 	

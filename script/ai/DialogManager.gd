@@ -55,14 +55,12 @@ func get_character_status_info(character: CharacterBody2D) -> String:
 		return "\n当前状态信息不可用。"
 	
 	# 从角色节点获取数据
-	var money = character.get_meta("money", 0)
 	var mood = character.get_meta("mood", "普通")
 	var health = character.get_meta("health", "良好")
 	var memories = character.get_meta("memories", [])
 	var relations = character.get_meta("relations", {})
 	
 	var status_info = "\n\n【当前个人状态】"
-	status_info += "\n💰 金钱：%d元" % money
 	status_info += "\n😊 心情：%s" % mood
 	status_info += "\n❤️ 健康：%s" % health
 	

@@ -367,12 +367,10 @@ func get_character_status_info(char_node = null) -> String:
 	var status_info = ""
 	
 	# 基本状态信息
-	var money = target_character.get_meta("money", 0)
 	var mood = target_character.get_meta("mood", "普通")
 	var health = target_character.get_meta("health", "良好")
 	
 	status_info += "\n\n个人状态信息："
-	status_info += "\n- 存款：" + str(money) + "元"
 	status_info += "\n- 心情状态：" + mood
 	status_info += "\n- 健康状况：" + health
 	
@@ -1231,10 +1229,9 @@ func generate_thinking_content(char_node = null):
 	]
 	
 	# 只添加关键的个人状态信息
-	var money = target_character.get_meta("money", 0)
 	var mood = target_character.get_meta("mood", "普通")
 	var health = target_character.get_meta("health", "良好")
-	prompt += "\n当前状态：心情%s，健康%s，存款%d元。" % [mood, health, money]
+	prompt += "\n当前状态：心情%s，健康%s。" % [mood, health]
 	
 	# 添加最重要的任务信息
 	if tasks_info != "":
