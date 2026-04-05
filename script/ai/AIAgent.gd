@@ -2568,10 +2568,10 @@ func _check_mvt_leave_decision(room_name: String, time_in_room: float,
 		should_leave = true
 		leave_reason = "已达到最优停留时间(%.0f秒)，继续停留效用将下降" % optimal_time
 	
-	# 条件2：当前效用为负（即使时间未到最优，但已经"不值"了）
+	# 条件2：当前效用为负（即使时间未到最优，但已经不值得继续了）
 	elif current_utility < -0.1:
 		should_leave = true
-		leave_reason = "当前情境效用为负(%.2f)，继续参与感到"不值"" % current_utility
+		leave_reason = "当前情境效用为负(%.2f)，继续参与感到不值得" % current_utility
 	
 	# 条件3：抑郁Agent的特殊回避行为（高努力敏感性导致提前离开）
 	elif is_depression and utility_params.beta_effort > 0.7 and effort > 0.5 and time_in_room > optimal_time * 0.5:
