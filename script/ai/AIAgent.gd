@@ -513,10 +513,10 @@ func _refresh_daily_tasks(character_node):
 	var is_weekend = false
 	if dns != null:
 		is_weekend = dns.is_weekend()
-	var target_task_count = 3 if is_weekend else 1  # 最多3个任务，留出空间给课程任务
+	var target_task_count = 3 if is_weekend else 2  # 初始分配2-3个任务
 	
-	# 生成新任务直到达到目标数量（但不超过3个总任务）
-	while incomplete_tasks.size() < target_task_count and incomplete_tasks.size() < 3:
+	# 生成新任务直到达到目标数量（但不超过5个总任务）
+	while incomplete_tasks.size() < target_task_count and incomplete_tasks.size() < 5:
 		# 生成随机任务
 		var new_task = _generate_random_task(character_node)
 		if new_task:

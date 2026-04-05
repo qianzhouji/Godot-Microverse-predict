@@ -3,9 +3,9 @@ extends Node
 # TaskManager - 任务管理核心系统
 # 严格遵循时间表，确保上课时间所有相关Agent在教室
 
-const MAX_TASKS: int = 3  # 最多3个任务
-const CLASS_TASK_PRIORITY: int = 10  # 课程任务最高优先级
-const CURRENT_TASK_PRIORITY: int = 9  # 当前课程任务优先级
+const MAX_TASKS: int = 5  # 最多5个任务
+const CLASS_TASK_PRIORITY: int = 8  # 课程任务优先级（留出空间给更重要的事）
+const CURRENT_TASK_PRIORITY: int = 8  # 当前课程任务优先级
 const NORMAL_TASK_PRIORITY: int = 3  # 普通任务优先级
 
 # 课程时间表
@@ -90,7 +90,7 @@ func _enforce_class_attendance(class_info: Dictionary):
 		if not ai_agent:
 			continue
 		
-		# 清除现有任务（保留最多2个非课程任务）
+		# 清除现有任务（保留最多2个非课程任务，但总任务不超过5个）
 		_clear_non_class_tasks(character, 2)
 		
 		match class_type:
@@ -326,7 +326,7 @@ func _add_base_tasks(character: Node, ai_agent: Node):
 		ai_agent.add_task(task)
 
 func _clear_non_class_tasks(character: Node, keep_count: int):
-	"""清除非课程任务，但保留指定数量"""
+	"""清除非课程任务，但保留指定数量，总任务不超过MAX_TASKS"""
 	var ai_agent = _get_ai_agent(character)
 	if not ai_agent:
 		return
@@ -348,6 +348,10 @@ func _clear_non_class_tasks(character: Node, keep_count: int):
 	# 合并任务列表（课程任务优先）
 	var new_tasks = class_tasks + other_tasks
 	new_tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
+	
+	# 确保总任务数不超过MAX_TASKS
+	if new_tasks.size() > MAX_TASKS:
+		new_tasks.resize(MAX_TASKS)
 	
 	character.set_meta("tasks", new_tasks)
 
