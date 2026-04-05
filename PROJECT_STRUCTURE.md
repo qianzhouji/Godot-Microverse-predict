@@ -233,6 +233,37 @@ res://
   - 健康学生：正常参与所有活动
   - 教师：按课程表教学
 
+#### TaskManager.gd ⭐ 2026-04-05新增
+- **路径**: `res://script/system/TaskManager.gd`
+- **类型**: Node (AutoLoad)
+- **职责**: 任务管理核心系统，强制执行课程出勤
+- **核心功能**:
+  - `_enforce_class_attendance()` - 强制上课时间Agent在教室
+  - `_should_attend_class()` - 根据人设判断是否逃课
+  - `_add_class_task()` - 添加课程任务（优先级8）
+  - `trigger_class_interaction()` - 触发课堂互动
+  - `can_freely_move()` - 判断是否可以自由移动
+- **逃课机制**: 抑郁Agent根据beta_effort有30%概率逃课
+- **课堂互动**: 老师提问、学生回答、同桌讨论、小组闲聊（30%被发现）
+- **常量**:
+  - MAX_TASKS = 5
+  - CLASS_TASK_PRIORITY = 8
+
+#### Logger.gd ⭐ 2026-04-05新增
+- **路径**: `res://script/system/Logger.gd`
+- **类型**: Node (AutoLoad)
+- **职责**: 游戏日志系统，按游戏时间记录三种日志
+- **日志文件**:
+  - `activity_log.txt` - 角色移动和活动
+  - `monologue_log.txt` - 任务内心独白
+  - `dialogue_log.txt` - 角色对话
+- **核心函数**:
+  - `log_activity()` - 记录活动
+  - `log_movement()` - 记录移动
+  - `log_monologue()` - 记录内心独白
+  - `log_dialogue()` - 记录对话
+- **时间戳格式**: `[第X天 周X HH:MM]`
+
 ---
 
 ### 3.3 角色系统 (script/)
@@ -446,10 +477,13 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 |---------|-------|------|
 | script/ai/APIManager.gd | APIManager | API调用管理 |
 | script/ai/memory/MemoryManager.gd | MemoryManager | 记忆系统 |
+| script/ai/DialogManager.gd | DialogManager | 对话管理 |
 | script/CharacterManager.gd | CharacterManager | 角色管理 |
 | script/system/RewardSystem.gd | RewardSystem | 奖赏系统 |
 | script/system/DayNightSystem.gd | DayNightSystem | 游戏时间管理系统 |
 | script/system/ScheduleSystem.gd | ScheduleSystem | 课程表与任务管理 |
+| script/system/TaskManager.gd | TaskManager | 任务管理（课程出勤） |
+| script/system/Logger.gd | Logger | 日志系统 |
 
 ---
 
@@ -542,6 +576,43 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
   - 学生周末任务池（20个任务）
   - 教师任务池（按科目定制）
   - 完全替换办公室任务为学校场景任务
+
+### 2026-04-05 - 晚间更新
+
+#### 任务系统重构
+- ✅ 创建 TaskManager.gd
+  - 强制执行课程出勤（上课时间强制Agent在教室）
+  - 最多5个任务，初始分配3个
+  - 课程任务优先级8（留出9-10给人生大事）
+  - 人设化逃课（抑郁Agent根据beta_effort有概率逃课）
+  - 课堂互动机制（老师提问、学生回答、同桌讨论、小组闲聊）
+  - 闲聊被老师发现的风险（30%概率）
+- ✅ 修改AIAgent任务优先级评估
+  - Agent自主判断渴望值（1-10）
+  - 提供完整的判断标准和示例
+  - 大部分日常任务应该是3-5
+
+#### 角色感知与对话
+- ✅ 添加Agent感知附近角色功能
+  - _check_nearby_characters()函数
+  - 根据性格决定对话概率（抑郁10%，外向40%，内向15%，普通25%）
+  - 距离阈值100px
+- ✅ 修复对话触发机制
+  - 在决策流程中检查附近角色
+  - 自动发起对话
+
+#### 办公室内容清理
+- ✅ 彻底清理所有"员工"和"办公室"残留
+  - AIAgent.gd: 修改"公司员工信息"为"学校师生信息"
+  - ConversationManager.gd: 动态角色描述（教师/学生）
+  - CharacterPersonality.gd: 默认人设改为"学生"
+  - DialogManager.gd: 替换公司相关描述
+
+#### 日志系统
+- ✅ 创建 Logger.gd
+  - 三种日志文件：activity_log.txt, monologue_log.txt, dialogue_log.txt
+  - 按照游戏时间戳记录
+  - 集成到AIAgent和DialogManager
 
 ---
 
