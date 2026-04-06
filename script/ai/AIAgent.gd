@@ -878,27 +878,6 @@ func _get_room_situation_params(room_name: String) -> String:
 	
 	return params_desc
 
-func _get_direction_description(from_pos: Vector2, to_pos: Vector2) -> String:
-	var direction = to_pos - from_pos
-	var angle = rad_to_deg(direction.angle())
-	
-	if angle >= -22.5 and angle < 22.5:
-		return "东边"
-	elif angle >= 22.5 and angle < 67.5:
-		return "东北方向"
-	elif angle >= 67.5 and angle < 112.5:
-		return "北边"
-	elif angle >= 112.5 and angle < 157.5:
-		return "西北方向"
-	elif angle >= 157.5 or angle < -157.5:
-		return "西边"
-	elif angle >= -157.5 and angle < -112.5:
-		return "西南方向"
-	elif angle >= -112.5 and angle < -67.5:
-		return "南边"
-	else:
-		return "东南方向"
-
 func get_character_status_info(char_node = null) -> String:
 	var target_character = char_node if char_node else character
 	var status_info = ""
