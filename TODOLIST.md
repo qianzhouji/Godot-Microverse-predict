@@ -236,16 +236,135 @@ func select_voice_range(context: Dictionary) -> int:
 
 **核心设计**: 对话"行为"在整个子场景广播，对话"内容"仅在范围内可见
 
+**新增数据结构**:
+
 ```gdscript
-# 对话消息结构
+# 对话消息结构（新增）
 class DialogueMessage:
-    var speaker: Agent                    # 发言者
+    var speaker_id: String                # 发言者ID
+    var speaker_name: String              # 发言者名称
+    var speaker_role: String              # 角色类型（teacher/student）
     var range_type: int                   # 范围类型（大/中/小）
     var range_id: String                  # 范围标识（如"教室_左上象限"）
+    var room_name: String                 # 所在子场景名称
     var behavior_summary: String          # 行为摘要（全子场景可见）
     var full_content: String              # 完整内容（仅范围内可见）
     var timestamp: float                  # 时间戳
     var topic_id: String                  # 话题ID
+    var priority: float                   # 发言优先级
+    var emotion_tags: Array[String]       # 情感标签（如["excited", "worried"]）
+
+# Agent对话感知状态（每个Agent维护）
+class DialoguePerception:
+    var visible_behaviors: Array[DialogueMessage]     # 可见的行为摘要列表
+    var audible_contents: Array[DialogueMessage]      # 可听到的完整内容列表
+    var current_topic_id: String                      # 当前参与的话题ID
+    var last_speak_time: float                        # 最后发言时间
+    var silence_duration: float                       # 沉默持续时间
+    
+    func update_perception(new_message: DialogueMessage, can_hear_content: bool):
+        # 添加行为摘要（所有Agent都可见）
+        visible_behaviors.append(new_message)
+        
+        # 如果在范围内，添加完整内容
+        if can_hear_content:
+            audible_contents.append(new_message)
+            return true  # 听到了内容
+        return false  # 只看到了行为
+    
+    func get_recent_behaviors(count: int = 5) -> Array[DialogueMessage]:
+        # 获取最近的行为摘要（用于决策是否靠近）
+        return visible_behaviors.slice(-count)
+    
+    func get_unheard_discussions() -> Array[DialogueMessage]:
+        # 获取可见但未听到的讨论（引起好奇心的来源）
+        var unheard = []
+        for behavior in visible_behaviors:
+            var heard = false
+            for content in audible_contents:
+                if content.timestamp == behavior.timestamp:
+                    heard = true
+                    break
+            if not heard:
+                unheard.append(behavior)
+        return unheard
+
+# 子场景对话管理器（每个RoomArea维护一个）
+class RoomDialogueManager:
+    var room_name: String
+    var all_dialogues: Array[DialogueMessage]           # 该房间所有对话记录
+    var medium_range_managers: Dictionary               # 中范围管理器（key: range_id）
+    var current_topics: Dictionary                      # 当前进行中的话题
+    
+    func broadcast_to_room(message: DialogueMessage):
+        # 向整个子场景广播行为摘要
+        all_dialogues.append(message)
+        
+        # 通知该房间内所有Agent（仅行为摘要）
+        for agent in get_agents_in_room():
+            agent.dialogue_perception.update_perception(message, false)
+    
+    func broadcast_to_range(message: DialogueMessage, range_id: String):
+        # 向特定范围广播完整内容
+        if range_id in medium_range_managers:
+            var manager = medium_range_managers[range_id]
+            manager.receive_dialogue(message)
+        
+        # 通知范围内的Agent（包含完整内容）
+        for agent in get_agents_in_range(range_id):
+            agent.dialogue_perception.update_perception(message, true)
+    
+    func get_behavior_summary_for_agent(agent: Agent) -> Array[DialogueMessage]:
+        # 获取该Agent可见的所有行为摘要
+        var visible = []
+        for dialogue in all_dialogues:
+            # 排除自己的发言
+            if dialogue.speaker_id != agent.id:
+                visible.append(dialogue)
+        return visible
+
+# Agent新增属性
+class AIAgent:
+    # 原有属性...
+    var dialogue_perception: DialoguePerception         # 对话感知状态（新增）
+    var curiosity_level: float = 0.5                    # 好奇心水平（0-1）
+    var social_drive: float = 0.5                       # 社交驱动力（0-1）
+    
+    func _init():
+        dialogue_perception = DialoguePerception.new()
+    
+    func process_dialogue_perception():
+        # 处理感知到的对话行为
+        var unheard = dialogue_perception.get_unheard_discussions()
+        
+        for behavior in unheard:
+            # 计算是否感兴趣
+            var interest = calculate_interest_in_discussion(behavior)
+            
+            if interest > INTEREST_THRESHOLD:
+                # 产生好奇心，可能移动过去
+                var desire_to_join = calculate_join_desire(behavior)
+                if desire_to_join > JOIN_THRESHOLD:
+                    move_to_range(behavior.range_id)
+    
+    func calculate_interest_in_discussion(behavior: DialogueMessage) -> float:
+        var interest = 0.0
+        
+        # 发言者是朋友？
+        if is_friend(behavior.speaker_id):
+            interest += 0.3
+        
+        # 好奇心水平
+        interest += curiosity_level * 0.2
+        
+        # 社交驱动力
+        interest += social_drive * 0.3
+        
+        # 当前心情
+        interest += current_mood * 0.2
+        
+        return interest
+```
 
 # 发送对话
 func broadcast_dialogue(speaker: Agent, content: String, range_type: int):
