@@ -16995,20 +16995,6 @@ activity_types = Array[String](["小组合作", "竞选"])
 position = Vector2(526.5, 516)
 shape = SubResource("RectangleShape2D_f7hqq")
 
-[node name="RoomArea_Canteen" type="Area2D" parent="." unique_id=990108186]
-visible = false
-script = ExtResource("30_yhhlg")
-room_name = "食堂"
-room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、饮水机和多个座位"
-initial_reward_rate = 0.8
-reward_decay_rate = 0.3
-effort_level = 0.2
-activity_types = Array[String](["同伴互动"])
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Canteen" unique_id=826004662]
-position = Vector2(479.5, 324.5)
-shape = SubResource("RectangleShape2D_qy4lc")
-
 [node name="RoomArea_Corridor" type="Area2D" parent="." unique_id=990108187]
 visible = false
 script = ExtResource("30_yhhlg")
@@ -17020,7 +17006,35 @@ effort_level = 0.2
 activity_types = Array[String](["偶遇互动"])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor" unique_id=1882605038]
+position = Vector2(480, 324.5)
+shape = SubResource("RectangleShape2D_qy4lc")
+
+[node name="RoomArea_Canteen" type="Area2D" parent="." unique_id=990108186]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "食堂"
+room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、饮水机和多个座位"
+initial_reward_rate = 0.8
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = Array[String](["同伴互动"])
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Canteen" unique_id=826004662]
 position = Vector2(480, 166)
+shape = SubResource("RectangleShape2D_10dvn")
+
+[node name="RoomArea_Corridor2" type="Area2D" parent="." unique_id=990108189]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "走廊2"
+room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的地方"
+initial_reward_rate = 0.3
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = Array[String](["偶遇互动"])
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor2" unique_id=1882605039]
+position = Vector2(750, 516)
 shape = SubResource("RectangleShape2D_10dvn")
 
 [node name="RoomArea_Gym" type="Area2D" parent="." unique_id=990108188]
