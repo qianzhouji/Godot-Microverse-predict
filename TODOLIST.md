@@ -232,7 +232,154 @@ func select_voice_range(context: Dictionary) -> int:
 其他象限的学生X、Y、Z: （未收到广播）
 ```
 
-#### 8. 多人同时发言处理机制
+#### 8. 对话行为与内容分离机制
+
+**核心设计**: 对话"行为"在整个子场景广播，对话"内容"仅在范围内可见
+
+```gdscript
+# 对话消息结构
+class DialogueMessage:
+    var speaker: Agent                    # 发言者
+    var range_type: int                   # 范围类型（大/中/小）
+    var range_id: String                  # 范围标识（如"教室_左上象限"）
+    var behavior_summary: String          # 行为摘要（全子场景可见）
+    var full_content: String              # 完整内容（仅范围内可见）
+    var timestamp: float                  # 时间戳
+    var topic_id: String                  # 话题ID
+
+# 发送对话
+func broadcast_dialogue(speaker: Agent, content: String, range_type: int):
+    var message = DialogueMessage.new()
+    message.speaker = speaker
+    message.range_type = range_type
+    message.range_id = get_current_range_id(speaker, range_type)
+    message.full_content = content
+    message.timestamp = Time.get_time_dict_from_system()
+    message.topic_id = current_topic_id
+    
+    # 生成行为摘要（不含具体内容）
+    message.behavior_summary = generate_behavior_summary(speaker, range_type)
+    # 例如: "学生A正在与小组成员讨论" / "教师正在讲课"
+    
+    # 1. 向整个子场景广播行为摘要
+    for agent in get_agents_in_same_room(speaker):
+        agent.receive_dialogue_behavior(message)
+    
+    # 2. 向范围内Agent广播完整内容
+    for agent in get_agents_in_range(speaker, range_type):
+        agent.receive_dialogue_content(message)
+
+# 生成行为摘要（保护隐私的抽象描述）
+func generate_behavior_summary(speaker: Agent, range_type: int) -> String:
+    var range_desc = ""
+    match range_type:
+        VOICE_RANGE_LARGE: range_desc = "正在对大家说话"
+        VOICE_RANGE_MEDIUM: range_desc = "正在与附近的人交谈"
+        VOICE_RANGE_SMALL: range_desc = "正在与身边的人私语"
+    
+    return f"{speaker.name}{range_desc}"
+```
+
+**感知层级**:
+
+| 信息层级 | 可见范围 | 内容 | 用途 |
+|---------|---------|------|------|
+| **行为层** | 整个子场景 | "学生A正在与小组成员讨论" | 感知社交活动，决定是否靠近 |
+| **内容层** | 仅对话范围内 | "我觉得这个问题应该..." | 实际对话内容，参与讨论 |
+
+**典型场景示例**:
+
+**场景: 教师监控课堂**
+```
+时间: 上课时间
+地点: 教室（主教学区）
+教师: 正在讲课（大范围）
+
+教师视角:
+    ├─ [大范围内容] "所以这道题的解法是..."
+    ├─ [行为感知] 学生A正在与附近的人交谈 ⚠️
+    ├─ [行为感知] 学生B正在认真听讲 ✓
+    └─ [行为感知] 学生C和D正在私语 ⚠️
+
+教师决策:
+    选项1: 继续讲课（忽略）
+    选项2: 大范围警告: "请安静听讲"
+    选项3: 走到学生A的中范围，小范围制止: "专心听讲"
+    选项4: 走到学生C/D的小范围，直接对话
+
+学生A视角:
+    ├─ [听到] 教师讲课内容（大范围）
+    ├─ [听到] 同桌B的提问（中范围）
+    └─ [未听到] 后排C/D的私语（不在范围内）
+```
+
+**场景: 课间社交感知**
+```
+时间: 课间休息
+地点: 走廊
+学生A: 独自在走廊
+
+学生A感知到的行为:
+    ├─ [走廊左侧] 学生B、C正在交谈
+    ├─ [走廊右侧] 学生D正在独自走路
+    └─ [小走廊] 教师正在与学生E私语
+
+学生A决策:
+    选项1: 走向B/C，进入他们的中范围加入对话
+    选项2: 走向D，发起新对话
+    选项3: 避开教师，选择其他路线
+    选项4: 继续独自待着
+```
+
+**AI Agent决策逻辑**:
+
+```gdscript
+func process_perceived_behaviors(behaviors: Array[DialogueMessage]):
+    for behavior in behaviors:
+        # 1. 判断是否感兴趣
+        var interest_level = calculate_interest(behavior)
+        
+        # 2. 判断是否可以加入
+        var can_join = can_enter_range(behavior.speaker, behavior.range_type)
+        
+        # 3. 决策
+        if interest_level > INTEREST_THRESHOLD and can_join:
+            # 有兴趣且能加入 → 移动到对应范围
+            move_to_range(behavior.speaker, behavior.range_type)
+        elif behavior.speaker.is_teacher and behavior.range_type == VOICE_RANGE_LARGE:
+            # 教师在大范围讲话 → 注意听讲
+            focus_on_teacher(behavior.speaker)
+        elif is_friend(behavior.speaker) and behavior.range_type == VOICE_RANGE_SMALL:
+            # 朋友在私语但不包括我 → 可能感到被排斥
+            update_emotion("excluded", -0.1)
+
+func teacher_intervention_decision(behaviors: Array[DialogueMessage]):
+    for behavior in behaviors:
+        if behavior.speaker.is_student and behavior.range_type != VOICE_RANGE_LARGE:
+            # 发现学生在私下交谈
+            if is_class_time():
+                # 上课时间 → 选择干预方式
+                var options = [
+                    {"action": "ignore", "priority": 10},
+                    {"action": "large_range_warning", "priority": 30},
+                    {"action": "move_to_medium_range", "priority": 50},
+                    {"action": "move_to_small_range", "priority": 70}
+                ]
+                
+                # 基于学生历史行为、当前课程重要性等选择
+                var chosen = select_action(options)
+                execute_intervention(chosen, behavior.speaker)
+```
+
+**优势**:
+
+1. **隐私保护**: 不在范围内的Agent只能看到"有人在说话"，听不到内容
+2. **社交感知**: Agent可以感知周围的社交活动，做出靠近/远离决策
+3. **教师权威**: 教师可以监控整个教室，选择适当的干预方式
+4. **情感模拟**: 看到朋友私语但不包括自己，可能产生被排斥感
+5. **自然行为**: 模拟真实世界中"看到有人在聊天但听不到说什么"的体验
+
+#### 9. 多人同时发言处理机制
 
 **问题**: 同一中范围内，多个Agent同时想要发言怎么办？
 
