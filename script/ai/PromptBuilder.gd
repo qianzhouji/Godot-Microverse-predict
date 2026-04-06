@@ -10,7 +10,7 @@ const PROMPTS_DIR = "res://prompts/"
 const FRAGMENTS_DIR = "res://prompts/fragments/"
 
 # 缓存加载的模板
-template_cache: Dictionary = {}
+static var template_cache: Dictionary = {}
 
 # ============================================
 # 主入口：构建决策Prompt

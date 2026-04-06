@@ -1,6 +1,9 @@
 extends Node
 class_name TimelineState
 
+# 单例实例
+static var instance: TimelineState
+
 # 课程表配置
 const SCHEDULE = {
     8.0: {"subject": "班主任课", "room": "教室（主教学区）", "type": "class"},
@@ -18,6 +21,8 @@ var current_room: String = ""
 var is_class_time: bool = false
 
 func _ready():
+    instance = self
+    
     # 等待TimingSystem初始化完成
     await get_tree().create_timer(0.5).timeout
     

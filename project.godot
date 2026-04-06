@@ -22,6 +22,8 @@ config/icon="res://icon.svg"
 [autoload]
 
 SettingsManager="*res://script/ui/SettingsManager.gd"
+TimingSystem="*res://script/system/TimingSystem.gd"
+TimelineState="*res://script/system/TimelineState.gd"
 RewardSystem="*res://script/system/RewardSystem.gd"
 APIManager="*res://script/ai/APIManager.gd"
 MemoryManager="*res://script/ai/memory/MemoryManager.gd"

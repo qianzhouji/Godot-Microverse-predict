@@ -19,7 +19,7 @@ enum AgentState {
 # 核心引用
 # ============================================
 var character: CharacterBody2D = null          # 角色节点
-var room_manager: RoomManager = null           # 房间管理器
+var room_manager = null           # 房间管理器 (RoomManager类型，通过场景树获取)
 
 # ============================================
 # 感知层组件(保留)
@@ -124,7 +124,7 @@ func _perform_cognitive_cycle():
 
 	# 3. 决策阶段
 	current_state = AgentState.DECIDING
-	var request = _make_decision(perception)
+	var request = await _make_decision(perception)
 	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
 
 	# 4. 提交请求到时序系统
@@ -951,11 +951,12 @@ func _is_step2_valid(step2: ActionRequest, perception: Dictionary) -> bool:
 			return false
 
 	# 检查时间约束是否变化
-	var constraints = TimelineState.instance.get_constraints()
-	if step2.action_type == ActionRequest.ActionType.START_DIALOGUE:
-		if not constraints.can_start_dialogue:
-			print("[AIAgent] Step2无效:现在不能开始对话")
-			return false
+	if TimelineState.instance:
+		var constraints = TimelineState.instance.get_constraints()
+		if step2.action_type == ActionRequest.ActionType.START_DIALOGUE:
+			if not constraints.can_start_dialogue:
+				print("[AIAgent] Step2无效:现在不能开始对话")
+				return false
 
 	# 其他验证...
 
