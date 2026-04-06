@@ -422,11 +422,48 @@ DialogueManager  ░░░░░░░░░░░░░░░░░░░░   
 
 ---
 
+## 附录：AIAgent重构分析
+
+### 原系统 vs 新系统对比
+
+| 组件 | 原系统 | 新系统 | 处理方式 |
+|------|--------|--------|----------|
+| 时序管理 | 60秒决策定时器 | Click周期触发 | 完全重构 |
+| 任务系统 | TaskManager驱动 | 课程表驱动 | 舍弃旧系统 |
+| 对话系统 | 1对1结构化对话 | 广播式+优先级队列 | 完全重构 |
+| 感知系统 | 直接读取RoomArea | RewardSystem信号 | 分层隔离 |
+
+### 代码保留/舍弃统计
+
+| 类别 | 数量 | 说明 |
+|------|------|------|
+| 原函数总数 | 81个 | AIAgent.gd |
+| 舍弃 | ~40个 | 定时器、旧任务、旧对话 |
+| 保留 | ~25个 | 感知、移动、工具函数 |
+| 新增 | ~15个 | 新认知循环、行动执行 |
+
+### 完全保留的系统
+
+- **PerceptionSystem** - 贝叶斯感知
+- **AgentRewardReceiver** - 奖赏接收
+- **MemoryManager** - 记忆管理
+- **DailyReflectionSystem** - 每日反思
+- **DynamicPersonality** - 动态人格
+
+### 完全舍弃的系统
+
+- **ConversationManager** - 旧1对1对话
+- **DialogManager** - 旧对话管理
+- **DialogService** - 旧对话服务
+- **TaskManager** - 旧任务系统
+
+---
+
 *本文档合并了以下历史文档*:
 - Phase1_TimingSystem_Implementation.md
 - Phase2_AIAgent_Refactor_Plan.md
 - AUTOLOAD_SETUP.md
 - File_Location_Index.md
-- AIAgent_Refactor_Analysis.md（部分内容）
+- AIAgent_Refactor_Analysis.md
 
 *维护者：百舟楫*
