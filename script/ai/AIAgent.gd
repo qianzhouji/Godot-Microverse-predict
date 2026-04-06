@@ -920,61 +920,8 @@ func _find_target_by_name(target_name: String):
 			return agent
 	return null
 
-func move_to_target(target_info: Dictionary, char_node = null):
-	var target_character = char_node if char_node else character
-	
-	if target_info.is_empty():
-		return
-	
-	var target_pos = Vector2.ZERO
-	
-	match target_info.type:
-		"object":
-			target_pos = target_info.target.global_position + Vector2(randf_range(-30, 30), randf_range(-30, 30))
-		"character":
-			target_pos = target_info.target.global_position + Vector2(randf_range(-50, 50), randf_range(-50, 50))
-		"room":
-			target_pos = target_info.target.position
-	
-	if target_character.has_method("move_to"):
-		target_character.move_to(target_pos)
-
 func _add_memory(target_character, content: String):
 	MemoryManager.add_memory(target_character, content, MemoryManager.MemoryType.PERSONAL, MemoryManager.MemoryImportance.NORMAL)
-
-func _execute_class_movement(target_character, current_task):
-	# 课程移动任务执行
-	var target_room = current_task.get("target_room", "")
-	var room_data = room_manager.get_room_by_name(target_room)
-	
-	if not room_data:
-		return
-	
-	var target_pos = _get_room_entrance_position(room_data)
-	
-	if target_character.has_method("move_to"):
-		target_character.move_to(target_pos)
-		_start_arrival_tracking(target_character, target_room, current_task)
-
-func _get_room_entrance_position(room_data) -> Vector2:
-	if not room_data:
-		return Vector2.ZERO
-	
-	# 返回房间中心位置
-	return room_data.position
-
-func _start_arrival_tracking(target_character, target_room: String, current_task):
-	# 简单的到达检测，实际应该使用更复杂的逻辑
-	await get_tree().create_timer(2.0).timeout
-	print("[AIAgent] %s 到达 %s" % [target_character.name, target_room])
-
-func _get_room_entrance_position(room_data) -> Vector2:
-	# TODO: 从原AIAgent保留此函数
-	return Vector2.ZERO
-
-func _start_arrival_tracking(target_character, target_room: String, current_task):
-	# TODO: 从原AIAgent保留此函数
-	pass
 
 # ============================================
 # MVT决策（保留，后续添加）
