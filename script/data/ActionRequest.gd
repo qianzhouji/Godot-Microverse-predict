@@ -1,8 +1,9 @@
 class_name ActionRequest
 
 enum ActionType {
-    MOVE_TO_RANGE,           # 移动到指定中范围
-    START_DIALOGUE,          # 开始对话
+    MOVE_TO_RANGE,           # 移动到指定位置
+    START_DIALOGUE,          # 开始普通对话
+    START_WHISPER,           # 开始悄悄话（私密对话）
     JOIN_DIALOGUE,           # 加入对话
     EXIT_DIALOGUE,           # 退出对话
     START_SPORTS,            # 开始体育活动
@@ -32,9 +33,11 @@ func _init(p_agent_id: String, p_action_type: ActionType):
 func get_action_name() -> String:
     match action_type:
         ActionType.MOVE_TO_RANGE:
-            return "移动到范围"
+            return "移动"
         ActionType.START_DIALOGUE:
             return "开始对话"
+        ActionType.START_WHISPER:
+            return "开始悄悄话"
         ActionType.JOIN_DIALOGUE:
             return "加入对话"
         ActionType.EXIT_DIALOGUE:

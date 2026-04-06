@@ -388,6 +388,8 @@ func _execute_action(request: ActionRequest):
 			_execute_move(request)
 		ActionRequest.ActionType.START_DIALOGUE:
 			_execute_start_dialogue(request)
+		ActionRequest.ActionType.START_WHISPER:
+			_execute_start_whisper(request)
 		ActionRequest.ActionType.JOIN_DIALOGUE:
 			_execute_join_dialogue(request)
 		ActionRequest.ActionType.EXIT_DIALOGUE:
@@ -465,12 +467,17 @@ func _find_character_by_name(char_name: String) -> Node:
 			return char
 	return null
 
-func _calculate_target_position_for_character(target_char: Node) -> Vector2:
+func _calculate_target_position_for_character(target_char: Node, is_whisper: bool = false) -> Vector2:
 	"""
 	计算移动到目标角色的位置
 	
+	参数:
+		target_char: 目标角色节点
+		is_whisper: 是否是悄悄话（需要贴身）
+	
 	逻辑:
-		- 同一中范围 → 目标身边小范围（贴身）
+		- 悄悄话模式 → 贴身位置（15像素内）
+		- 同一中范围且非悄悄话 → 目标身边小范围（30像素内）
 		- 不同中范围 → 目标所在中范围的随机位置
 	"""
 	if not target_char:
@@ -480,13 +487,17 @@ func _calculate_target_position_for_character(target_char: Node) -> Vector2:
 	var my_pos = character.global_position
 	var target_pos = target_char.global_position
 	
-	# 判断是否在同一中范围（距离小于中范围阈值，约100像素）
+	# 判断是否在同一中范围（距离小于中范围阈值，约150像素）
 	var distance = my_pos.distance_to(target_pos)
 	var SAME_MEDIUM_RANGE_THRESHOLD = 150.0  # 同一中范围的距离阈值
 	
-	if distance < SAME_MEDIUM_RANGE_THRESHOLD:
-		# 同一中范围：移动到目标身边小范围（贴身，30像素内）
-		var small_range_offset = Vector2(randf_range(-25, 25), randf_range(-25, 25))
+	if is_whisper:
+		# 悄悄话模式：贴身位置（15像素内）
+		var whisper_offset = Vector2(randf_range(-15, 15), randf_range(-15, 15))
+		return target_pos + whisper_offset
+	elif distance < SAME_MEDIUM_RANGE_THRESHOLD:
+		# 同一中范围：移动到目标身边小范围（30像素内）
+		var small_range_offset = Vector2(randf_range(-30, 30), randf_range(-30, 30))
 		return target_pos + small_range_offset
 	else:
 		# 不同中范围：移动到目标所在中范围的随机位置
@@ -560,7 +571,26 @@ func _execute_start_dialogue(request: ActionRequest):
 	
 	print("[AIAgent] %s 已向 %s 发起对话" % [character.name, request.target_id])
 
-# 3. 加入对话
+# 3. 开始悄悄话（私密对话）
+func _execute_start_whisper(request: ActionRequest):
+	print("[AIAgent] %s 开始悄悄话" % character.name)
+	current_state = AgentState.IN_DIALOGUE
+	current_activity = "悄悄话"
+	activity_start_time = Time.get_unix_time_from_system()
+	
+	# 获取目标Agent
+	var target_agent = _find_agent_by_id(request.target_id)
+	if not target_agent:
+		print("[AIAgent] %s 开始悄悄话失败：目标不存在" % character.name)
+		current_state = AgentState.IDLE
+		return
+	
+	# 向DialogueManager注册悄悄话（私密对话）
+	# TODO: DialogueManager.start_whisper(self, target_agent)
+	
+	print("[AIAgent] %s 已向 %s 发起悄悄话" % [character.name, request.target_id])
+
+# 4. 加入对话
 func _execute_join_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 加入对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
@@ -813,48 +843,102 @@ func toggle_player_control(enabled: bool):
 		print("[AIAgent] %s 切换到AI控制" % character.name)
 
 # ============================================
-# 场景描述生成（保留，后续添加）
-# ============================================
-# ============================================
-# 场景描述生成（从原AIAgent保留）
+# 场景描述生成（新版）
 # ============================================
 func generate_scene_description() -> String:
 	var description = ""
 	
-	# 获取当前房间信息
+	# 1. 所有可用场景的精确名称和功能
+	description += "【所有可用场景】"
+	description += _get_all_rooms_description()
+	
+	# 2. 当前场景信息
 	var current_room = _get_current_room()
 	if current_room:
-		description += "你现在在" + current_room.room_name + "。"
-		description += "\n" + current_room.room_desc
+		description += "\n\n【当前场景】"
+		description += "\n你当前所在场景：" + current_room.room_name
+		description += "\n场景功能：" + current_room.room_desc
 		
 		# 添加情境参数(使用感知系统)
 		description += _get_room_situation_params(current_room.room_name)
-	
-	# 获取环境信息
-	var env_info = get_environment_info()
-	description += "\n" + env_info
-	
-	# 获取房间内的物品和角色
-	if current_room:
-		var room_objects = get_room_objects(current_room)
-		var room_characters = get_room_characters(current_room)
 		
-		# 添加物品描述
-		if room_objects.size() > 0:
-			description += "\n房间内有以下物品:"
-			for obj in room_objects:
-				var item_info = get_object_info(obj)
-				description += "\n- " + item_info
-		
-		# 添加角色描述
-		if room_characters.size() > 0:
-			description += "\n房间内有以下角色:"
-			for char in room_characters:
-				var char_personality = CharacterPersonality.get_personality(char.name)
-				var position = char_personality.get("position", "未知职位")
-				description += "\n- " + char.name + "(" + position + ")"
+		# 3. 当前场景内的角色及中范围关系
+		description += _get_characters_in_medium_range_description()
+	
+	# 4. 时间信息
+	description += "\n\n【时间信息】"
+	description += get_environment_info()
 	
 	return description
+
+func _get_all_rooms_description() -> String:
+	"""获取所有场景的精确名称和功能描述"""
+	var desc = ""
+	
+	if not room_manager:
+		return desc
+	
+	for room_id in room_manager.rooms:
+		var room = room_manager.rooms[room_id]
+		desc += "\n- " + room.room_name + "：" + room.room_desc
+	
+	return desc
+
+func _get_characters_in_medium_range_description() -> String:
+	"""
+	获取当前场景内所有角色的精确名称，以及中范围关系
+	
+	返回格式：
+	- 角色A（学生）[同一中范围]
+	- 角色B（老师）[不同中范围，距离约XX米]
+	"""
+	var desc = "\n\n【场景内角色】"
+	
+	var current_room = _get_current_room()
+	if not current_room:
+		return desc + "\n无"
+	
+	var room_characters = get_room_characters(current_room)
+	
+	if room_characters.size() == 0:
+		return desc + "\n当前场景内没有其他角色"
+	
+	# 按中范围分组
+	var same_medium_range = []
+	var different_medium_range = []
+	
+	var my_pos = character.global_position
+	var MEDIUM_RANGE_THRESHOLD = 150.0  # 中范围阈值
+	
+	for char in room_characters:
+		var distance = my_pos.distance_to(char.global_position)
+		var char_personality = CharacterPersonality.get_personality(char.name)
+		var position = char_personality.get("position", "未知职位")
+		
+		var char_info = {
+			"name": char.name,
+			"position": position,
+			"distance": distance
+		}
+		
+		if distance < MEDIUM_RANGE_THRESHOLD:
+			same_medium_range.append(char_info)
+		else:
+			different_medium_range.append(char_info)
+	
+	# 输出同一中范围的角色
+	if same_medium_range.size() > 0:
+		desc += "\n【同一中范围内（可对话）】"
+		for char_info in same_medium_range:
+			desc += "\n- " + char_info.name + "（" + char_info.position + "）"
+	
+	# 输出不同中范围的角色
+	if different_medium_range.size() > 0:
+		desc += "\n【不同中范围（需移动才能对话）】"
+		for char_info in different_medium_range:
+			desc += "\n- " + char_info.name + "（" + char_info.position + "），距离约" + str(int(char_info.distance)) + "米"
+	
+	return desc
 
 func get_environment_info() -> String:
 	var environment_info = "这是一所初中学校,有教室、食堂、走廊和体育馆。"
