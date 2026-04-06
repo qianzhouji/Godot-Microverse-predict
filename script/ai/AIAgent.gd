@@ -198,10 +198,152 @@ func _experience(previous_activity: String) -> float:
 # 决策阶段（新增）
 # ============================================
 func _make_decision(perception: Dictionary) -> ActionRequest:
-	# TODO: 构建决策Prompt，调用API
-	# 暂时返回WAIT请求
-	var request = ActionRequest.new(character.name, ActionRequest.ActionType.WAIT)
+	print("[AIAgent] %s 开始决策..." % character.name)
+	
+	# 1. 构建决策Prompt
+	var prompt = PromptBuilder.build_decision_prompt(self, perception)
+	if prompt.is_empty():
+		push_error("[AIAgent] %s Prompt构建失败" % character.name)
+		return ActionRequest.new(character.name, ActionRequest.ActionType.WAIT)
+	
+	# 2. 调用本地部署的大模型API
+	var response = await _call_local_llm(prompt)
+	
+	# 3. 解析响应为ActionRequest
+	var request = _parse_decision_response(response)
+	
+	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
 	return request
+
+# ============================================
+# 调用本地部署的大模型API
+# ============================================
+func _call_local_llm(prompt: String) -> String:
+	# 本地部署的大模型API配置
+	# 默认使用Ollama本地服务，可通过修改配置支持其他本地模型
+	var api_url = "http://localhost:11434/api/generate"
+	var model_name = "qwen2.5:14b"  # 或其他本地模型
+	
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	var body = {
+		"model": model_name,
+		"prompt": prompt,
+		"stream": false,
+		"options": {
+			"temperature": 0.7,
+			"num_predict": 500
+		}
+	}
+	
+	var json_body = JSON.stringify(body)
+	var headers = ["Content-Type: application/json"]
+	
+	print("[AIAgent] %s 调用本地LLM..." % character.name)
+	
+	var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
+	if error != OK:
+		push_error("[AIAgent] HTTP请求失败: %d" % error)
+		http_request.queue_free()
+		return "{}"
+	
+	# 等待响应
+	var result = await http_request.request_completed
+	http_request.queue_free()
+	
+	var response_code = result[1]
+	var body_text = result[3].get_string_from_utf8()
+	
+	if response_code != 200:
+		push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
+		return "{}"
+	
+	# 解析Ollama响应
+	var json = JSON.new()
+	var parse_result = json.parse(body_text)
+	if parse_result != OK:
+		push_error("[AIAgent] JSON解析失败: %s" % body_text)
+		return "{}"
+	
+	var response_data = json.get_data()
+	var response_text = response_data.get("response", "")
+	
+	print("[AIAgent] %s 收到LLM响应" % character.name)
+	return response_text
+
+# ============================================
+# 解析决策响应为ActionRequest
+# ============================================
+func _parse_decision_response(response: String) -> ActionRequest:
+	# 尝试从响应中提取JSON
+	var json_text = _extract_json_from_text(response)
+	
+	var json = JSON.new()
+	var parse_result = json.parse(json_text)
+	
+	if parse_result != OK:
+		print("[AIAgent] 无法解析决策响应，使用默认WAIT: %s" % response)
+		return ActionRequest.new(character.name, ActionRequest.ActionType.WAIT)
+	
+	var data = json.get_data()
+	
+	# 获取行动类型
+	var action_type_str = data.get("action_type", "WAIT")
+	var action_type = _string_to_action_type(action_type_str)
+	
+	# 创建请求
+	var request = ActionRequest.new(character.name, action_type)
+	request.target_id = data.get("target_id", "")
+	request.target_range_id = data.get("target_range_id", "")
+	
+	# 处理两步缓存
+	if data.has("cached_step2"):
+		var step2_data = data.cached_step2
+		if step2_data and step2_data.has("action_type"):
+			var step2_type = _string_to_action_type(step2_data.action_type)
+			request.cached_step2 = ActionRequest.new(character.name, step2_type)
+			request.cached_step2.target_id = step2_data.get("target_id", "")
+	
+	print("[AIAgent] %s 解析决策: %s" % [character.name, request.get_action_name()])
+	return request
+
+# ============================================
+# 从文本中提取JSON
+# ============================================
+func _extract_json_from_text(text: String) -> String:
+	# 查找JSON代码块
+	var json_start = text.find("{")
+	var json_end = text.rfind("}")
+	
+	if json_start >= 0 and json_end > json_start:
+		return text.substr(json_start, json_end - json_start + 1)
+	
+	return text
+
+# ============================================
+# 字符串转行动类型
+# ============================================
+func _string_to_action_type(type_str: String) -> ActionRequest.ActionType:
+	match type_str.to_upper():
+		"MOVE_TO_RANGE":
+			return ActionRequest.ActionType.MOVE_TO_RANGE
+		"START_DIALOGUE":
+			return ActionRequest.ActionType.START_DIALOGUE
+		"JOIN_DIALOGUE":
+			return ActionRequest.ActionType.JOIN_DIALOGUE
+		"EXIT_DIALOGUE":
+			return ActionRequest.ActionType.EXIT_DIALOGUE
+		"START_SPORTS":
+			return ActionRequest.ActionType.START_SPORTS
+		"END_SPORTS":
+			return ActionRequest.ActionType.END_SPORTS
+		"START_STUDY":
+			return ActionRequest.ActionType.START_STUDY
+		"END_STUDY":
+			return ActionRequest.ActionType.END_STUDY
+		"WAIT", _:
+			return ActionRequest.ActionType.WAIT
 
 # ============================================
 # 提交请求到时序系统（新增）
@@ -262,50 +404,243 @@ func _execute_action(request: ActionRequest):
 			_execute_wait(request)
 
 # ============================================
-# 具体行动执行（待实现）
+# 具体行动执行（8种）
 # ============================================
+
+# 1. 路径移动
 func _execute_move(request: ActionRequest):
 	print("[AIAgent] %s 执行移动" % character.name)
-	# TODO: 实现移动逻辑
+	
+	# 获取目标位置
+	var target_pos = request.target_position
+	if target_pos == Vector2.ZERO:
+		# 如果没有指定位置，尝试从range_id获取
+		target_pos = _get_position_from_range_id(request.target_range_id)
+	
+	if target_pos == Vector2.ZERO:
+		print("[AIAgent] %s 移动失败：无效目标位置" % character.name)
+		return
+	
+	# 使用NavigationAgent2D进行移动
+	if character.has_node("NavigationAgent2D"):
+		var nav_agent = character.get_node("NavigationAgent2D")
+		nav_agent.target_position = target_pos
+		
+		# 开始移动
+		_is_moving = true
+		_target_position = target_pos
+		
+		print("[AIAgent] %s 开始移动到 %s" % [character.name, str(target_pos)])
+	else:
+		print("[AIAgent] %s 移动失败：没有NavigationAgent2D" % character.name)
 
+# 2. 开始对话
 func _execute_start_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 开始对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
-	# TODO: 实现开始对话
+	current_activity = "对话"
+	activity_start_time = Time.get_unix_time_from_system()
+	
+	# 获取目标Agent
+	var target_agent = _find_agent_by_id(request.target_id)
+	if not target_agent:
+		print("[AIAgent] %s 开始对话失败：目标不存在" % character.name)
+		current_state = AgentState.IDLE
+		return
+	
+	# 向DialogueManager注册新对话
+	# TODO: DialogueManager.start_dialogue(self, target_agent)
+	
+	print("[AIAgent] %s 已向 %s 发起对话" % [character.name, request.target_id])
 
+# 3. 加入对话
 func _execute_join_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 加入对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
-	# TODO: 实现加入对话
+	current_activity = "对话"
+	activity_start_time = Time.get_unix_time_from_system()
+	
+	# 获取对话ID或目标
+	var dialogue_id = request.target_id
+	
+	# 向DialogueManager申请加入
+	# TODO: DialogueManager.join_dialogue(self, dialogue_id)
+	
+	print("[AIAgent] %s 已加入对话 %s" % [character.name, dialogue_id])
 
+# 4. 退出对话
 func _execute_exit_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 退出对话" % character.name)
+	
+	# 计算对话时长
+	var duration = Time.get_unix_time_from_system() - activity_start_time
+	
+	# 向DialogueManager通知退出
+	# TODO: DialogueManager.exit_dialogue(self)
+	
 	current_state = AgentState.IDLE
-	# TODO: 实现退出对话
+	current_activity = ""
+	
+	print("[AIAgent] %s 已退出对话，时长：%.1f秒" % [character.name, duration])
 
+# 5. 开始体育活动
 func _execute_start_sports(request: ActionRequest):
 	print("[AIAgent] %s 开始体育活动" % character.name)
+	
+	# 验证当前在体育馆
+	var current_room = _get_current_room()
+	if not current_room or current_room.room_name != "体育馆":
+		print("[AIAgent] %s 开始体育活动失败：不在体育馆" % character.name)
+		return
+	
 	current_state = AgentState.IN_ACTIVITY
-	# TODO: 实现开始体育活动
+	current_activity = "体育活动"
+	activity_start_time = Time.get_unix_time_from_system()
+	
+	# 向ActivityManager注册
+	# TODO: ActivityManager.start_activity(self, "sports")
+	
+	print("[AIAgent] %s 已开始体育活动" % character.name)
 
+# 6. 结束体育活动
 func _execute_end_sports(request: ActionRequest):
 	print("[AIAgent] %s 结束体育活动" % character.name)
+	
+	var duration = Time.get_unix_time_from_system() - activity_start_time
+	
+	# 向ActivityManager通知结束
+	# TODO: ActivityManager.end_activity(self, "sports")
+	
 	current_state = AgentState.IDLE
-	# TODO: 实现结束体育活动
+	current_activity = ""
+	
+	print("[AIAgent] %s 已结束体育活动，时长：%.1f秒" % [character.name, duration])
 
+# 7. 开始自习
 func _execute_start_study(request: ActionRequest):
 	print("[AIAgent] %s 开始自习" % character.name)
+	
+	# 验证当前在图书馆或自习室
+	var current_room = _get_current_room()
+	var valid_rooms = ["图书馆", "自习室"]
+	if not current_room or not current_room.room_name in valid_rooms:
+		print("[AIAgent] %s 开始自习失败：不在图书馆或自习室" % character.name)
+		return
+	
 	current_state = AgentState.IN_ACTIVITY
-	# TODO: 实现开始自习
+	current_activity = "自习"
+	activity_start_time = Time.get_unix_time_from_system()
+	
+	# 向ActivityManager注册
+	# TODO: ActivityManager.start_activity(self, "study")
+	
+	print("[AIAgent] %s 已开始自习" % character.name)
 
+# 8. 结束自习
 func _execute_end_study(request: ActionRequest):
 	print("[AIAgent] %s 结束自习" % character.name)
+	
+	var duration = Time.get_unix_time_from_system() - activity_start_time
+	
+	# 向ActivityManager通知结束
+	# TODO: ActivityManager.end_activity(self, "study")
+	
 	current_state = AgentState.IDLE
-	# TODO: 实现结束自习
+	current_activity = ""
+	
+	print("[AIAgent] %s 已结束自习，时长：%.1f秒" % [character.name, duration])
 
+# 9. 等待
 func _execute_wait(request: ActionRequest):
 	print("[AIAgent] %s 等待" % character.name)
 	current_state = AgentState.IDLE
+	# 无需额外操作
+
+# ============================================
+# 移动相关变量和方法
+# ============================================
+var _is_moving: bool = false
+var _target_position: Vector2 = Vector2.ZERO
+
+func _physics_process(delta: float):
+	# 处理移动
+	if _is_moving and character:
+		if character.has_node("NavigationAgent2D"):
+			var nav_agent = character.get_node("NavigationAgent2D")
+			
+			if nav_agent.is_navigation_finished():
+				_is_moving = false
+				print("[AIAgent] %s 移动完成" % character.name)
+				
+				# 检查是否有缓存的step2
+				if cached_request and cached_request.cached_step2:
+					_validate_and_execute_step2()
+				return
+			
+			# 获取下一个路径点
+			var next_pos = nav_agent.get_next_path_position()
+			var direction = (next_pos - character.global_position).normalized()
+			
+			# 移动角色
+			character.velocity = direction * character.speed
+			character.move_and_slide()
+
+func _get_position_from_range_id(range_id: String) -> Vector2:
+	# TODO: 从RoomManager获取中范围的位置
+	return Vector2.ZERO
+
+func _find_agent_by_id(agent_id: String):
+	var agents = get_tree().get_nodes_in_group("ai_agents")
+	for agent in agents:
+		if agent.name == agent_id:
+			return agent
+	return null
+
+# ============================================
+# 两步缓存验证
+# ============================================
+func _validate_and_execute_step2():
+	if not cached_request or not cached_request.cached_step2:
+		return
+	
+	print("[AIAgent] %s 验证并执行Step2" % character.name)
+	
+	# 立即感知（无体验）
+	var new_perception = _perceive()
+	
+	var step2 = cached_request.cached_step2
+	
+	# 验证Step2是否仍然有效
+	if _is_step2_valid(step2, new_perception):
+		print("[AIAgent] %s Step2有效，继续执行" % character.name)
+		_execute_action(step2)
+		last_activity = _get_activity_name(step2)
+	else:
+		print("[AIAgent] %s Step2无效，重新决策" % character.name)
+		_make_decision(new_perception)
+	
+	# 清空缓存
+	cached_request = null
+	is_waiting_execution = false
+
+func _is_step2_valid(step2: ActionRequest, perception: Dictionary) -> bool:
+	# 检查目标是否仍然存在
+	if step2.target_id:
+		var target = _find_agent_by_id(step2.target_id)
+		if not target:
+			print("[AIAgent] Step2无效：目标已不存在")
+			return false
+	
+	# 检查时间约束是否变化
+	var constraints = TimelineState.instance.get_constraints()
+	if step2.action_type == ActionRequest.ActionType.START_DIALOGUE:
+		if not constraints.can_start_dialogue:
+			print("[AIAgent] Step2无效：现在不能开始对话")
+			return false
+	
+	# 其他验证...
+	
+	return true
 
 # ============================================
 # 辅助方法
