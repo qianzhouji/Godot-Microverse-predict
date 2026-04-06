@@ -695,57 +695,230 @@ func toggle_player_control(enabled: bool):
 # ============================================
 # 场景描述生成（保留，后续添加）
 # ============================================
+# ============================================
+# 场景描述生成（从原AIAgent保留）
+# ============================================
 func generate_scene_description() -> String:
-	# TODO: 从原AIAgent保留此函数
-	return ""
+	var description = ""
+	
+	# 获取当前房间信息
+	var current_room = _get_current_room()
+	if current_room:
+		description += "你现在在" + current_room.room_name + "。"
+		description += "\n" + current_room.room_desc
+		
+		# 添加情境参数(使用感知系统)
+		description += _get_room_situation_params(current_room.room_name)
+	
+	# 获取环境信息
+	var env_info = get_environment_info()
+	description += "\n" + env_info
+	
+	# 获取房间内的物品和角色
+	if current_room:
+		var room_objects = get_room_objects(current_room)
+		var room_characters = get_room_characters(current_room)
+		
+		# 添加物品描述
+		if room_objects.size() > 0:
+			description += "\n房间内有以下物品:"
+			for obj in room_objects:
+				var item_info = get_object_info(obj)
+				description += "\n- " + item_info
+		
+		# 添加角色描述
+		if room_characters.size() > 0:
+			description += "\n房间内有以下角色:"
+			for char in room_characters:
+				var char_personality = CharacterPersonality.get_personality(char.name)
+				var position = char_personality.get("position", "未知职位")
+				description += "\n- " + char.name + "(" + position + ")"
+	
+	return description
 
 func get_environment_info() -> String:
-	# TODO: 从原AIAgent保留此函数
-	return ""
+	var environment_info = "这是一所初中学校,有教室、食堂、走廊和体育馆。"
+	environment_info += "教室分为北侧的主教学区和南侧的小组讨论区,食堂提供午餐,体育馆可以进行体育活动。"
+	
+	# 添加时间信息
+	if TimelineState.instance:
+		var period = TimelineState.instance.current_period
+		var subject = TimelineState.instance.current_subject
+		
+		match period:
+			"class_time":
+				environment_info += "\n现在是上课时间," + subject + "正在进行中。"
+			"break_time":
+				environment_info += "\n现在是午休时间,学生们正在用餐。"
+			"discussion_time":
+				environment_info += "\n现在是小组讨论时间。"
+			"activity_time":
+				environment_info += "\n现在是活动时间。"
+			_:
+				environment_info += "\n现在是自由活动时间。"
+	
+	return environment_info
 
-func move_to_target(target_info: Dictionary, char_node = null):
-	# TODO: 从原AIAgent保留此函数
-	pass
+func get_room_objects(room) -> Array:
+	if not room:
+		return []
+	
+	var room_objects = []
+	var objects = get_tree().get_nodes_in_group("interactable")
+	
+	for obj in objects:
+		if room_manager and room_manager.is_position_in_room(obj.global_position, room):
+			room_objects.append(obj)
+	
+	return room_objects
 
-func _add_memory(target_character, content: String):
-	# TODO: 从原AIAgent保留此函数
-	pass
+func get_room_characters(room) -> Array:
+	if not room:
+		return []
+	
+	var room_characters = []
+	var characters = get_tree().get_nodes_in_group("character")
+	
+	for char in characters:
+		if char != character and room_manager and room_manager.is_position_in_room(char.global_position, room):
+			room_characters.append(char)
+	
+	return room_characters
+
+func get_object_info(obj: Node2D) -> String:
+	var info = obj.name
+	
+	# 根据物品类型添加功能描述
+	if obj is StaticBody2D:
+		if "Chair" in obj.name or obj.is_in_group("chairs"):
+			info += "(一把椅子,可以坐下休息)"
+		elif "Desk" in obj.name:
+			info += "(一张桌子,可以在这里学习)"
+		elif "Computer" in obj.name:
+			info += "(一台电脑)"
+		elif "Bookshelf" in obj.name:
+			info += "(一个书架,存放各种书籍)"
+		else:
+			info += "(一个物品)"
+	
+	# 添加距离信息
+	var distance = int(obj.global_position.distance_to(character.global_position))
+	info += ",距离约" + str(distance) + "米"
+	
+	return info
 
 func _get_room_situation_params(room_name: String) -> String:
-	# TODO: 从原AIAgent保留此函数，改为使用PerceptionSystem
-	return ""
+	var personality = CharacterPersonality.get_personality(character.name)
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	
+	# 使用感知系统获取Agent对情境的主观感知
+	var params_desc = PerceptionSystem.get_belief_description(character.name, room_name, is_depression)
+	
+	return params_desc
 
 func _get_direction_description(from_pos: Vector2, to_pos: Vector2) -> String:
-	# TODO: 从原AIAgent保留此函数
-	return ""
+	var direction = to_pos - from_pos
+	var angle = rad_to_deg(direction.angle())
+	
+	if angle >= -22.5 and angle < 22.5:
+		return "东边"
+	elif angle >= 22.5 and angle < 67.5:
+		return "东北方向"
+	elif angle >= 67.5 and angle < 112.5:
+		return "北边"
+	elif angle >= 112.5 and angle < 157.5:
+		return "西北方向"
+	elif angle >= 157.5 or angle < -157.5:
+		return "西边"
+	elif angle >= -157.5 and angle < -112.5:
+		return "西南方向"
+	elif angle >= -112.5 and angle < -67.5:
+		return "南边"
+	else:
+		return "东南方向"
+
+func get_character_status_info(char_node = null) -> String:
+	var target_character = char_node if char_node else character
+	var status_info = ""
+	
+	# 基本状态信息
+	var mood = target_character.get_meta("mood", "普通")
+	status_info += "\n\n个人状态信息:"
+	status_info += "\n- 心情状态:" + mood
+	
+	# 使用MemoryManager获取格式化的记忆信息
+	status_info += MemoryManager.get_formatted_memories_for_prompt(target_character, 5)
+	
+	return status_info
 
 func _find_target_by_name(target_name: String):
-	# TODO: 从原AIAgent保留此函数
+	var agents = get_tree().get_nodes_in_group("ai_agents")
+	for agent in agents:
+		if agent.name == target_name:
+			return agent
 	return null
 
 func _choose_random_target() -> Dictionary:
-	# TODO: 从原AIAgent保留此函数
+	var targets = []
+	
+	# 获取所有可交互角色
+	var characters = get_tree().get_nodes_in_group("character")
+	for char in characters:
+		if char != character:
+			targets.append({"type": "character", "target": char})
+	
+	if targets.size() > 0:
+		return targets[randi() % targets.size()]
+	
 	return {}
 
-func get_character_status_info(char_node = null) -> String:
-	# TODO: 从原AIAgent保留此函数
-	return ""
+func move_to_target(target_info: Dictionary, char_node = null):
+	var target_character = char_node if char_node else character
+	
+	if target_info.is_empty():
+		return
+	
+	var target_pos = Vector2.ZERO
+	
+	match target_info.type:
+		"object":
+			target_pos = target_info.target.global_position + Vector2(randf_range(-30, 30), randf_range(-30, 30))
+		"character":
+			target_pos = target_info.target.global_position + Vector2(randf_range(-50, 50), randf_range(-50, 50))
+		"room":
+			target_pos = target_info.target.position
+	
+	if target_character.has_method("move_to"):
+		target_character.move_to(target_pos)
 
-func get_room_objects(room: RoomData) -> Array:
-	# TODO: 从原AIAgent保留此函数
-	return []
-
-func get_room_characters(room: RoomData) -> Array:
-	# TODO: 从原AIAgent保留此函数
-	return []
-
-func get_object_info(obj: Node2D) -> String:
-	# TODO: 从原AIAgent保留此函数
-	return ""
+func _add_memory(target_character, content: String):
+	MemoryManager.add_memory(target_character, content, MemoryManager.MemoryType.PERSONAL, MemoryManager.MemoryImportance.NORMAL)
 
 func _execute_class_movement(target_character, current_task):
-	# TODO: 从原AIAgent保留此函数
-	pass
+	# 课程移动任务执行
+	var target_room = current_task.get("target_room", "")
+	var room_data = room_manager.get_room_by_name(target_room)
+	
+	if not room_data:
+		return
+	
+	var target_pos = _get_room_entrance_position(room_data)
+	
+	if target_character.has_method("move_to"):
+		target_character.move_to(target_pos)
+		_start_arrival_tracking(target_character, target_room, current_task)
+
+func _get_room_entrance_position(room_data) -> Vector2:
+	if not room_data:
+		return Vector2.ZERO
+	
+	# 返回房间中心位置
+	return room_data.position
+
+func _start_arrival_tracking(target_character, target_room: String, current_task):
+	# 简单的到达检测，实际应该使用更复杂的逻辑
+	await get_tree().create_timer(2.0).timeout
+	print("[AIAgent] %s 到达 %s" % [target_character.name, target_room])
 
 func _get_room_entrance_position(room_data) -> Vector2:
 	# TODO: 从原AIAgent保留此函数
