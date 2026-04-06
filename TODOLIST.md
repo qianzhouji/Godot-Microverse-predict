@@ -232,6 +232,138 @@ func select_voice_range(context: Dictionary) -> int:
 其他象限的学生X、Y、Z: （未收到广播）
 ```
 
+#### 8. 多人同时发言处理机制
+
+**问题**: 同一中范围内，多个Agent同时想要发言怎么办？
+
+**方案: 话题队列 + 打断机制**
+
+```gdscript
+# 中范围对话管理器
+class MediumRangeConversationManager:
+    var topic_queue: Array[Topic] = []  # 话题队列
+    var current_topic: Topic = null     # 当前进行中的话题
+    var last_speaker: Agent = null      # 最后发言者
+    var silence_timer: float = 0.0      # 沉默计时器
+    
+    const SILENCE_THRESHOLD = 3.0       # 3秒沉默视为话题结束
+    const MAX_TOPIC_TIME = 30.0         # 单个话题最长30秒
+    
+    func process_speak_request(agent: Agent, content: String, priority: float) -> bool:
+        # 计算发言优先级
+        var final_priority = calculate_priority(agent, priority)
+        
+        if current_topic == null:
+            # 当前没有话题，直接开始新话题
+            start_new_topic(agent, content)
+            return true
+        elif can_interrupt(agent, final_priority):
+            # 可以打断当前话题
+            interrupt_current_topic(agent, content)
+            return true
+        else:
+            # 加入话题队列
+            topic_queue.append(Topic.new(agent, content, final_priority))
+            return false
+    
+    func calculate_priority(agent: Agent, base_priority: float) -> float:
+        var priority = base_priority
+        
+        # 教师优先级加成
+        if agent.is_teacher:
+            priority += 100.0
+        
+        # 最后发言者优先级降低（避免一人垄断）
+        if agent == last_speaker:
+            priority -= 20.0
+        
+        # 外向性格加成
+        priority += agent.personality.extraversion * 10.0
+        
+        # 情感关系加成（对当前话题相关者的情感）
+        if current_topic:
+            var relationship = agent.get_relationship(current_topic.initiator)
+            priority += relationship.intensity * 5.0
+        
+        return priority
+    
+    func can_interrupt(agent: Agent, priority: float) -> bool:
+        # 教师可以随时打断
+        if agent.is_teacher and not current_topic.speaker.is_teacher:
+            return true
+        
+        # 优先级显著高于当前发言者
+        if priority > current_topic.current_priority + 30.0:
+            return true
+        
+        # 当前话题已持续很长时间
+        if current_topic.duration > MAX_TOPIC_TIME:
+            return true
+        
+        return false
+    
+    func _process(delta):
+        # 更新沉默计时器
+        if current_topic:
+            silence_timer += delta
+            current_topic.duration += delta
+            
+            # 检查话题是否应该结束
+            if silence_timer > SILENCE_THRESHOLD or current_topic.duration > MAX_TOPIC_TIME:
+                end_current_topic()
+        
+        # 从队列中选取下一个发言者
+        if current_topic == null and not topic_queue.is_empty():
+            topic_queue.sort_custom(func(a, b): return a.priority > b.priority)
+            var next_topic = topic_queue.pop_front()
+            start_new_topic(next_topic.agent, next_topic.content)
+```
+
+**优先级计算因素**:
+
+| 因素 | 影响 | 说明 |
+|------|------|------|
+| 身份 | +100（教师） | 教师拥有最高发言权 |
+| 连续发言 | -20 | 避免同一人垄断对话 |
+| 外向性格 | +0~10 | 外向者更愿意发言 |
+| 情感关系 | +0~5 | 与话题相关者的情感强度 |
+| 基础优先级 | 基础值 | 由AI决策时计算 |
+
+**打断规则**:
+
+1. **教师特权**: 教师可以随时打断学生的发言
+2. **显著优先**: 优先级高出30以上可以打断
+3. **超时打断**: 当前话题超过30秒可以被中断
+
+**话题结束条件**:
+
+1. **自然结束**: 3秒内无人继续发言
+2. **超时结束**: 单个话题持续超过30秒
+3. **强制结束**: 教师发言自动结束当前话题
+
+**示例场景**:
+
+```
+场景: 小组讨论（中范围）
+成员: 学生A、B、C、D
+
+学生A: "我认为这个问题应该..."（开始话题T1）
+    ↓
+学生B（同时）: "我觉得..."（优先级较低，进入队列）
+学生C（同时）: "等等，我有不同看法！"（优先级较高，打断成功）
+    ↓
+学生C: "我觉得我们应该从另一个角度..."（话题T1，发言者变为C）
+    ↓
+2秒后...
+学生D: "我同意C的观点..."（继续话题T1）
+    ↓
+3秒沉默...
+    ↓
+话题T1结束，从队列中取出学生B的发言
+    ↓
+学生B: "刚才我想说..."（开始话题T2）
+```
+
 ---
 
 ## 三、情感关系系统（新增）⏳
@@ -334,8 +466,8 @@ Agent A 的 Prompt：
 ### 对话系统
 - [x] 如何决定使用哪种声音范围？→ **基于子场景类型和Agent意图**
 - [x] Agent能否主动切换？→ **可以，教师可切换，学生可切换中/小范围**
-- [ ] 多人同时回复如何处理？并行还是串行？
-- [ ] 是否需要对话ID或话题追踪？
+- [x] 多人同时回复如何处理？→ **话题队列 + 打断机制**
+- [ ] 是否需要对话ID或话题追踪？→ **是，需要话题ID和发言队列**
 - [ ] 对话的"热度"如何衰减？（避免无限对话）
 - [ ] 中范围分区算法实现（4象限/左右分区/整个区域）
 
