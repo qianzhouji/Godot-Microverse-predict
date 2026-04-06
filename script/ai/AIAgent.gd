@@ -411,11 +411,8 @@ func _execute_action(request: ActionRequest):
 func _execute_move(request: ActionRequest):
 	print("[AIAgent] %s 执行移动" % character.name)
 	
-	# 获取目标位置
-	var target_pos = request.target_position
-	if target_pos == Vector2.ZERO:
-		# 如果没有指定位置，尝试从range_id获取
-		target_pos = _get_position_from_range_id(request.target_range_id)
+	# 使用定位函数计算目标位置
+	var target_pos = _calculate_move_target(request.target_id)
 	
 	if target_pos == Vector2.ZERO:
 		print("[AIAgent] %s 移动失败：无效目标位置" % character.name)
@@ -429,6 +426,120 @@ func _execute_move(request: ActionRequest):
 		print("[AIAgent] %s 开始移动到 %s" % [character.name, str(target_pos)])
 	else:
 		print("[AIAgent] %s 移动失败：CharacterController没有move_to方法" % character.name)
+
+func _calculate_move_target(target_name: String) -> Vector2:
+	"""
+	定位函数：根据目标名称计算移动目标坐标
+	
+	参数:
+		target_name: 子场景名或角色名
+		
+	返回:
+		目标坐标 Vector2
+		
+	逻辑:
+		1. 如果target_name是子场景名（非当前子场景）→ 返回该场景内随机坐标
+		2. 如果target_name是角色名:
+		   - 判断是否与目标在同一中范围
+		   - 是 → 返回目标身边小范围坐标
+		   - 否 → 返回目标所在中范围的随机坐标
+	"""
+	if target_name.is_empty():
+		return Vector2.ZERO
+	
+	# 先尝试查找角色
+	var target_character = _find_character_by_name(target_name)
+	
+	if target_character:
+		# 是角色名，判断位置关系
+		return _calculate_target_position_for_character(target_character)
+	else:
+		# 不是角色名，尝试作为子场景名
+		return _calculate_target_position_for_room(target_name)
+
+func _find_character_by_name(char_name: String) -> Node:
+	"""根据名称查找角色节点"""
+	var characters = get_tree().get_nodes_in_group("character")
+	for char in characters:
+		if char.name == char_name:
+			return char
+	return null
+
+func _calculate_target_position_for_character(target_char: Node) -> Vector2:
+	"""
+	计算移动到目标角色的位置
+	
+	逻辑:
+		- 同一中范围 → 目标身边小范围（贴身）
+		- 不同中范围 → 目标所在中范围的随机位置
+	"""
+	if not target_char:
+		return Vector2.ZERO
+	
+	# 获取当前角色和目标角色的位置
+	var my_pos = character.global_position
+	var target_pos = target_char.global_position
+	
+	# 判断是否在同一中范围（距离小于中范围阈值，约100像素）
+	var distance = my_pos.distance_to(target_pos)
+	var SAME_MEDIUM_RANGE_THRESHOLD = 150.0  # 同一中范围的距离阈值
+	
+	if distance < SAME_MEDIUM_RANGE_THRESHOLD:
+		# 同一中范围：移动到目标身边小范围（贴身，30像素内）
+		var small_range_offset = Vector2(randf_range(-25, 25), randf_range(-25, 25))
+		return target_pos + small_range_offset
+	else:
+		# 不同中范围：移动到目标所在中范围的随机位置
+		var target_room = _get_current_room_at_position(target_pos)
+		if target_room:
+			return _get_random_position_in_room(target_room, 0.3)  # 30%偏移，不要离中心太远
+		else:
+			# 找不到房间，直接移动到目标附近
+			var medium_range_offset = Vector2(randf_range(-50, 50), randf_range(-50, 50))
+			return target_pos + medium_range_offset
+
+func _calculate_target_position_for_room(room_name: String) -> Vector2:
+	"""
+	计算移动到子场景的位置
+	
+	返回该场景内的随机坐标（不要离中心太远）
+	"""
+	var room = _get_room_by_name(room_name)
+	if not room:
+		print("[AIAgent] 未找到子场景: %s" % room_name)
+		return Vector2.ZERO
+	
+	return _get_random_position_in_room(room, 0.3)  # 30%偏移
+
+func _get_random_position_in_room(room, max_offset_ratio: float = 0.3) -> Vector2:
+	"""
+	获取房间内的随机位置
+	
+	参数:
+		room: 房间数据
+		max_offset_ratio: 最大偏移比例（相对于房间半宽/半高）
+		              0.3表示在中心±30%范围内随机
+	"""
+	if not room:
+		return Vector2.ZERO
+	
+	var room_pos = room.position
+	var room_size = room.size if room.has("size") else Vector2(200, 100)
+	
+	# 在中心附近随机偏移（不要离中心太远）
+	var half_width = room_size.x * 0.5
+	var half_height = room_size.y * 0.5
+	
+	var offset_x = randf_range(-half_width * max_offset_ratio, half_width * max_offset_ratio)
+	var offset_y = randf_range(-half_height * max_offset_ratio, half_height * max_offset_ratio)
+	
+	return room_pos + Vector2(offset_x, offset_y)
+
+func _get_current_room_at_position(pos: Vector2):
+	"""获取指定位置所在的房间"""
+	if not room_manager:
+		return null
+	return room_manager.get_current_room(room_manager.rooms, pos)
 
 # 2. 开始对话
 func _execute_start_dialogue(request: ActionRequest):
@@ -582,59 +693,6 @@ func _physics_process(delta: float):
 				if cached_request and cached_request.cached_step2:
 					_validate_and_execute_step2()
 				return
-
-func _get_position_from_range_id(range_id: String) -> Vector2:
-	"""
-	从中范围ID获取目标位置
-	range_id格式: "房间名_范围类型"，如 "教室（主教学区）_左上"
-	"""
-	if range_id.is_empty():
-		return Vector2.ZERO
-	
-	# 解析range_id
-	var parts = range_id.split("_")
-	if parts.size() < 2:
-		return Vector2.ZERO
-	
-	var room_name = parts[0]
-	var range_type = parts[1] if parts.size() > 1 else "center"
-	
-	# 获取房间数据
-	var room = _get_room_by_name(room_name)
-	if not room:
-		print("[AIAgent] 未找到房间: %s" % room_name)
-		return Vector2.ZERO
-	
-	# 计算中范围位置
-	var room_pos = room.position
-	var room_size = room.size if room.has("size") else Vector2(200, 100)
-	
-	var offset = Vector2.ZERO
-	
-	# 根据范围类型计算偏移
-	match range_type:
-		"左上", "left_top":
-			offset = Vector2(-room_size.x * 0.25, -room_size.y * 0.25)
-		"右上", "right_top":
-			offset = Vector2(room_size.x * 0.25, -room_size.y * 0.25)
-		"左下", "left_bottom":
-			offset = Vector2(-room_size.x * 0.25, room_size.y * 0.25)
-		"右下", "right_bottom":
-			offset = Vector2(room_size.x * 0.25, room_size.y * 0.25)
-		"左", "left":
-			offset = Vector2(-room_size.x * 0.25, 0)
-		"右", "right":
-			offset = Vector2(room_size.x * 0.25, 0)
-		"中心", "center", "":
-			offset = Vector2.ZERO
-		_:
-			# 默认中心
-			offset = Vector2.ZERO
-	
-	# 添加随机偏移（避免所有Agent聚集在同一点）
-	var random_offset = Vector2(randf_range(-20, 20), randf_range(-20, 20))
-	
-	return room_pos + offset + random_offset
 
 func _get_room_by_name(room_name: String):
 	"""根据房间名称获取房间数据"""
