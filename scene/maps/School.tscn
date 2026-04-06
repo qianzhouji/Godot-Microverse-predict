@@ -16760,6 +16760,15 @@ size = Vector2(505, 269)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jkaac"]
 size = Vector2(291.5, 177)
 
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_small_corridor"]
+size = Vector2(200, 100)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_library"]
+size = Vector2(300, 200)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_study_room"]
+size = Vector2(250, 180)
+
 [node name="Office" type="Node2D" unique_id=1284905091]
 
 [node name="WallAndFloor" type="TileMapLayer" parent="." unique_id=2095127237]
@@ -16770,6 +16779,7 @@ tile_set = SubResource("TileSet_bnfxt")
 visible = false
 
 [node name="FrontChair10" parent="ReceptionChair" unique_id=1216456363 instance=ExtResource("17_xf40e")]
+visible = false
 position = Vector2(280, 496)
 sit_position = Vector2(0, -16)
 sit_direction = "down"
@@ -16929,44 +16939,43 @@ sit_direction = "left"
 position = Vector2(896, 464)
 
 [node name="Characters" type="Node2D" parent="." unique_id=703426829]
-visible = false
 script = ExtResource("15_y022p")
 
 [node name="StudentXiaohong" parent="Characters" unique_id=1822526265 instance=ExtResource("29_vmdq2")]
-position = Vector2(1016, 400)
+position = Vector2(1116, 359)
 
 [node name="StudentXiaojun" parent="Characters" unique_id=1067827764 instance=ExtResource("23_74cc2")]
-position = Vector2(966, 366)
+position = Vector2(905, 368)
 
 [node name="StudentXiaoli" parent="Characters" unique_id=1505178434 instance=ExtResource("24_0bb36")]
 position = Vector2(415, 559)
 
 [node name="StudentXiaomei" parent="Characters" unique_id=930171912 instance=ExtResource("25_45tuo")]
-position = Vector2(1088, 366)
+position = Vector2(425, 367)
 
 [node name="LibrarianZhang" parent="Characters" unique_id=1476039324 instance=ExtResource("26_xtwin")]
 position = Vector2(1004, 528)
 
 [node name="StudentXiaowei" parent="Characters" unique_id=908182857 instance=ExtResource("27_w86wa")]
-position = Vector2(1098, 298)
+position = Vector2(999, 72)
 
 [node name="StudentXiaoyu" parent="Characters" unique_id=1418520012 instance=ExtResource("28_wm13h")]
-position = Vector2(238, 221)
+position = Vector2(175, 173)
 
 [node name="TeacherChen" parent="Characters" unique_id=571938560 instance=ExtResource("29_pu4hk")]
-position = Vector2(811, 84)
+position = Vector2(89, 361)
 
 [node name="StudentXiaoming" parent="Characters" unique_id=803814461 instance=ExtResource("30_74cc2")]
-position = Vector2(1098, 298)
+position = Vector2(242, 86)
 
 [node name="TeacherWang" parent="Characters" unique_id=834850083 instance=ExtResource("31_0bb36")]
 position = Vector2(677, 97)
 
 [node name="StudentXiaogang" parent="Characters" unique_id=1087300961 instance=ExtResource("33_sepw8")]
-position = Vector2(677, 97)
+position = Vector2(1021, 226)
 
 [node name="PrincipalLi" parent="Characters" unique_id=46818008 instance=ExtResource("32_45tuo")]
-position = Vector2(473, 563)
+position = Vector2(168, 550)
 
 [node name="SettingsLayer" parent="." unique_id=386943111 instance=ExtResource("26_ik20s")]
 
@@ -17039,6 +17048,40 @@ activity_types = Array[String](["体育活动"])
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Gym" unique_id=1103466636]
 position = Vector2(486.25, 329.5)
 shape = SubResource("RectangleShape2D_jkaac")
+
+[node name="RoomArea_SmallCorridor" type="Area2D" parent="." unique_id=990108191]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "小走廊"
+room_desc = "小走廊连接各个教室，是学生课间走动和偶遇互动的地方"
+initial_reward_rate = 0.3
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = Array[String](["偶遇互动"])
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_SmallCorridor" unique_id=1882605041]
+position = Vector2(750, 200)
+shape = SubResource("RectangleShape2D_small_corridor")
+
+[node name="RoomArea_Library" type="Area2D" parent="." unique_id=990108192]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "图书馆"
+room_desc = "图书馆内有大量书籍，是学生们阅读和自习的安静场所"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Library" unique_id=1882605042]
+position = Vector2(200, 200)
+shape = SubResource("RectangleShape2D_library")
+
+[node name="RoomArea_StudyRoom" type="Area2D" parent="." unique_id=990108193]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "自习室"
+room_desc = "自习室提供安静的学习环境，适合学生独立完成作业和复习"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_StudyRoom" unique_id=1882605043]
+position = Vector2(1000, 400)
+shape = SubResource("RectangleShape2D_study_room")
 
 [node name="RoomManager" type="Node2D" parent="." unique_id=1523979036]
 script = ExtResource("31_8h615")
