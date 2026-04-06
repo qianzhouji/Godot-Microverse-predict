@@ -858,20 +858,6 @@ func _find_target_by_name(target_name: String):
 			return agent
 	return null
 
-func _choose_random_target() -> Dictionary:
-	var targets = []
-	
-	# 获取所有可交互角色
-	var characters = get_tree().get_nodes_in_group("character")
-	for char in characters:
-		if char != character:
-			targets.append({"type": "character", "target": char})
-	
-	if targets.size() > 0:
-		return targets[randi() % targets.size()]
-	
-	return {}
-
 func move_to_target(target_info: Dictionary, char_node = null):
 	var target_character = char_node if char_node else character
 	
