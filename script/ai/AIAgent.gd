@@ -421,18 +421,14 @@ func _execute_move(request: ActionRequest):
 		print("[AIAgent] %s 移动失败：无效目标位置" % character.name)
 		return
 	
-	# 使用NavigationAgent2D进行移动
-	if character.has_node("NavigationAgent2D"):
-		var nav_agent = character.get_node("NavigationAgent2D")
-		nav_agent.target_position = target_pos
-		
-		# 开始移动
+	# 使用CharacterController的move_to方法
+	if character.has_method("move_to"):
+		character.move_to(target_pos)
 		_is_moving = true
 		_target_position = target_pos
-		
 		print("[AIAgent] %s 开始移动到 %s" % [character.name, str(target_pos)])
 	else:
-		print("[AIAgent] %s 移动失败：没有NavigationAgent2D" % character.name)
+		print("[AIAgent] %s 移动失败：CharacterController没有move_to方法" % character.name)
 
 # 2. 开始对话
 func _execute_start_dialogue(request: ActionRequest):
@@ -561,29 +557,31 @@ func _execute_wait(request: ActionRequest):
 # ============================================
 var _is_moving: bool = false
 var _target_position: Vector2 = Vector2.ZERO
+var _movement_check_timer: float = 0.0
+const MOVEMENT_CHECK_INTERVAL: float = 0.5  # 每0.5秒检查一次移动状态
 
 func _physics_process(delta: float):
-	# 处理移动
+	# 处理移动检查
 	if _is_moving and character:
-		if character.has_node("NavigationAgent2D"):
-			var nav_agent = character.get_node("NavigationAgent2D")
+		_movement_check_timer += delta
+		
+		# 定期检测是否到达目标
+		if _movement_check_timer >= MOVEMENT_CHECK_INTERVAL:
+			_movement_check_timer = 0.0
 			
-			if nav_agent.is_navigation_finished():
+			# 检查是否到达目标（使用CharacterController的导航路径）
+			var current_pos = character.global_position
+			var distance_to_target = current_pos.distance_to(_target_position)
+			
+			# 如果距离小于阈值，认为到达目标
+			if distance_to_target < 20.0:  # 20像素阈值
 				_is_moving = false
-				print("[AIAgent] %s 移动完成" % character.name)
+				print("[AIAgent] %s 移动完成，距离目标：%.1f" % [character.name, distance_to_target])
 				
 				# 检查是否有缓存的step2
 				if cached_request and cached_request.cached_step2:
 					_validate_and_execute_step2()
 				return
-			
-			# 获取下一个路径点
-			var next_pos = nav_agent.get_next_path_position()
-			var direction = (next_pos - character.global_position).normalized()
-			
-			# 移动角色
-			character.velocity = direction * character.speed
-			character.move_and_slide()
 
 func _get_position_from_range_id(range_id: String) -> Vector2:
 	# TODO: 从RoomManager获取中范围的位置
