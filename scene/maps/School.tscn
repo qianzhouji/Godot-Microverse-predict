@@ -17037,6 +17037,20 @@ activity_types = Array[String](["偶遇互动"])
 position = Vector2(750, 516)
 shape = SubResource("RectangleShape2D_10dvn")
 
+[node name="RoomArea_Corridor3" type="Area2D" parent="." unique_id=990108190]
+visible = false
+script = ExtResource("30_yhhlg")
+room_name = "走廊3"
+room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的地方"
+initial_reward_rate = 0.3
+reward_decay_rate = 0.3
+effort_level = 0.2
+activity_types = Array[String](["偶遇互动"])
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor3" unique_id=1882605040]
+position = Vector2(750, 324.5)
+shape = SubResource("RectangleShape2D_qy4lc")
+
 [node name="RoomArea_Gym" type="Area2D" parent="." unique_id=990108188]
 visible = false
 script = ExtResource("30_yhhlg")
