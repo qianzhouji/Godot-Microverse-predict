@@ -584,8 +584,70 @@ func _physics_process(delta: float):
 				return
 
 func _get_position_from_range_id(range_id: String) -> Vector2:
-	# TODO: 从RoomManager获取中范围的位置
-	return Vector2.ZERO
+	"""
+	从中范围ID获取目标位置
+	range_id格式: "房间名_范围类型"，如 "教室（主教学区）_左上"
+	"""
+	if range_id.is_empty():
+		return Vector2.ZERO
+	
+	# 解析range_id
+	var parts = range_id.split("_")
+	if parts.size() < 2:
+		return Vector2.ZERO
+	
+	var room_name = parts[0]
+	var range_type = parts[1] if parts.size() > 1 else "center"
+	
+	# 获取房间数据
+	var room = _get_room_by_name(room_name)
+	if not room:
+		print("[AIAgent] 未找到房间: %s" % room_name)
+		return Vector2.ZERO
+	
+	# 计算中范围位置
+	var room_pos = room.position
+	var room_size = room.size if room.has("size") else Vector2(200, 100)
+	
+	var offset = Vector2.ZERO
+	
+	# 根据范围类型计算偏移
+	match range_type:
+		"左上", "left_top":
+			offset = Vector2(-room_size.x * 0.25, -room_size.y * 0.25)
+		"右上", "right_top":
+			offset = Vector2(room_size.x * 0.25, -room_size.y * 0.25)
+		"左下", "left_bottom":
+			offset = Vector2(-room_size.x * 0.25, room_size.y * 0.25)
+		"右下", "right_bottom":
+			offset = Vector2(room_size.x * 0.25, room_size.y * 0.25)
+		"左", "left":
+			offset = Vector2(-room_size.x * 0.25, 0)
+		"右", "right":
+			offset = Vector2(room_size.x * 0.25, 0)
+		"中心", "center", "":
+			offset = Vector2.ZERO
+		_:
+			# 默认中心
+			offset = Vector2.ZERO
+	
+	# 添加随机偏移（避免所有Agent聚集在同一点）
+	var random_offset = Vector2(randf_range(-20, 20), randf_range(-20, 20))
+	
+	return room_pos + offset + random_offset
+
+func _get_room_by_name(room_name: String):
+	"""根据房间名称获取房间数据"""
+	if not room_manager:
+		return null
+	
+	# 遍历所有房间查找匹配的名称
+	for room_id in room_manager.rooms:
+		var room = room_manager.rooms[room_id]
+		if room.name == room_name or room.room_name == room_name:
+			return room
+	
+	return null
 
 func _find_agent_by_id(agent_id: String):
 	var agents = get_tree().get_nodes_in_group("ai_agents")
