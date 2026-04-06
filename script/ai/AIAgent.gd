@@ -24,7 +24,7 @@ var is_player_controlled = false
 @onready var dialog_manager = get_node("/root/DialogManager")
 @onready var character_manager = get_node("/root/CharacterManager")
 
-# 定时器，用于定期进行AI决策
+# 定时器,用于定期进行AI决策
 var decision_timer: Timer
 
 # 直接使用自动加载单例
@@ -32,7 +32,7 @@ var decision_timer: Timer
 @onready var day_night_system = get_node("/root/DayNightSystem")
 
 # 添加新的感知相关变量
-# 尝试多种路径获取RoomManager（支持School和Office场景）
+# 尝试多种路径获取RoomManager(支持School和Office场景)
 @onready var room_manager = _get_room_manager()
 
 func _get_room_manager():
@@ -40,18 +40,18 @@ func _get_room_manager():
 	var rm = get_node_or_null("/root/School/RoomManager")
 	if rm:
 		return rm
-	
+
 	# 尝试Office场景路径
 	rm = get_node_or_null("/root/Office/RoomManager")
 	if rm:
 		return rm
-	
+
 	# 尝试直接通过AutoLoad获取
 	rm = get_node_or_null("/root/RoomManager")
 	if rm:
 		return rm
-	
-	push_error("[AIAgent] 无法找到RoomManager，请确保场景正确配置")
+
+	push_error("[AIAgent] 无法找到RoomManager,请确保场景正确配置")
 	return null
 
 # 体验采样相关变量
@@ -62,7 +62,7 @@ const SAMPLE_INTERVAL: float = 5.0        # 每5秒采样一次
 const UPDATE_THRESHOLD: int = 3           # 3个样本后更新信念
 
 # ========== 感知层与系统层分离 ==========
-# AgentRewardReceiver: 接收系统发放的奖赏（感知层组件）
+# AgentRewardReceiver: 接收系统发放的奖赏(感知层组件)
 var reward_receiver: AgentRewardReceiver = null
 
 func _ready():
@@ -73,28 +73,31 @@ func _ready():
 	add_child(decision_timer)
 	decision_timer.timeout.connect(_on_decision_timer_timeout)
 	decision_timer.start()
-	
+
 	# 创建体验采样定时器
 	experience_timer = Timer.new()
 	experience_timer.wait_time = SAMPLE_INTERVAL
 	experience_timer.one_shot = false
 	add_child(experience_timer)
 	experience_timer.timeout.connect(_on_experience_sample)
-	
-	# 创建一个一次性定时器，等待10秒后再开始第一次决策
+
+	# 创建一个一次性定时器,等待10秒后再开始第一次决策
 	var initial_delay = Timer.new()
 	initial_delay.wait_time = 10.0
 	initial_delay.one_shot = true
 	add_child(initial_delay)
 	initial_delay.timeout.connect(func(): make_decision())
-	
+
 	# 初始化当前房间时间
 	current_room_start_time = Time.get_unix_time_from_system()
 	last_sample_time = current_room_start_time
 	initial_delay.start()
-	
-	# ========== 创建AgentRewardReceiver（感知层组件）==========
-	# 延迟创建，确保RewardSystem已初始化
+
+	# 初始化空任务列表(不再生成初始任务)
+	character.set_meta("tasks", [])
+
+	# ========== 创建AgentRewardReceiver(感知层组件)==========
+	# 延迟创建,确保RewardSystem已初始化
 	call_deferred("_create_reward_receiver")
 
 # 创建AgentRewardReceiver
@@ -129,39 +132,39 @@ func generate_scene_description() -> String:
 	if current_room:
 		description += "你现在在" + current_room.name + "。"
 		description += "\n" + current_room.description
-		
-		# 添加情境参数（MVT模型参数）
+
+		# 添加情境参数(MVT模型参数)
 		description += _get_room_situation_params(current_room.name)
-	
+
 	# 获取环境信息
 	var environment_info = get_environment_info()
 	description += "\n" + environment_info
-	
+
 	# 获取房间内的物品和角色
 	var room_objects = get_room_objects(current_room)
 	var room_characters = get_room_characters(current_room)
-	
+
 	# 添加物品描述
 	if room_objects.size() > 0:
-		description += "\n房间内有以下物品："
+		description += "\n房间内有以下物品:"
 		for obj in room_objects:
 			var item_info = get_object_info(obj)
 			description += "\n- " + item_info
-	
+
 	# 添加角色描述
 	if room_characters.size() > 0:
-		description += "\n房间内有以下角色："
+		description += "\n房间内有以下角色:"
 		for char in room_characters:
 			# 获取角色职位信息
 			var char_personality = CharacterPersonality.get_personality(char.name)
 			var position = char_personality.get("position", "未知职位")
-			
-			description += "\n- " + char.name + "（" + position + "）"
+
+			description += "\n- " + char.name + "(" + position + ")"
 			if char.has_method("get_current_state"):
-				description += " - 状态：" + char.get_current_state()
-	
+				description += " - 状态:" + char.get_current_state()
+
 	# 添加地图感知信息
-	description += "\n\n地图信息："
+	description += "\n\n地图信息:"
 	for room_name in room_manager.rooms:
 		var room = room_manager.rooms[room_name]
 		var distance = character.global_position.distance_to(room.position)
@@ -170,17 +173,17 @@ func generate_scene_description() -> String:
 		var right = room.position.x + room.size.x / 2
 		var top = room.position.y - room.size.y / 2
 		var bottom = room.position.y + room.size.y / 2
-		
-		description += "\n- " + room.name + "："
+
+		description += "\n- " + room.name + ":"
 		description += "中心坐标(" + str(int(room.position.x)) + ", " + str(int(room.position.y)) + ")"
-		description += "，边界范围[左:" + str(int(left)) + ", 右:" + str(int(right)) + ", 上:" + str(int(top)) + ", 下:" + str(int(bottom)) + "]"
-		description += "，距离约" + str(int(distance)) + "米"
-		description += "，方向:" + get_direction_description(character.global_position, room.position)
-		
+		description += ",边界范围[左:" + str(int(left)) + ", 右:" + str(int(right)) + ", 上:" + str(int(top)) + ", 下:" + str(int(bottom)) + "]"
+		description += ",距离约" + str(int(distance)) + "米"
+		description += ",方向:" + get_direction_description(character.global_position, room.position)
+
 		# 添加房间内角色信息
 		var room_chars = get_room_characters(room)
 		if room_chars.size() > 0:
-			description += "，房间内角色："
+			description += ",房间内角色:"
 			for i in range(room_chars.size()):
 				var char = room_chars[i]
 				var char_personality = CharacterPersonality.get_personality(char.name)
@@ -188,49 +191,49 @@ func generate_scene_description() -> String:
 				if i > 0:
 					description += "、"
 				description += char.name + "(" + position + ")"
-	
+
 	return description
 
 # 获取房间内的物品
 func get_room_objects(room: RoomData) -> Array:
 	var room_objects = []
 	var objects = get_tree().get_nodes_in_group("interactable")
-	
+
 	for obj in objects:
 		if room and room_manager.is_position_in_room(obj.global_position, room):
 			room_objects.append(obj)
-	
+
 	return room_objects
 
 # 获取房间内的角色
 func get_room_characters(room: RoomData) -> Array:
 	var room_characters = []
 	var characters = get_tree().get_nodes_in_group("character")
-	
+
 	for char in characters:
 		if char != character and room and room_manager.is_position_in_room(char.global_position, room):
 			room_characters.append(char)
-	
+
 	return room_characters
 
-# 获取房间的情境参数（使用感知系统，隐藏客观参数）
+# 获取房间的情境参数(使用感知系统,隐藏客观参数)
 func _get_room_situation_params(room_name: String) -> String:
 	var personality = CharacterPersonality.get_personality(character.name)
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
-	
+
 	# 使用感知系统获取Agent对情境的主观感知
 	var params_desc = PerceptionSystem.get_belief_description(character.name, room_name, is_depression)
-	
+
 	# 添加效用参数说明
 	params_desc += UtilitySystem.get_utility_params_description(personality)
-	
+
 	return params_desc
 
 # 获取方向描述
 func get_direction_description(from_pos: Vector2, to_pos: Vector2) -> String:
 	var direction = to_pos - from_pos
 	var angle = rad_to_deg(direction.angle())
-	
+
 	if angle >= -22.5 and angle < 22.5:
 		return "东边"
 	elif angle >= 22.5 and angle < 67.5:
@@ -253,108 +256,108 @@ func get_environment_info() -> String:
 	# 获取当前场景名称
 	var current_scene = get_tree().current_scene.name
 	var environment_info = ""
-	
+
 	# 根据场景名称提供不同的环境描述
-	# 注意：School.tscn的根节点名称是"Office"（历史遗留），但实际是学校场景
+	# 注意:School.tscn的根节点名称是"Office"(历史遗留),但实际是学校场景
 	match current_scene:
 		"Office":
-			# School.tscn的场景根节点名为Office，但实际是学校场景
-			environment_info = "这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
+			# School.tscn的场景根节点名为Office,但实际是学校场景
+			environment_info = "这是一所初中学校,有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区,食堂提供午餐,体育馆可以进行体育活动。"
 		"School":
-			environment_info = "这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
+			environment_info = "这是一所初中学校,有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区,食堂提供午餐,体育馆可以进行体育活动。"
 		"Jail":
 			environment_info = "这是监狱。"
 		_:
 			# 默认描述
 			environment_info = "这是一个室内场所。"
-	
-	# 添加时间信息（使用游戏内时间day_night_system）
+
+	# 添加时间信息(使用游戏内时间day_night_system)
 	var time_description = ""
-	
+
 	# 安全获取day_night_system
 	var dns = get_node_or_null("/root/DayNightSystem")
-	
+
 	if dns:
 		var current_hour = dns.current_hour
 		var weekday = dns.get_weekday_name()
-		
+
 		if dns.is_weekend():
-			time_description = "现在是" + weekday + "周末，学校放假，学生可以自由活动。"
+			time_description = "现在是" + weekday + "周末,学校放假,学生可以自由活动。"
 		elif current_hour >= 7 and current_hour < 8:
-			time_description = "现在是早晨" + dns.get_current_time() + "，学生们陆续到校，准备开始一天的学习。"
+			time_description = "现在是早晨" + dns.get_current_time() + ",学生们陆续到校,准备开始一天的学习。"
 		elif current_hour >= 8 and current_hour < 12:
-			time_description = "现在是上午" + dns.get_current_time() + "，正在上课，教室里传来老师的讲课声。"
+			time_description = "现在是上午" + dns.get_current_time() + ",正在上课,教室里传来老师的讲课声。"
 		elif current_hour >= 12 and current_hour < 14:
-			time_description = "现在是中午" + dns.get_current_time() + "，午餐时间，食堂里坐满了用餐的学生。"
+			time_description = "现在是中午" + dns.get_current_time() + ",午餐时间,食堂里坐满了用餐的学生。"
 		elif current_hour >= 14 and current_hour < 17:
-			time_description = "现在是下午" + dns.get_current_time() + "，下午的课程正在进行中。"
+			time_description = "现在是下午" + dns.get_current_time() + ",下午的课程正在进行中。"
 		elif current_hour >= 17 and current_hour < 19:
-			time_description = "现在是傍晚" + dns.get_current_time() + "，放学了，学生们陆续离开学校。"
+			time_description = "现在是傍晚" + dns.get_current_time() + ",放学了,学生们陆续离开学校。"
 		else:
-			time_description = "现在是" + dns.get_current_time() + "，学校已经放学，校园里很安静。"
+			time_description = "现在是" + dns.get_current_time() + ",学校已经放学,校园里很安静。"
 	else:
-		# 备用：使用真实时间
+		# 备用:使用真实时间
 		var time = Time.get_time_dict_from_system()
 		var hour = time.hour
-		
+
 		if hour >= 6 and hour < 9:
-			time_description = "现在是早晨，学校刚开始一天的学习。"
+			time_description = "现在是早晨,学校刚开始一天的学习。"
 		elif hour >= 9 and hour < 12:
-			time_description = "现在是上午，学生们正在上课。"
+			time_description = "现在是上午,学生们正在上课。"
 		elif hour >= 12 and hour < 14:
-			time_description = "现在是午餐时间，学生们正在食堂用餐。"
+			time_description = "现在是午餐时间,学生们正在食堂用餐。"
 		elif hour >= 14 and hour < 18:
-			time_description = "现在是下午，课程正在进行中。"
+			time_description = "现在是下午,课程正在进行中。"
 		elif hour >= 18 and hour < 21:
-			time_description = "现在是傍晚，学生们已经放学。"
+			time_description = "现在是傍晚,学生们已经放学。"
 		else:
-			time_description = "现在是夜晚，学校已经安静。"
-	
+			time_description = "现在是夜晚,学校已经安静。"
+
 	environment_info += "\n" + time_description
 	return environment_info
 
 # 获取物品信息和功能
 func get_object_info(obj: Node2D) -> String:
 	var info = obj.name
-	
+
 	# 根据物品类型添加功能描述
 	if obj is StaticBody2D:
 		# 检查物品类型并添加相应描述
 		if "Chair" in obj.name or obj.is_in_group("chairs"):
-			info += "（一把椅子，可以坐下休息或工作）"
+			info += "(一把椅子,可以坐下休息或工作)"
 			# 检查椅子是否被占用
 			if obj.has_method("is_occupied") and obj.is_occupied():
-				info += "，目前有人正在使用"
+				info += ",目前有人正在使用"
 			else:
-				info += "，目前无人使用"
+				info += ",目前无人使用"
 		elif "Desk" in obj.name:
-			info += "（一张办公桌，可以在这里工作、放置电脑和文件）"
+			info += "(一张办公桌,可以在这里工作、放置电脑和文件)"
 		elif "Computer" in obj.name:
-			info += "（一台电脑，可以用来处理工作、查看邮件或浏览网页）"
+			info += "(一台电脑,可以用来处理工作、查看邮件或浏览网页)"
 		elif "Printer" in obj.name:
-			info += "（一台打印机，可以打印文件）"
+			info += "(一台打印机,可以打印文件)"
 		elif "CoffeeMachine" in obj.name:
-			info += "（一台咖啡机，可以提供咖啡提神）"
+			info += "(一台咖啡机,可以提供咖啡提神)"
 		elif "WaterDispenser" in obj.name:
-			info += "（一台饮水机，可以喝水解渴）"
+			info += "(一台饮水机,可以喝水解渴)"
 		elif "Sofa" in obj.name:
-			info += "（一张沙发，可以坐下休息放松）"
+			info += "(一张沙发,可以坐下休息放松)"
 		elif "Whiteboard" in obj.name:
-			info += "（一块白板，可以用来开会讨论或记录想法）"
+			info += "(一块白板,可以用来开会讨论或记录想法)"
 		elif "Bookshelf" in obj.name:
-			info += "（一个书架，存放各种书籍和资料）"
+			info += "(一个书架,存放各种书籍和资料)"
 		elif "FileCabinet" in obj.name:
-			info += "（一个文件柜，存放重要文件和档案）"
+			info += "(一个文件柜,存放重要文件和档案)"
 		elif "Plant" in obj.name:
-			info += "（一盆植物，为办公环境增添生机）"
+			info += "(一盆植物,为办公环境增添生机)"
 		else:
 			# 默认描述
-			info += "（一个办公用品）"
-	
+			info += "(一个办公用品)"
+
 	# 添加距离信息
 	var distance = int(obj.global_position.distance_to(character.global_position))
-	info += "，距离约" + str(distance) + "米"
-	
+	info += ",距离约" + str(distance) + "米"
+
 	return info
 
 # 标记是否正在等待API响应
@@ -362,25 +365,25 @@ var waiting_responses = {}
 
 # 获取角色详细状态信息
 func get_character_status_info(char_node = null) -> String:
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
 	var status_info = ""
-	
+
 	# 基本状态信息
 	var mood = target_character.get_meta("mood", "普通")
 	var health = target_character.get_meta("health", "良好")
-	
-	status_info += "\n\n个人状态信息："
-	status_info += "\n- 心情状态：" + mood
-	status_info += "\n- 健康状况：" + health
-	
+
+	status_info += "\n\n个人状态信息:"
+	status_info += "\n- 心情状态:" + mood
+	status_info += "\n- 健康状况:" + health
+
 	# 使用MemoryManager获取格式化的记忆信息
 	status_info += MemoryManager.get_formatted_memories_for_prompt(target_character)
-	
+
 	# 情感关系信息
 	var relations = target_character.get_meta("relations", {})
 	if relations.size() > 0:
-		status_info += "\n\n对其他同事的情感关系："
+		status_info += "\n\n对其他同事的情感关系:"
 		for target_name in relations:
 			var relation = relations[target_name]
 			var emotion_type = relation["type"] if relation.has("type") else "未知"
@@ -396,75 +399,75 @@ func get_character_status_info(char_node = null) -> String:
 				strength_desc = "轻微"
 			else:
 				strength_desc = "强烈"
-			
-			status_info += "\n- 对" + target_name + "：" + strength_desc + emotion_type + "（强度：" + str(strength) + "）"
-	
+
+			status_info += "\n- 对" + target_name + ":" + strength_desc + emotion_type + "(强度:" + str(strength) + ")"
+
 	return status_info
 
 # 获取学校师生信息字符串
 func get_company_employees_info() -> String:
-	var info = "\n\n学校师生名单："
-	
+	var info = "\n\n学校师生名单:"
+
 	# 遍历CharacterPersonality中的所有角色配置
 	for character_name in CharacterPersonality.PERSONALITY_CONFIG:
 		var personality = CharacterPersonality.PERSONALITY_CONFIG[character_name]
-		info += "\n- " + character_name + "：" + personality["position"]
-	
-	info += "\n注意：在生成任何内容时，只能提及以上列出的师生，不要创造新的角色名字。"
+		info += "\n- " + character_name + ":" + personality["position"]
+
+	info += "\n注意:在生成任何内容时,只能提及以上列出的师生,不要创造新的角色名字。"
 	return info
 
 # 获取学校基本信息字符串
 func get_company_basic_info() -> String:
-	return "\n\n学校基本信息：\n这是一所初中学校，有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区，食堂提供午餐，体育馆可以进行体育活动。"
+	return "\n\n学校基本信息:\n这是一所初中学校,有教室、食堂、走廊和体育馆。教室分为北侧的主教学区和南侧的小组讨论区,食堂提供午餐,体育馆可以进行体育活动。"
 
 # 获取角色任务信息
 func get_character_task_info(char_node = null) -> String:
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
 	var task_info = ""
-	
+
 	# 获取任务列表
 	var tasks = target_character.get_meta("tasks", [])
-	
+
 	if tasks.is_empty():
-		task_info += "\n\n当前任务状态：暂无任务"
+		task_info += "\n\n当前任务状态:暂无任务"
 		return task_info
-		
-	# 按渴望程度排序任务（从高到低）
+
+	# 按渴望程度排序任务(从高到低)
 	tasks.sort_custom(func(a, b): return a["priority"] > b["priority"])
-	
-	task_info += "\n\n当前任务列表（按渴望程度排序）："
-	
+
+	task_info += "\n\n当前任务列表(按渴望程度排序):"
+
 	# 显示前3个最重要的任务
 	var display_count = min(3, tasks.size())
 	for i in range(display_count):
 		var task = tasks[i]
-		task_info += "\n%d. %s（渴望程度：%d/10）" % [i + 1, task["description"], task["priority"]]
-		
-	# 如果还有更多任务，显示总数
+		task_info += "\n%d. %s(渴望程度:%d/10)" % [i + 1, task["description"], task["priority"]]
+
+	# 如果还有更多任务,显示总数
 	if tasks.size() > display_count:
 		task_info += "\n...还有 %d 个任务待完成" % (tasks.size() - display_count)
-		
-	task_info += "\n\n任务完成建议：你应该优先完成渴望程度最高的任务。"
-	
+
+	task_info += "\n\n任务完成建议:你应该优先完成渴望程度最高的任务。"
+
 	# 检查是否需要刷新每日任务
 	_check_and_refresh_daily_tasks(target_character)
-	
+
 	return task_info
 
 # 检查并刷新每日任务
 func _check_and_refresh_daily_tasks(character_node):
 	if not character_node:
 		return
-		
+
 	# 获取上次刷新时间
 	var last_refresh = character_node.get_meta("last_task_refresh", 0)
 	var current_time = Time.get_unix_time_from_system()
-	
-	# 计算时间差（秒）
+
+	# 计算时间差(秒)
 	var time_diff = current_time - last_refresh
-	
-	# 如果超过24小时（86400秒），刷新任务
+
+	# 如果超过24小时(86400秒),刷新任务
 	if time_diff >= 86400:
 		_refresh_daily_tasks(character_node)
 
@@ -472,54 +475,45 @@ func _check_and_refresh_daily_tasks(character_node):
 func _refresh_daily_tasks(character_node):
 	if not character_node:
 		return
-	
+
 	print("[AIAgent] %s 刷新每日任务..." % character_node.name)
-	
+
 	# 首先尝试从ScheduleSystem获取课程表任务
 	var schedule_tasks = []
 	if ScheduleSystem and ScheduleSystem.is_school_day:
 		schedule_tasks = _get_schedule_tasks_for_character(character_node)
 		if not schedule_tasks.is_empty():
-			print("[AIAgent] %s 从ScheduleSystem获取课程表任务：%d个" % [character_node.name, schedule_tasks.size()])
+			print("[AIAgent] %s 从ScheduleSystem获取课程表任务:%d个" % [character_node.name, schedule_tasks.size()])
 			character_node.set_meta("tasks", schedule_tasks)
 			character_node.set_meta("last_task_refresh", Time.get_unix_time_from_system())
-			
+
 			# 添加任务刷新记忆
-			var memory_text = "今天是上学日，你按照课程表安排活动，共有%d个课程任务。" % schedule_tasks.size()
+			var memory_text = "今天是上学日,你按照课程表安排活动,共有%d个课程任务。" % schedule_tasks.size()
 			MemoryManager.add_memory(character_node, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
-			
-			print("[AIAgent] %s 的任务已刷新（课程表），当前有 %d 个任务" % [character_node.name, schedule_tasks.size()])
+
+			print("[AIAgent] %s 的任务已刷新(课程表),当前有 %d 个任务" % [character_node.name, schedule_tasks.size()])
 			return
-	
-	# 如果不是上学日或ScheduleSystem无任务，生成默认任务
+
+	# 如果不是上学日或ScheduleSystem无任务,生成默认任务
 	# 获取当前任务列表
 	var tasks = character_node.get_meta("tasks", [])
-	
+
 	# 保留未完成的任务
 	var incomplete_tasks = []
 	for task in tasks:
 		if not task.get("completed", false):
 			incomplete_tasks.append(task)
-	
+
 	# 安全获取day_night_system并检查是否是周末
 	var dns = get_node_or_null("/root/DayNightSystem")
 	var is_weekend = false
 	if dns != null:
 		is_weekend = dns.is_weekend()
 	var target_task_count = 3 if is_weekend else 2  # 初始分配2-3个任务
+
+	# [已删除] 不再生成随机任务，所有任务由TaskManager根据课程表分配
+	# 保留现有任务即可
 	
-	# 生成新任务直到达到目标数量（但不超过5个总任务）
-	while incomplete_tasks.size() < target_task_count and incomplete_tasks.size() < 5:
-		# 生成随机任务
-		var new_task = _generate_random_task(character_node)
-		if new_task:
-			incomplete_tasks.append(new_task)
-		else:
-			break
-		
-	# 重新排序任务（根据优先级从高到低）
-	incomplete_tasks.sort_custom(func(a, b): return a["priority"] > b["priority"])
-			
 	# 更新任务列表
 	character_node.set_meta("tasks", incomplete_tasks)
 	
@@ -529,222 +523,63 @@ func _refresh_daily_tasks(character_node):
 	# 添加任务刷新记忆
 	var memory_text = ""
 	if is_weekend:
-		memory_text = "今天是周末，你安排了%d个活动计划。" % incomplete_tasks.size()
+		memory_text = "今天是周末，你有%d个活动计划。" % incomplete_tasks.size()
 	else:
-		memory_text = "你更新了今天的任务计划，共有%d个任务需要完成。" % incomplete_tasks.size()
+		memory_text = "你有%d个任务需要完成（由课程表分配）。" % incomplete_tasks.size()
 	MemoryManager.add_memory(character_node, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
-	
-	var task_source = "周末" if is_weekend else "默认"
-	print("[AIAgent] %s 的任务已刷新（%s），当前有 %d 个任务" % [character_node.name, task_source, incomplete_tasks.size()])
 
-# 生成随机任务
-func _generate_random_task(character_node):
-	if not character_node:
-		return null
-		
-	# 获取角色人设
-	var personality = CharacterPersonality.get_personality(character_node.name)
-	
-	# 根据角色类型和场景生成适合的任务
-	var tasks_pool = []
-	
-	# 安全获取day_night_system（可能在_ready前被调用）
-	var dns = get_node_or_null("/root/DayNightSystem")
-	
-	# 检查是否是上学日（周一到周五，且不是周末）
-	var is_school_day = false
-	if dns != null:
-		is_school_day = not dns.is_weekend()
-	var role_type = personality.get("role_type", "")
-	
-	if is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
-		# ========== 学生上学日任务池 ==========
-		tasks_pool.append("认真听讲，做笔记")
-		tasks_pool.append("回答老师提出的问题")
-		tasks_pool.append("与同桌讨论问题")
-		tasks_pool.append("完成课堂练习")
-		tasks_pool.append("阅读课本")
-		tasks_pool.append("整理书包和学习用品")
-		tasks_pool.append("准备下节课的教材")
-		tasks_pool.append("向老师请教不懂的问题")
-		tasks_pool.append("帮助同学解答疑问")
-		tasks_pool.append("参加小组讨论")
-		tasks_pool.append("完成课后作业")
-		tasks_pool.append("复习今天学到的知识")
-		tasks_pool.append("预习明天的课程")
-		tasks_pool.append("整理课堂笔记")
-		tasks_pool.append("思考学习中的问题")
-		
-		# 根据学生类型添加特定任务
-		if role_type == "depression_risk_student":
-			tasks_pool.append("努力集中注意力")
-			tasks_pool.append("尝试参与课堂互动")
-			tasks_pool.append("在座位上休息片刻")
-			tasks_pool.append("深呼吸放松")
-			tasks_pool.append("写下自己的心情")
-		else:  # healthy_student
-			tasks_pool.append("积极举手发言")
-			tasks_pool.append("主动帮助同学")
-			tasks_pool.append("参与班级活动")
-			tasks_pool.append("与同学讨论学习方法")
-			tasks_pool.append("分享学习心得")
-	
-	elif not is_school_day and (role_type == "depression_risk_student" or role_type == "healthy_student"):
-		# ========== 学生周末任务池 ==========
-		tasks_pool.append("完成周末作业")
-		tasks_pool.append("阅读课外书籍")
-		tasks_pool.append("复习本周学习内容")
-		tasks_pool.append("预习下周课程")
-		tasks_pool.append("整理学习资料")
-		tasks_pool.append("参加兴趣班或社团活动")
-		tasks_pool.append("进行体育锻炼")
-		tasks_pool.append("与朋友外出游玩")
-		tasks_pool.append("在家休息放松")
-		tasks_pool.append("看电影或听音乐")
-		tasks_pool.append("帮助父母做家务")
-		tasks_pool.append("学习新技能或爱好")
-		tasks_pool.append("外出购物")
-		tasks_pool.append("拜访亲戚朋友")
-		tasks_pool.append("规划下周安排")
-		
-		# 根据学生类型添加特定任务
-		if role_type == "depression_risk_student":
-			tasks_pool.append("在家安静休息")
-			tasks_pool.append("写日记记录心情")
-			tasks_pool.append("独自画画或听音乐")
-			tasks_pool.append("在公园散步")
-			tasks_pool.append("阅读喜欢的书籍")
-		else:  # healthy_student
-			tasks_pool.append("参加朋友聚会")
-			tasks_pool.append("组织户外活动")
-			tasks_pool.append("学习新的运动")
-			tasks_pool.append("探索新的兴趣爱好")
-			tasks_pool.append("与朋友视频聊天")
-	
-	elif role_type == "teacher":
-		# ========== 教师任务池 ==========
-		var position = personality.get("position", "")
-		
-		if position.contains("班主任"):
-			tasks_pool.append("准备教案")
-			tasks_pool.append("批改学生作业")
-			tasks_pool.append("管理班级纪律")
-			tasks_pool.append("与学生谈心")
-			tasks_pool.append("联系家长沟通学生情况")
-			tasks_pool.append("组织班级活动")
-			tasks_pool.append("关注学生心理健康")
-			tasks_pool.append("处理班级突发事件")
-			tasks_pool.append("参加教师会议")
-			tasks_pool.append("制定教学计划")
-		elif position.contains("数学"):
-			tasks_pool.append("准备数学教案")
-			tasks_pool.append("批改数学作业")
-			tasks_pool.append("解答学生数学问题")
-			tasks_pool.append("准备数学测验")
-			tasks_pool.append("辅导数学困难学生")
-			tasks_pool.append("研究数学教学方法")
-			tasks_pool.append("参加数学教研活动")
-			tasks_pool.append("更新数学教学资料")
-		elif position.contains("英语"):
-			tasks_pool.append("准备英语教案")
-			tasks_pool.append("批改英语作业")
-			tasks_pool.append("纠正学生发音")
-			tasks_pool.append("组织英语角活动")
-			tasks_pool.append("播放英语歌曲")
-			tasks_pool.append("推荐英文电影")
-			tasks_pool.append("辅导英语口语")
-			tasks_pool.append("参加英语教研活动")
-		else:
-			# 通用教师任务
-			tasks_pool.append("准备教案")
-			tasks_pool.append("批改作业")
-			tasks_pool.append("解答学生问题")
-			tasks_pool.append("参加教研会议")
-			tasks_pool.append("制定教学计划")
-			tasks_pool.append("与学生交流")
-			tasks_pool.append("整理教学资料")
-			tasks_pool.append("准备考试内容")
-	
-	else:
-		# ========== 备用：通用学校场景任务 ==========
-		tasks_pool.append("整理学习用品")
-		tasks_pool.append("阅读书籍")
-		tasks_pool.append("与同学交流")
-		tasks_pool.append("参加学校活动")
-		tasks_pool.append("休息放松")
-		tasks_pool.append("准备明天的安排")
-		tasks_pool.append("复习知识")
-		tasks_pool.append("整理笔记")
-		tasks_pool.append("学习新技能")
-		tasks_pool.append("思考学习计划")
-	
-	# 随机选择一个任务
-	var random_task = tasks_pool[randi() % tasks_pool.size()]
-	
-	# 创建任务对象（不预设优先级，由Agent自主判断）
-	# 任务类型作为提示，供Agent决策时参考
-	var task_type = "normal"
-	if "考试" in random_task or "会议" in random_task:
-		task_type = "important_urgent"  # 5-7级：重要且略紧急
-	elif "作业" in random_task or "稿件" in random_task or "活动" in random_task:
-		task_type = "normal_work"  # 4级：普通工作
-	elif "吃饭" in random_task or "睡觉" in random_task or "休息" in random_task:
-		task_type = "daily"  # 3级：日常
-	elif "社交" in random_task or "讨论" in random_task:
-		task_type = "social"  # 2级：社交（抑郁Agent可能回避）
-	
-	return {
-		"description": random_task,
-		"task_type": task_type,  # 任务类型提示
-		"priority": 0,  # 初始为0，表示未评估，由Agent自主判断
-		"created_at": Time.get_unix_time_from_system(),
-		"completed": false
-	}
+	var task_source = "周末" if is_weekend else "默认"
+	print("[AIAgent] %s 的任务已刷新(%s),当前有 %d 个任务" % [character_node.name, task_source, incomplete_tasks.size()])
+
+# [已删除] 生成随机任务
+# 重构说明:不再生成随机任务,所有任务由TaskManager根据课程表分配
+# func _generate_random_task(character_node):
+# 	pass
 
 # 生成决策并执行行为
 func make_decision():
-	# 如果正在等待API响应，跳过本次决策
+	# 如果正在等待API响应,跳过本次决策
 	if character.name in waiting_responses and waiting_responses[character.name]:
-		print("[AIAgent] %s 正在等待上一次API响应，跳过本次决策" % character.name)
+		print("[AIAgent] %s 正在等待上一次API响应,跳过本次决策" % character.name)
 		return
-	# 如果正在对话中，进行聊天中的决策
+	# 如果正在对话中,进行聊天中的决策
 	if dialog_manager.is_character_in_conversation(character):
-		print("[AIAgent] %s 正在对话中，进行聊天决策" % character.name)
+		print("[AIAgent] %s 正在对话中,进行聊天决策" % character.name)
 		await make_conversation_decision()
 		return
-	
+
 	# 检查并初始化任务系统
 	await _check_and_initialize_tasks()
-	
+
 	# 评估未设置优先级的任务
 	_evaluate_task_priorities()
-	
-	# 检查当前是否应该上课（由TaskManager管理）
+
+	# 检查当前是否应该上课(由TaskManager管理)
 	_check_current_class()
-	
-	# 检查附近是否有其他角色，可能触发对话
+
+	# 检查附近是否有其他角色,可能触发对话
 	_check_nearby_characters()
-	
+
 	# 生成场景描述
 	var scene_description = generate_scene_description()
-	print("[AIAgent] %s 的场景描述：\n%s" % [character.name, scene_description])
-	
+	print("[AIAgent] %s 的场景描述:\n%s" % [character.name, scene_description])
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(character.name)
-	
+
 	# 获取角色详细状态信息
 	var status_info = get_character_status_info(character)
-	
+
 	# 获取任务信息
 	var task_info = get_character_task_info(character)
-	
+
 	# 构建prompt
 	var role_type = personality.get("role_type", "student")
 	var role_description = "学生"
 	if role_type == "teacher":
 		role_description = "教师"
-	
-	var prompt = "你是一个%s，名字是%s。你的身份是：%s。你的性格是：%s。你的说话风格是：%s。你的主要职责是：%s。你的行为特点是：%s。" % [
+
+	var prompt = "你是一个%s,名字是%s。你的身份是:%s。你的性格是:%s。你的说话风格是:%s。你的主要职责是:%s。你的行为特点是:%s。" % [
 		role_description,
 		character.name,
 		personality["position"],
@@ -753,52 +588,52 @@ func make_decision():
 		personality["work_duties"],
 		personality["work_habits"]
 	]
-	
+
 	# ========== 添加心理学特质字段 ==========
 	# 人口学信息
 	if personality.has("demographics"):
 		var demo = personality["demographics"]
-		prompt += "\n你的基本信息："
+		prompt += "\n你的基本信息:"
 		if demo.has("age"):
 			prompt += str(demo["age"]) + "岁"
 		if demo.has("gender"):
 			prompt += demo["gender"] + "生"
 		if demo.has("grade"):
-			prompt += "，" + demo["grade"]
+			prompt += "," + demo["grade"]
 		if demo.has("family_structure"):
-			prompt += "，家庭结构：" + demo["family_structure"]
+			prompt += ",家庭结构:" + demo["family_structure"]
 		if demo.has("socioeconomic_status"):
-			prompt += "，家庭经济状况：" + demo["socioeconomic_status"]
+			prompt += ",家庭经济状况:" + demo["socioeconomic_status"]
 		if demo.has("only_child"):
-			prompt += "，" + ("独生子女" if demo["only_child"] else "非独生子女")
-	
+			prompt += "," + ("独生子女" if demo["only_child"] else "非独生子女")
+
 	# 大五人格
 	if personality.has("big_five"):
 		var big_five = personality["big_five"]
-		prompt += "\n你的大五人格特质（0-100分）："
+		prompt += "\n你的大五人格特质(0-100分):"
 		prompt += "开放性" + str(big_five.get("openness", 50)) + "、"
 		prompt += "尽责性" + str(big_five.get("conscientiousness", 50)) + "、"
 		prompt += "外向性" + str(big_five.get("extraversion", 50)) + "、"
 		prompt += "宜人性" + str(big_five.get("agreeableness", 50)) + "、"
 		prompt += "神经质" + str(big_five.get("neuroticism", 50))
-	
+
 	# 初始抑郁状态
 	if personality.has("initial_depression"):
 		var depression = personality["initial_depression"]
-		prompt += "\n你的心理健康状况："
+		prompt += "\n你的心理健康状况:"
 		if depression.has("phq9_baseline"):
 			prompt += "PHQ-9基线分数" + str(depression["phq9_baseline"])
 		if depression.has("severity_level"):
-			prompt += "（" + depression["severity_level"] + "抑郁）"
+			prompt += "(" + depression["severity_level"] + "抑郁)"
 		if depression.has("symptom_duration_weeks"):
-			prompt += "，症状持续" + str(depression["symptom_duration_weeks"]) + "周"
+			prompt += ",症状持续" + str(depression["symptom_duration_weeks"]) + "周"
 		if depression.has("key_symptoms"):
-			prompt += "，主要症状：" + ", ".join(PackedStringArray(depression["key_symptoms"]))
-	
+			prompt += ",主要症状:" + ", ".join(PackedStringArray(depression["key_symptoms"]))
+
 	# 功能水平
 	if personality.has("functioning_level"):
 		var func_level = personality["functioning_level"]
-		prompt += "\n你的功能水平（0-100分）："
+		prompt += "\n你的功能水平(0-100分):"
 		if func_level.has("academic_functioning"):
 			prompt += "学业功能" + str(func_level["academic_functioning"]) + "、"
 		if func_level.has("social_functioning"):
@@ -809,11 +644,11 @@ func make_decision():
 			prompt += "同伴关系" + str(func_level["peer_relationships"]) + "、"
 		if func_level.has("teacher_relationships"):
 			prompt += "师生关系" + str(func_level["teacher_relationships"])
-	
+
 	# 专能性
 	if personality.has("specific_ability"):
 		var ability = personality["specific_ability"]
-		prompt += "\n你的能力特长（0-100分）："
+		prompt += "\n你的能力特长(0-100分):"
 		var ability_list = []
 		if ability.has("mathematics"):
 			ability_list.append("数学" + str(ability["mathematics"]))
@@ -832,71 +667,71 @@ func make_decision():
 		if ability.has("attention_span"):
 			ability_list.append("注意力" + str(ability["attention_span"]))
 		prompt += "、".join(PackedStringArray(ability_list))
-	
-	# ========== 添加认知计算机制参数（MVT模型）==========
+
+	# ========== 添加认知计算机制参数(MVT模型)==========
 	if personality.has("cognitive_mechanism"):
 		var cm = personality["cognitive_mechanism"]
 		prompt += "\n\n【努力导向决策的认知计算机制 - 基线参数】"
-		prompt += "\n这些参数基于边际价值定理(MVT)，决定你在不同情境下的停留时间和行为选择："
-		
+		prompt += "\n这些参数基于边际价值定理(MVT),决定你在不同情境下的停留时间和行为选择:"
+
 		if cm.has("p_base"):
 			var p_base = cm["p_base"]
-			prompt += "\n- 离开阈值 (p_base)：%.0f%%" % (p_base * 100)
+			prompt += "\n- 离开阈值 (p_base):%.0f%%" % (p_base * 100)
 			if p_base > 0.6:
-				prompt += "【你对环境奖赏率估计较高，倾向于在活动中停留更久】"
+				prompt += "【你对环境奖赏率估计较高,倾向于在活动中停留更久】"
 			elif p_base < 0.4:
-				prompt += "【你对环境奖赏率估计较低，容易提前离开活动】"
+				prompt += "【你对环境奖赏率估计较低,容易提前离开活动】"
 			else:
 				prompt += "【正常水平】"
-		
+
 		if cm.has("eta_s"):
 			var eta_s = cm["eta_s"]
-			prompt += "\n- 初始奖赏感知权重 (η_s)：%.0f%%" % (eta_s * 100)
+			prompt += "\n- 初始奖赏感知权重 (η_s):%.0f%%" % (eta_s * 100)
 			if eta_s > 0.6:
-				prompt += "【你对情境初始丰富度很敏感，第一印象对你的停留时间影响很大】"
+				prompt += "【你对情境初始丰富度很敏感,第一印象对你的停留时间影响很大】"
 			elif eta_s < 0.4:
-				prompt += "【你对初始奖赏不太敏感，更多考虑长期收益】"
+				prompt += "【你对初始奖赏不太敏感,更多考虑长期收益】"
 			else:
 				prompt += "【正常水平】"
-		
+
 		if cm.has("eta_a"):
 			var eta_a = cm["eta_a"]
-			prompt += "\n- 衰减率感知权重 (η_a)：%.0f%%" % (eta_a * 100)
+			prompt += "\n- 衰减率感知权重 (η_a):%.0f%%" % (eta_a * 100)
 			if eta_a > 0.6:
-				prompt += "【你对奖赏消耗速度很敏感，能准确感知奖赏的衰减，倾向于提前离开】"
+				prompt += "【你对奖赏消耗速度很敏感,能准确感知奖赏的衰减,倾向于提前离开】"
 			elif eta_a < 0.4:
-				prompt += "【你对奖赏衰减不够敏感，可能在收益已经很低时仍继续停留】"
+				prompt += "【你对奖赏衰减不够敏感,可能在收益已经很低时仍继续停留】"
 			else:
 				prompt += "【正常水平】"
-		
+
 		if cm.has("beta_effort"):
 			var beta_effort = cm["beta_effort"]
-			prompt += "\n- 努力敏感性 (β_effort)：%.0f%%" % (beta_effort * 100)
+			prompt += "\n- 努力敏感性 (β_effort):%.0f%%" % (beta_effort * 100)
 			if beta_effort > 0.7:
-				prompt += "【高努力敏感性（抑郁风险特征）：努力成本会显著降低你的参与意愿，你倾向于回避需要付出努力的活动，即使这些活动可能带来回报】"
+				prompt += "【高努力敏感性(抑郁风险特征):努力成本会显著降低你的参与意愿,你倾向于回避需要付出努力的活动,即使这些活动可能带来回报】"
 			elif beta_effort > 0.5:
-				prompt += "【中等努力敏感性：你会考虑努力成本，但不会因此完全回避活动】"
+				prompt += "【中等努力敏感性:你会考虑努力成本,但不会因此完全回避活动】"
 			elif beta_effort < 0.3:
-				prompt += "【低努力敏感性：你不太在意付出的努力成本，愿意为了目标付出较多努力】"
+				prompt += "【低努力敏感性:你不太在意付出的努力成本,愿意为了目标付出较多努力】"
 			else:
 				prompt += "【正常水平】"
-		
+
 		prompt += "\n\n【认知计算机制对你行为的影响】"
-		prompt += "\n根据MVT理论，你在某个情境中的最优停留时间 T 满足："
-		prompt += "\nlog(T) = log[η_s · log(S) − log(p_base) − β_effort · effort] − η_a · log(a)"
-		prompt += "\n其中 S 是初始收益率，a 是收益衰减率，effort 是努力水平。"
+		prompt += "\n根据MVT理论,你在某个情境中的最优停留时间 T 满足:"
+		prompt += "\nlog(T) = log[η_s · log(S) - log(p_base) - β_effort · effort] - η_a · log(a)"
+		prompt += "\n其中 S 是初始收益率,a 是收益衰减率,effort 是努力水平。"
 		prompt += "\n你的参数组合意味着你在高努力、低初始收益、快衰减的情境中停留时间较短。"
-	
-	# 添加动态特质信息（运行时变化的心理特质）
+
+	# 添加动态特质信息(运行时变化的心理特质)
 	prompt += DynamicPersonality.get_traits_for_prompt(character)
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info  # 添加详细状态信息
 	prompt += task_info   # 添加任务信息
 	prompt += "\n" + scene_description
-	prompt += "\n请根据你的职位、性格、当前个人状态（包括心情、健康、财务状况）、记忆、情感关系、当前任务列表以及当前环境信息，综合考虑在这个情境下最合理的行动。"
-	prompt += "\n特别注意：你的决策应该受到以下因素影响："
+	prompt += "\n请根据你的职位、性格、当前个人状态(包括心情、健康、财务状况)、记忆、情感关系、当前任务列表以及当前环境信息,综合考虑在这个情境下最合理的行动。"
+	prompt += "\n特别注意:你的决策应该受到以下因素影响:"
 	prompt += "\n- 你的心情状态可能影响你的行为倾向"
 	prompt += "\n- 你的健康状况可能限制你的活动能力"
 	prompt += "\n- 你的财务状况可能影响你对金钱相关话题的敏感度"
@@ -904,57 +739,57 @@ func make_decision():
 	prompt += "\n- 你对其他同事的情感关系会影响你是否愿意与他们互动"
 	prompt += "\n- 你应该优先考虑完成渴望程度高的任务"
 	prompt += "\n- 你的行动应该与当前最重要的任务相关"
-	prompt += "\n- 你的心理学特质（大五人格、抑郁状态、功能水平、专能性）会深刻影响你的选择和行为模式"
-	prompt += "\n- 你的认知计算机制（离开阈值、奖赏感知权重、努力敏感性）会直接影响你的决策过程"
-	prompt += "\n\n根据以上所有信息，你想要采取什么行动？请从以下选项中选择一个："
-	prompt += "\n1. 调整任务（重新安排或修改当前的任务优先级）"
-	prompt += "\n2. 继续当前任务（执行当前最重要的任务）"
-	prompt += "\n请只回复数字1或2，不要有任何其他文字。"
-	
+	prompt += "\n- 你的心理学特质(大五人格、抑郁状态、功能水平、专能性)会深刻影响你的选择和行为模式"
+	prompt += "\n- 你的认知计算机制(离开阈值、奖赏感知权重、努力敏感性)会直接影响你的决策过程"
+	prompt += "\n\n根据以上所有信息,你想要采取什么行动?请从以下选项中选择一个:"
+	prompt += "\n1. 调整任务(重新安排或修改当前的任务优先级)"
+	prompt += "\n2. 继续当前任务(执行当前最重要的任务)"
+	prompt += "\n请只回复数字1或2,不要有任何其他文字。"
+
 	# 使用APIManager生成AI决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 为每个角色创建唯一的回调连接
-	# 断开之前可能存在的连接，避免重复连接
+	# 断开之前可能存在的连接,避免重复连接
 	if http_request.request_completed.is_connected(_on_decision_request_completed):
 		http_request.request_completed.disconnect(_on_decision_request_completed)
-	
+
 	# 使用带有角色标识的回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_decision_request_completed(result, response_code, headers, body, character)
 	)
 	waiting_responses[character.name] = true
 
 # 处理API响应
 func _on_decision_request_completed(result, _response_code, headers, body, char_node = null):
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
 	if result != HTTPRequest.RESULT_SUCCESS:
-		print("[AIAgent] %s 的HTTP请求失败，错误码：%s，使用默认决策" % [target_character.name, result])
+		print("[AIAgent] %s 的HTTP请求失败,错误码:%s,使用默认决策" % [target_character.name, result])
 		_execute_default_decision(target_character)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
-		print("[AIAgent] %s 的JSON解析失败，使用默认决策" % target_character.name)
+		print("[AIAgent] %s 的JSON解析失败,使用默认决策" % target_character.name)
 		_execute_default_decision(target_character)
 		return
-	
+
 	# 使用APIConfig统一解析响应
 	var decision = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if decision == "":
-		print("[AIAgent] %s 的API响应解析失败，使用默认决策" % target_character.name)
+		print("[AIAgent] %s 的API响应解析失败,使用默认决策" % target_character.name)
 		_execute_default_decision(target_character)
 		return
-	
+
 	decision = decision.strip_edges()
-	
+
 	# 根据决策执行行为
-	print("[AIAgent] %s 的决策结果：%s" % [target_character.name, decision])
+	print("[AIAgent] %s 的决策结果:%s" % [target_character.name, decision])
 	match decision:
 		"1":  # 调整任务
 			print("[AIAgent] %s 决定调整任务" % target_character.name)
@@ -963,84 +798,84 @@ func _on_decision_request_completed(result, _response_code, headers, body, char_
 			print("[AIAgent] %s 决定继续当前任务" % target_character.name)
 			await _continue_current_task(target_character)
 		_:
-			print("[AIAgent] 无效的决策：", decision)
+			print("[AIAgent] 无效的决策:", decision)
 
 # 聊天中的决策
 func make_conversation_decision():
-	# 如果正在等待API响应，跳过本次决策
+	# 如果正在等待API响应,跳过本次决策
 	if character.name in waiting_responses and waiting_responses[character.name]:
-		print("[AIAgent] %s 正在等待上一次API响应，跳过聊天决策" % character.name)
+		print("[AIAgent] %s 正在等待上一次API响应,跳过聊天决策" % character.name)
 		return
-	
+
 	# 获取当前对话的对象
 	var conversation_partner = _get_conversation_partner(character)
 	if not conversation_partner:
 		print("[AIAgent] %s 无法获取对话对象" % character.name)
 		return
-	
+
 	# 获取聊天记录
 	var chat_history = ""
 	if character.has_node("ChatHistory"):
 		var history_node = character.get_node("ChatHistory")
 		chat_history = history_node.get_recent_conversation_with(conversation_partner.name, 10)
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(character.name)
-	
+
 	# 获取角色详细状态信息
 	var status_info = get_character_status_info(character)
-	
+
 	# 获取任务信息
 	var task_info = get_character_task_info(character)
-	
+
 	# 构建聊天决策prompt
 	var role_type = personality.get("role_type", "student")
 	var role_description = "学生"
 	if role_type == "teacher":
 		role_description = "教师"
-	
-	var prompt = "你是一个%s，名字是%s。你的身份是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+
+	var prompt = "你是一个%s,名字是%s。你的身份是:%s。你的性格是:%s。你的说话风格是:%s。" % [
 		role_description,
 		character.name,
 		personality["position"],
 		personality["personality"],
 		personality["speaking_style"]
 	]
-	
+
 	# 添加学校情境信息
-	prompt += "\n\n你在一所中学里，周围有同学、老师，以及各种校园活动。"
+	prompt += "\n\n你在一所中学里,周围有同学、老师,以及各种校园活动。"
 	prompt += "\n你的行为应该符合一个%s的行为模式。" % role_description
 	prompt += status_info
 	prompt += task_info
-	
+
 	# 添加当前对话信息
 	prompt += "\n\n你正在与%s对话。" % conversation_partner.name
-	
+
 	# 添加聊天记录
 	if chat_history != "":
-		prompt += "\n\n你们最近的对话记录：\n" + chat_history
+		prompt += "\n\n你们最近的对话记录:\n" + chat_history
 	else:
 		prompt += "\n\n这是你们刚开始的对话。"
-	
+
 	# 添加决策选项
-	prompt += "\n\n请根据你的性格、当前状态、任务列表和对话内容，判断你是否应该继续这次对话："
-	prompt += "\n- 如果当前对话有助于完成你的任务，或者你觉得有必要继续交流，选择继续对话"
-	prompt += "\n- 如果你觉得对话已经足够，或者你有更重要的事情要做，选择结束对话"
-	prompt += "\n\n请从以下选项中选择一个："
-	prompt += "\n1. 继续对话（保持当前对话状态）"
-	prompt += "\n2. 结束对话（礼貌地结束当前对话）"
-	prompt += "\n请只回复数字1或2，不要有任何其他文字。"
-	
+	prompt += "\n\n请根据你的性格、当前状态、任务列表和对话内容,判断你是否应该继续这次对话:"
+	prompt += "\n- 如果当前对话有助于完成你的任务,或者你觉得有必要继续交流,选择继续对话"
+	prompt += "\n- 如果你觉得对话已经足够,或者你有更重要的事情要做,选择结束对话"
+	prompt += "\n\n请从以下选项中选择一个:"
+	prompt += "\n1. 继续对话(保持当前对话状态)"
+	prompt += "\n2. 结束对话(礼貌地结束当前对话)"
+	prompt += "\n请只回复数字1或2,不要有任何其他文字。"
+
 	# 使用APIManager生成AI决策
 	var character_name = character.name if character else "Unknown"
 	print(prompt)
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 连接回调函数
 	if http_request.request_completed.is_connected(_on_conversation_decision_completed):
 		http_request.request_completed.disconnect(_on_conversation_decision_completed)
-	
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_conversation_decision_completed(result, response_code, headers, body, character, conversation_partner)
 	)
 	waiting_responses[character.name] = true
@@ -1049,79 +884,79 @@ func make_conversation_decision():
 func _on_conversation_decision_completed(result, _response_code, headers, body, char_node, partner_node):
 	# 重置等待状态
 	waiting_responses[char_node.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
-		print("[AIAgent] %s 的聊天决策HTTP请求失败，错误码：%s" % [char_node.name, result])
+		print("[AIAgent] %s 的聊天决策HTTP请求失败,错误码:%s" % [char_node.name, result])
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 的聊天决策JSON解析失败" % char_node.name)
 		return
-	
+
 	# 使用APIConfig统一解析响应
 	var decision = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if decision == "":
 		print("[AIAgent] %s 的聊天决策API响应解析失败" % char_node.name)
 		return
-	
+
 	decision = decision.strip_edges()
-	
+
 	# 根据决策执行行为
-	print("[AIAgent] %s 的聊天决策结果：%s" % [char_node.name, decision])
+	print("[AIAgent] %s 的聊天决策结果:%s" % [char_node.name, decision])
 	match decision:
 		"1":  # 继续对话
 			print("[AIAgent] %s 决定继续对话" % char_node.name)
-			# 不做任何操作，保持对话状态
+			# 不做任何操作,保持对话状态
 		"2":  # 结束对话
 			print("[AIAgent] %s 决定结束对话" % char_node.name)
 			await _generate_farewell_message(char_node, partner_node)
 		_:
-			print("[AIAgent] 无效的聊天决策：", decision)
+			print("[AIAgent] 无效的聊天决策:", decision)
 
 # 生成告别消息并结束对话
 func _generate_farewell_message(char_node, partner_node):
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(char_node.name)
-	
+
 	# 获取聊天记录
 	var chat_history = ""
 	if char_node.has_node("ChatHistory"):
 		var history_node = char_node.get_node("ChatHistory")
 		chat_history = history_node.get_recent_conversation_with(partner_node.name, 5)
-	
+
 	# 构建告别消息prompt
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。你的性格是:%s。你的说话风格是:%s。" % [
 		role_description,
 		char_node.name,
 		personality["position"],
 		personality["personality"],
 		personality["speaking_style"]
 	]
-	
-	prompt += "\n\n你正在与%s对话，现在你决定要结束这次对话。" % partner_node.name
-	
+
+	prompt += "\n\n你正在与%s对话,现在你决定要结束这次对话。" % partner_node.name
+
 	if chat_history != "":
-		prompt += "\n\n你们刚才的对话内容：\n" + chat_history
-	
-	prompt += "\n\n请生成一句礼貌的告别话语来结束这次对话。要求："
+		prompt += "\n\n你们刚才的对话内容:\n" + chat_history
+
+	prompt += "\n\n请生成一句礼貌的告别话语来结束这次对话。要求:"
 	prompt += "\n- 符合你的性格和说话风格"
 	prompt += "\n- 语气自然友好"
-	prompt += "\n- 长度适中（1-2句话）"
-	prompt += "\n- 不要解释为什么要离开，只需要礼貌告别"
-	prompt += "\n\n请直接回复告别的话语，不要包含其他内容。"
-	
+	prompt += "\n- 长度适中(1-2句话)"
+	prompt += "\n- 不要解释为什么要离开,只需要礼貌告别"
+	prompt += "\n\n请直接回复告别的话语,不要包含其他内容。"
+
 	# 使用APIManager生成告别消息
 	var character_name = char_node.name if char_node else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 连接回调函数
 	if http_request.request_completed.is_connected(_on_farewell_message_completed):
 		http_request.request_completed.disconnect(_on_farewell_message_completed)
-	
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_farewell_message_completed(result, response_code, headers, body, char_node, partner_node)
 	)
 	waiting_responses[char_node.name] = true
@@ -1130,28 +965,28 @@ func _generate_farewell_message(char_node, partner_node):
 func _on_farewell_message_completed(result, _response_code, headers, body, char_node, partner_node):
 	# 重置等待状态
 	waiting_responses[char_node.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
-		print("[AIAgent] %s 的告别消息HTTP请求失败，错误码：%s" % [char_node.name, result])
+		print("[AIAgent] %s 的告别消息HTTP请求失败,错误码:%s" % [char_node.name, result])
 		# 使用默认告别消息
-		_send_farewell_and_end_conversation(char_node, partner_node, "好的，你先去忙其他事情了，回头聊。")
+		_send_farewell_and_end_conversation(char_node, partner_node, "好的,你先去忙其他事情了,回头聊。")
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 的告别消息JSON解析失败" % char_node.name)
-		_send_farewell_and_end_conversation(char_node, partner_node, "好的，你先去忙其他事情了，回头聊。")
+		_send_farewell_and_end_conversation(char_node, partner_node, "好的,你先去忙其他事情了,回头聊。")
 		return
-	
+
 	# 使用APIConfig统一解析响应
 	var farewell_message = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if farewell_message == "":
 		print("[AIAgent] %s 的告别消息API响应解析失败" % char_node.name)
-		farewell_message = "好的，你先去忙其他事情了，回头聊。"
-	
+		farewell_message = "好的,你先去忙其他事情了,回头聊。"
+
 	farewell_message = farewell_message.strip_edges()
-	print("[AIAgent] %s 生成的告别消息：%s" % [char_node.name, farewell_message])
-	
+	print("[AIAgent] %s 生成的告别消息:%s" % [char_node.name, farewell_message])
+
 	# 发送告别消息并结束对话
 	_send_farewell_and_end_conversation(char_node, partner_node, farewell_message)
 
@@ -1166,7 +1001,7 @@ func _send_farewell_and_end_conversation(char_node, partner_node, farewell_messa
 		get_tree().root.add_child(dialog_bubble)
 		dialog_bubble.target_node = char_node
 		dialog_bubble.show_dialog(farewell_message)
-		
+
 		# 保存告别消息到聊天记录
 		var formatted_message = char_node.name + ": " + farewell_message
 		if char_node.has_node("ChatHistory"):
@@ -1175,38 +1010,38 @@ func _send_farewell_and_end_conversation(char_node, partner_node, farewell_messa
 		if partner_node.has_node("ChatHistory"):
 			var partner_history = partner_node.get_node("ChatHistory")
 			partner_history.add_message(char_node.name, formatted_message)
-		
+
 		# 等待一小段时间让消息显示
 		await get_tree().create_timer(1.0).timeout
-		
+
 		# 结束对话
 		dialog_manager.end_character_conversations(char_node)
 	else:
-		print("[AIAgent] 无法获取DialogManager，直接结束对话")
-		# 如果无法获取DialogManager，尝试直接获取并结束对话
+		print("[AIAgent] 无法获取DialogManager,直接结束对话")
+		# 如果无法获取DialogManager,尝试直接获取并结束对话
 		var fallback_dialog_manager = get_node("/root/DialogManager")
 		if fallback_dialog_manager:
 			fallback_dialog_manager.end_character_conversations(char_node)
 
 # 生成思考内容
 func generate_thinking_content(char_node = null):
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
-	
-	# 如果正在等待API响应，跳过
+
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
-		print("[AIAgent] %s 正在等待上一次API响应，跳过生成思考内容" % target_character.name)
+		print("[AIAgent] %s 正在等待上一次API响应,跳过生成思考内容" % target_character.name)
 		return
-	
+
 	# 生成场景描述
 	var scene_description = generate_scene_description()
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
-	
+
 	# 获取角色详细状态信息
 	var status_info = get_character_status_info(target_character)
-	
+
 	# 获取当前任务信息
 	var tasks_info = ""
 	var metadata = target_character.get_meta("character_data", {})
@@ -1217,264 +1052,124 @@ func generate_thinking_content(char_node = null):
 		for task in tasks:
 			if not task.get("completed", false):
 				active_tasks.append(task)
-		
+
 		if active_tasks.size() > 0:
 			# 按优先级排序
 			active_tasks.sort_custom(func(a, b): return a.priority > b.priority)
-			tasks_info += "\n\n你当前的任务列表："
+			tasks_info += "\n\n你当前的任务列表:"
 			for i in range(min(active_tasks.size(), 3)):
 				var task = active_tasks[i]
-				tasks_info += "\n%d. %s（渴望程度：%d）" % [i+1, task.description, task.priority]
-	
+				tasks_info += "\n%d. %s(渴望程度:%d)" % [i+1, task.description, task.priority]
+
 	# 构建简化的思考prompt
-	var prompt = "你是%s，职位：%s。性格：%s。说话风格：%s。" % [
+	var prompt = "你是%s,职位:%s。性格:%s。说话风格:%s。" % [
 		target_character.name,
 		personality["position"],
 		personality["personality"],
 		personality["speaking_style"]
 	]
-	
+
 	# 只添加关键的个人状态信息
 	var mood = target_character.get_meta("mood", "普通")
 	var health = target_character.get_meta("health", "良好")
-	prompt += "\n当前状态：心情%s，健康%s。" % [mood, health]
-	
+	prompt += "\n当前状态:心情%s,健康%s。" % [mood, health]
+
 	# 添加最重要的任务信息
 	if tasks_info != "":
 		prompt += tasks_info
-	
-	# 添加最近的重要记忆（只取最后1条）
+
+	# 添加最近的重要记忆(只取最后1条)
 	var recent_memories = MemoryManager.get_recent_memories(target_character, 24)
 	if recent_memories.size() > 0:
 		var recent_memory = MemoryManager._format_memory_for_display(recent_memories[recent_memories.size() - 1])
-		prompt += "\n最近记忆：" + recent_memory
-	
-	prompt += "\n\n现在请用第一人称表达你此刻的内心想法。要求："
+		prompt += "\n最近记忆:" + recent_memory
+
+	prompt += "\n\n现在请用第一人称表达你此刻的内心想法。要求:"
 	prompt += "\n1. 体现你的性格和说话风格"
 	prompt += "\n2. 考虑你的当前状态和任务"
 	prompt += "\n3. 50-100字的简短内心独白"
-	prompt += "\n4. 只返回纯粹的心理活动，不要任何环境描述、动作描述或旁白"
+	prompt += "\n4. 只返回纯粹的心理活动,不要任何环境描述、动作描述或旁白"
 	prompt += "\n5. 像真实的内心声音一样自然流露"
-	
+
 	print(prompt)
 	# 使用APIManager生成思考内容
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
-	# 断开之前可能存在的连接，避免重复连接
+
+	# 断开之前可能存在的连接,避免重复连接
 	if http_request.request_completed.is_connected(_on_thinking_request_completed):
 		http_request.request_completed.disconnect(_on_thinking_request_completed)
-	
+
 	# 使用带有角色标识的回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_thinking_request_completed(result, response_code, headers, body, target_character)
 	)
 	waiting_responses[target_character.name] = true
 
-# 检查并初始化任务系统
+# 检查并初始化任务系统(重构版:不再生成初始任务)
 func _check_and_initialize_tasks():
 	# 检查角色是否已有任务数据
-	var metadata = character.get_meta("character_data", {})
-	if not metadata.has("tasks") or metadata["tasks"].size() == 0:
-		print("[AIAgent] %s 没有任务数据，开始生成初始任务" % character.name)
-		await _generate_initial_tasks()
-	else:
-		print("[AIAgent] %s 已有 %d 个任务" % [character.name, metadata["tasks"].size()])
+	var tasks = character.get_meta("tasks", [])
+	print("[AIAgent] %s 当前有 %d 个任务(由TaskManager分配)" % [character.name, tasks.size()])
 
-# 生成初始任务
-func _generate_initial_tasks():
-	# 如果正在等待API响应，跳过
-	if character.name in waiting_responses and waiting_responses[character.name]:
-		return
-	
-	# 获取角色人设
-	var personality = CharacterPersonality.get_personality(character.name)
-	
-	# 获取角色详细状态信息
-	var status_info = get_character_status_info(character)
-	
-	# 构建生成任务的prompt
-	var role_type = personality.get("role_type", "student")
-	var role_description = "教师" if role_type == "teacher" else "学生"
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
-		role_description,
-		character.name,
-		personality["position"],
-		personality["personality"],
-		personality["speaking_style"]
-	]
-	
-	prompt += get_company_basic_info()
-	prompt += get_company_employees_info()
-	prompt += status_info
-	prompt += "\n\n请根据你的职位、性格和当前状态，生成3个你当前想做的任务，并为每个任务判断渴望程度（1-10）。"
-	prompt += "\n\n【重要】渴望程度判断标准（请实事求是，大部分日常任务应该是3-5）："
-	prompt += "\n- 10: 人生大事（极少使用，如生命威胁）"
-	prompt += "\n- 9: 紧急任务（突发事件、DDL迫在眉睫、严重生病）"
-	prompt += "\n- 8: 课程任务（上课时间强制，必须去）"
-	prompt += "\n- 6: 重要且略紧急（一周后的考试，需要准备）"
-	prompt += "\n- 4-5: 普通工作（日常作业、活动，可做可不做）"
-	prompt += "\n- 3: 日常任务（吃饭、睡觉、休息，顺其自然）"
-	prompt += "\n- 2: 低优先级（可延后，不太想做）"
-	prompt += "\n- 1: 最低（几乎不想做，被迫才做）"
-	prompt += "\n\n【注意】作为学生，大部分日常任务的渴望程度应该是3-5，不要高估："
-	prompt += "\n- 普通作业、稿件、活动 → 4或5（可做可不做）"
-	prompt += "\n- 吃饭、休息、娱乐 → 3（顺其自然）"
-	prompt += "\n- 社交活动 → 根据性格（外向6-7，内向2-3，抑郁倾向1-2）"
-	prompt += "\n- 只有真正紧急或重要的事情才给6以上"
-	prompt += "\n\n判断时请考虑："
-	prompt += "\n- 你的性格特点（抑郁倾向的Agent对大多数事情渴望都较低）"
-	prompt += "\n- 当前心情和健康状况"
-	prompt += "\n- 任务的实际紧急程度"
-	prompt += "\n- 不要高估普通任务的渴望程度"
-	prompt += "\n\n请按以下格式输出，每行一个任务："
-	prompt += "\n任务描述|渴望程度（1-10的数字）"
-	prompt += "\n\n示例（注意：这些是参考，请根据你的实际情况判断）："
-	prompt += "\n准备下周的数学考试|5（需要准备，但不紧急）"
-	prompt += "\n完成今天的英语作业|4（日常任务）"
-	prompt += "\n去食堂吃午饭|3（饿了就去，不饿就等等）"
-	prompt += "\n\n请生成3个任务并如实判断渴望程度（大部分应该是3-5）："
-	
-	# 使用APIManager生成任务
-	var character_name = character.name if character else "Unknown"
-	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
-	# 断开之前可能存在的连接
-	if http_request.request_completed.is_connected(_on_generate_tasks_completed):
-		http_request.request_completed.disconnect(_on_generate_tasks_completed)
-	
-	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
-		_on_generate_tasks_completed(result, response_code, headers, body, character)
-	)
-	waiting_responses[character.name] = true
-
-# 处理生成任务的API响应
-func _on_generate_tasks_completed(result, _response_code, headers, body, char_node = null):
-	var target_character = char_node if char_node else character
-	
-	# 重置等待状态
-	waiting_responses[target_character.name] = false
-	
-	if result != HTTPRequest.RESULT_SUCCESS:
-		print("[AIAgent] %s 生成任务的HTTP请求失败，错误码：%s" % [target_character.name, result])
-		return
-	
-	var response = JSON.parse_string(body.get_string_from_utf8())
-	if not response:
-		print("[AIAgent] %s 生成任务的JSON解析失败" % target_character.name)
-		return
-	
-	# 解析AI生成的任务内容
-	var task_content = APIConfig.parse_response(api_manager.current_settings.api_type, response)
-	if task_content == "":
-		print("[AIAgent] %s 的任务生成API响应解析失败，使用默认任务" % target_character.name)
-		_generate_default_tasks(target_character)
-		return
-	
-	print("[AIAgent] %s 生成的任务内容：\n%s" % [target_character.name, task_content])
-	
-	# 解析任务列表
-	var tasks = []
-	var lines = task_content.split("\n")
-	for line in lines:
-		line = line.strip_edges()
-		if line.length() > 0 and "|" in line:
-			var parts = line.split("|")
-			if parts.size() >= 2:
-				var description = parts[0].strip_edges()
-				var priority_str = parts[1].strip_edges()
-				var priority = int(priority_str) if priority_str.is_valid_int() else 3
-				
-				# 确保优先级在1-10范围内
-				priority = max(1, min(10, priority))
-				
-				tasks.append({
-					"description": description,
-					"priority": priority,
-					"created_at": Time.get_unix_time_from_system(),
-					"completed": false
-				})
-	
-	# 如果解析的任务少于3个，用随机任务补充
-	while tasks.size() < 3:
-		tasks.append(_generate_random_task(target_character))
-	
-	# 按优先级排序
-	tasks.sort_custom(func(a, b): return a.priority > b.priority)
-	
-	# 保存任务到角色元数据
-	var metadata = target_character.get_meta("character_data", {})
-	metadata["tasks"] = tasks
-	target_character.set_meta("character_data", metadata)
-	
-	# 记录内心独白日志
-	if Logger:
-		for task in tasks:
-			var monologue = _generate_task_monologue(target_character, task)
-			Logger.log_monologue(target_character.name, task.description, monologue)
-	
-	# 添加任务生成记忆
-	var memory_text = "你为自己制定了新的任务计划，包含了%d个重要任务，准备开始执行。" % tasks.size()
-	MemoryManager.add_memory(target_character, memory_text, MemoryManager.MemoryType.TASK, MemoryManager.MemoryImportance.NORMAL)
-	
-	print("[AIAgent] %s 成功生成并保存了 %d 个任务" % [target_character.name, tasks.size()])
+# [已删除] 生成初始任务相关函数
+# 重构说明:不再生成初始任务,所有任务由TaskManager根据课程表分配
 
 # 调整任务
 func _adjust_tasks(char_node = null):
 	var target_character = char_node if char_node else character
-	
-	# 如果正在等待API响应，跳过
+
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取当前任务
 	var metadata = target_character.get_meta("character_data", {})
 	var tasks = metadata.get("tasks", [])
-	
+
 	if tasks.size() == 0:
 		print("[AIAgent] %s 没有任务可调整" % target_character.name)
 		return
-	
+
 	# 获取角色人设和状态
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
 	var status_info = get_character_status_info(target_character)
 	var scene_description = generate_scene_description()
-	
+
 	# 构建调整任务的prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。你的性格是:%s。" % [
 		role_description,
 		personality["personality"]
 	]
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
 	prompt += "\n" + scene_description
-	prompt += "\n\n你当前的任务列表："
+	prompt += "\n\n你当前的任务列表:"
 	for i in range(min(tasks.size(), 5)):
 		var task = tasks[i]
-		prompt += "\n%d. %s（渴望程度：%d）" % [i+1, task.description, task.priority]
-	
-	prompt += "\n\n根据你当前的状态、环境和心情，你是否需要调整这些任务的优先级？"
-	prompt += "\n请从以下选项中选择："
+		prompt += "\n%d. %s(渴望程度:%d)" % [i+1, task.description, task.priority]
+
+	prompt += "\n\n根据你当前的状态、环境和心情,你是否需要调整这些任务的优先级?"
+	prompt += "\n请从以下选项中选择:"
 	prompt += "\n1. 保持当前任务优先级不变"
 	prompt += "\n2. 重新安排任务优先级"
 	prompt += "\n3. 添加一个新的紧急任务"
-	prompt += "\n请只回复数字1、2或3，不要有任何其他文字。"
-	
+	prompt += "\n请只回复数字1、2或3,不要有任何其他文字。"
+
 	# 使用APIManager生成决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_adjust_tasks_completed):
 		http_request.request_completed.disconnect(_on_adjust_tasks_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_adjust_tasks_completed(result, response_code, headers, body, target_character)
 	)
 	waiting_responses[target_character.name] = true
@@ -1482,33 +1177,33 @@ func _adjust_tasks(char_node = null):
 # 处理调整任务的API响应
 func _on_adjust_tasks_completed(result, _response_code, headers, body, char_node = null):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 调整任务的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 调整任务的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析决策
 	var decision = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if decision == "":
 		print("[AIAgent] %s 的任务调整API响应解析失败" % target_character.name)
 		return
-	
+
 	decision = decision.strip_edges()
-	print("[AIAgent] %s 的任务调整决策：%s" % [target_character.name, decision])
-	
+	print("[AIAgent] %s 的任务调整决策:%s" % [target_character.name, decision])
+
 	match decision:
 		"1":  # 保持不变
 			print("[AIAgent] %s 决定保持当前任务优先级" % target_character.name)
 			# 添加记忆
-			_add_memory(target_character, "你检查了当前的任务列表，决定保持现有的优先级安排。")
+			_add_memory(target_character, "你检查了当前的任务列表,决定保持现有的优先级安排。")
 		"2":  # 重新安排
 			print("[AIAgent] %s 决定重新安排任务优先级" % target_character.name)
 			await _rearrange_task_priorities(target_character)
@@ -1516,71 +1211,162 @@ func _on_adjust_tasks_completed(result, _response_code, headers, body, char_node
 			print("[AIAgent] %s 决定添加新的紧急任务" % target_character.name)
 			await _add_urgent_task(target_character)
 		_:
-			print("[AIAgent] %s 的任务调整决策无效：%s" % [target_character.name, decision])
+			print("[AIAgent] %s 的任务调整决策无效:%s" % [target_character.name, decision])
 
-# 继续当前任务
+# 继续当前任务(重构版:简化处理,直接执行)
 func _continue_current_task(char_node = null):
 	var target_character = char_node if char_node else character
-	
-	# 如果正在等待API响应，跳过
+
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取当前最重要的任务
-	var metadata = target_character.get_meta("character_data", {})
-	var tasks = metadata.get("tasks", [])
-	
+	var tasks = target_character.get_meta("tasks", [])
+
 	# 过滤未完成的任务并按优先级排序
 	var active_tasks = []
 	for task in tasks:
 		if not task.get("completed", false):
 			active_tasks.append(task)
-	
+
 	if active_tasks.size() == 0:
-		print("[AIAgent] %s 没有未完成的任务" % target_character.name)
-		# 生成新任务
-		await _generate_initial_tasks()
+		print("[AIAgent] %s 没有未完成的任务,等待TaskManager分配" % target_character.name)
 		return
-	
+
 	# 按优先级排序
-	active_tasks.sort_custom(func(a, b): return a.priority > b.priority)
+	active_tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
 	var current_task = active_tasks[0]
-	
+
+	# 检查是否是课程移动任务
+	if current_task.get("type") == "class_movement":
+		# 直接执行移动到教室
+		_execute_class_movement(target_character, current_task)
+	else:
+		# 其他任务使用原来的逻辑
+		await _execute_general_task(target_character, current_task)
+
+# 执行课程移动任务(直接执行,不调用API)
+func _execute_class_movement(target_character, current_task):
+	var target_room = current_task.get("target_room", "")
+	var subject = current_task.get("name", "课程")
+
+	print("[AIAgent] %s 执行课程移动任务: 前往 %s" % [target_character.name, target_room])
+
+	# 查找目标房间
+	var room_manager = _get_room_manager()
+	if not room_manager:
+		push_error("[AIAgent] 无法找到RoomManager")
+		return
+
+	# 获取目标房间的位置
+	var target_room_data = room_manager.rooms.get(target_room, null)
+	if not target_room_data:
+		print("[AIAgent] %s 未找到房间: %s" % [target_character.name, target_room])
+		return
+
+	# 检查是否已经在目标房间
+	var current_room = room_manager.get_current_room(room_manager.rooms, target_character.global_position)
+	if current_room and current_room.name == target_room:
+		print("[AIAgent] %s 已经在 %s,标记任务完成" % [target_character.name, target_room])
+		_complete_task(target_character, current_task)
+		return
+
+	# 移动到目标房间
+	if target_character.has_method("move_to"):
+		# 获取房间中心位置或入口位置
+		var target_pos = _get_room_entrance_position(target_room_data)
+		print("[AIAgent] %s 开始移动到 %s 的位置 (%.0f, %.0f)" % [target_character.name, target_room, target_pos.x, target_pos.y])
+		target_character.move_to(target_pos)
+
+		# 添加记忆
+		_add_memory(target_character, "前往%s上%s" % [target_room, subject])
+
+		# 开始移动跟踪,到达后自动完成任务
+		_start_arrival_tracking(target_character, target_room, current_task)
+	else:
+		print("[AIAgent] %s 无法移动" % target_character.name)
+
+# 获取房间入口位置
+func _get_room_entrance_position(room_data) -> Vector2:
+	# 如果有重要位置列表,使用第一个作为入口
+	if room_data.has("important_locations") and room_data.important_locations.size() > 0:
+		return room_data.important_locations[0]
+	# 否则返回房间中心
+	return room_data.position
+
+# 开始到达跟踪
+func _start_arrival_tracking(target_character, target_room: String, current_task):
+	"""跟踪角色是否到达目标房间,到达后自动完成任务"""
+	var timer = Timer.new()
+	timer.wait_time = 2.0  # 每2秒检查一次
+	timer.one_shot = false
+	target_character.add_child(timer)
+
+	var check_count = 0
+	var max_checks = 30  # 最多检查60秒
+
+	timer.timeout.connect(func():
+		check_count += 1
+		if check_count > max_checks:
+			timer.stop()
+			timer.queue_free()
+			return
+
+		var room_manager = _get_room_manager()
+		if not room_manager:
+			return
+
+		var current_room = room_manager.get_current_room(room_manager.rooms, target_character.global_position)
+		if current_room and current_room.name == target_room:
+			# 到达目标房间
+			print("[AIAgent] %s 已到达 %s" % [target_character.name, target_room])
+			_complete_task(target_character, current_task)
+			timer.stop()
+			timer.queue_free()
+	)
+
+	timer.start()
+
+# 执行一般任务(使用原来的API调用逻辑)
+func _execute_general_task(target_character, current_task):
 	# 获取角色人设和状态
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
 	var status_info = get_character_status_info(target_character)
 	var scene_description = generate_scene_description()
-	
+
 	# 构建执行任务的prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。你的性格是:%s。" % [
 		role_description,
+		target_character.name,
+		personality["position"],
 		personality["personality"]
 	]
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
 	prompt += "\n" + scene_description
-	prompt += "\n\n你当前最重要的任务是：%s（渴望程度：%d）" % [current_task.description, current_task.priority]
-	prompt += "\n\n为了完成这个任务，你需要采取什么具体行动？请从以下选项中选择："
-	prompt += "\n1. 移动到某个位置（去找相关的人或物品）"
-	prompt += "\n2. 与某个角色交谈（讨论任务相关内容）"
-	prompt += "\n3. 思考规划（在当前位置思考如何完成任务）"
-	prompt += "\n4. 完成任务（任务已经可以标记为完成）"
-	prompt += "\n请只回复数字1、2、3或4，不要有任何其他文字。"
-	
+	prompt += "\n\n你当前最重要的任务是:%s(渴望程度:%d)" % [current_task.description, current_task.priority]
+	prompt += "\n\n为了完成这个任务,你需要采取什么具体行动?请从以下选项中选择:"
+	prompt += "\n1. 移动到某个位置(去找相关的人或物品)"
+	prompt += "\n2. 与某个角色交谈(讨论任务相关内容)"
+	prompt += "\n3. 思考规划(在当前位置思考如何完成任务)"
+	prompt += "\n4. 完成任务(任务已经可以标记为完成)"
+	prompt += "\n请只回复数字1、2、3或4,不要有任何其他文字。"
+
 	# 使用APIManager生成决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_continue_task_completed):
 		http_request.request_completed.disconnect(_on_continue_task_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_continue_task_completed(result, response_code, headers, body, target_character, current_task)
 	)
 	waiting_responses[target_character.name] = true
@@ -1588,43 +1374,43 @@ func _continue_current_task(char_node = null):
 # 处理继续任务的API响应
 func _on_continue_task_completed(result, _response_code, headers, body, char_node = null, current_task = null):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 继续任务的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 继续任务的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析决策
 	var decision = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if decision == "":
 		print("[AIAgent] %s 的任务调整API响应解析失败" % target_character.name)
 		return
-	
+
 	decision = decision.strip_edges()
-	print("[AIAgent] %s 的任务执行决策：%s" % [target_character.name, decision])
-	
+	print("[AIAgent] %s 的任务执行决策:%s" % [target_character.name, decision])
+
 	match decision:
 		"1":  # 移动
-			print("[AIAgent] %s 决定移动来完成任务：%s" % [target_character.name, current_task.description])
+			print("[AIAgent] %s 决定移动来完成任务:%s" % [target_character.name, current_task.description])
 			await _execute_task_movement(target_character, current_task)
 		"2":  # 对话
-			print("[AIAgent] %s 决定通过对话来完成任务：%s" % [target_character.name, current_task.description])
+			print("[AIAgent] %s 决定通过对话来完成任务:%s" % [target_character.name, current_task.description])
 			await _execute_task_conversation(target_character, current_task)
 		"3":  # 思考
-			print("[AIAgent] %s 决定思考如何完成任务：%s" % [target_character.name, current_task.description])
+			print("[AIAgent] %s 决定思考如何完成任务:%s" % [target_character.name, current_task.description])
 			await _execute_task_thinking(target_character, current_task)
 		"4":  # 完成任务
-			print("[AIAgent] %s 决定标记任务为完成：%s" % [target_character.name, current_task.description])
+			print("[AIAgent] %s 决定标记任务为完成:%s" % [target_character.name, current_task.description])
 			_complete_task(target_character, current_task)
 		_:
-			print("[AIAgent] %s 的任务执行决策无效：%s" % [target_character.name, decision])
+			print("[AIAgent] %s 的任务执行决策无效:%s" % [target_character.name, decision])
 
 # 添加记忆的辅助函数
 func _add_memory(target_character, content: String):
@@ -1633,38 +1419,38 @@ func _add_memory(target_character, content: String):
 
 # 执行任务相关的移动
 func _execute_task_movement(target_character, current_task):
-	# 如果正在等待API响应，跳过
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取角色人设和状态
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
 	var scene_description = generate_scene_description()
-	
+
 	# 构建移动决策的prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。" % [
 		role_description,
 	]
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += "\n" + scene_description
-	prompt += "\n\n你当前的任务是：%s" % current_task.description
-	prompt += "\n\n为了完成这个任务，你需要移动到哪里？请根据当前环境中的物品以及学校师生信息，选择一个最合适的目标。"
-	prompt += "\n请只回复目标的名字，不要有任何其他文字。如果没有合适的目标，请回复'无合适目标'。"
+	prompt += "\n\n你当前的任务是:%s" % current_task.description
+	prompt += "\n\n为了完成这个任务,你需要移动到哪里?请根据当前环境中的物品以及学校师生信息,选择一个最合适的目标。"
+	prompt += "\n请只回复目标的名字,不要有任何其他文字。如果没有合适的目标,请回复'无合适目标'。"
 	print(prompt)
 	# 使用APIManager生成决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_task_movement_completed):
 		http_request.request_completed.disconnect(_on_task_movement_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_task_movement_completed(result, response_code, headers, body, target_character, current_task)
 	)
 	waiting_responses[target_character.name] = true
@@ -1672,50 +1458,50 @@ func _execute_task_movement(target_character, current_task):
 # 处理任务移动的API响应
 func _on_task_movement_completed(result, _response_code, headers, body, char_node = null, current_task = null):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 任务移动的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 任务移动的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析目标
 	var target_name = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if target_name == "":
 		print("[AIAgent] %s 的任务移动API响应解析失败" % target_character.name)
 		return
-	
+
 	target_name = target_name.strip_edges()
-	print("[AIAgent] %s 选择移动到：%s" % [target_character.name, target_name])
-	
+	print("[AIAgent] %s 选择移动到:%s" % [target_character.name, target_name])
+
 	if target_name == "无合适目标":
 		print("[AIAgent] %s 没有找到合适的移动目标" % target_character.name)
-		_add_memory(target_character, "你想要完成任务'%s'，但是当前环境中没有合适的移动目标。" % current_task.description)
+		_add_memory(target_character, "你想要完成任务'%s',但是当前环境中没有合适的移动目标。" % current_task.description)
 		return
-	
+
 	# 尝试找到目标并移动
 	var target_info = _find_target_by_name(target_name)
 	if not target_info.is_empty():
 		var target_display_name = ""
 		match target_info.type:
 			"object":
-				target_display_name = target_info.target.name + "（物品）"
+				target_display_name = target_info.target.name + "(物品)"
 			"character":
-				target_display_name = target_info.target.name + "（角色）"
+				target_display_name = target_info.target.name + "(角色)"
 			"room":
-				target_display_name = target_info.target.name + "（房间）"
+				target_display_name = target_info.target.name + "(房间)"
 		print("[AIAgent] %s 开始移动到 %s 来完成任务" % [target_character.name, target_display_name])
 		move_to_target(target_info, target_character)
-		_add_memory(target_character, "为了完成任务'%s'，你移动到了%s。" % [current_task.description, target_display_name])
+		_add_memory(target_character, "为了完成任务'%s',你移动到了%s。" % [current_task.description, target_display_name])
 	else:
 		print("[AIAgent] %s 没有找到名为'%s'的目标" % [target_character.name, target_name])
-		# 当前房间找不到目标，询问是否要去其他房间寻找
+		# 当前房间找不到目标,询问是否要去其他房间寻找
 		await _handle_target_not_found(target_character, target_name, current_task)
 
 # 根据名字查找目标
@@ -1724,78 +1510,78 @@ func _find_target_by_name(target_name: String):
 	var current_room = room_manager.get_current_room(room_manager.rooms, character.global_position)
 	if not current_room:
 		return {}
-	
+
 	# 查找角色
 	var room_characters = get_room_characters(current_room)
 	for char in room_characters:
 		if char.name.to_lower().contains(target_name.to_lower()) or target_name.to_lower().contains(char.name.to_lower()):
 			return {"type": "character", "target": char}
-	
+
 	# 查找物品
 	var room_objects = get_room_objects(current_room)
 	for obj in room_objects:
 		if obj.name.to_lower().contains(target_name.to_lower()) or target_name.to_lower().contains(obj.name.to_lower()):
 			return {"type": "object", "target": obj}
-	
+
 	# 查找房间
 	for room_name in room_manager.rooms:
 		var room = room_manager.rooms[room_name]
 		if room.name.to_lower().contains(target_name.to_lower()) or target_name.to_lower().contains(room.name.to_lower()):
 			return {"type": "room", "target": room}
-	
+
 	return {}
 
 # 执行任务相关的对话
 func _execute_task_conversation(target_character, current_task):
-	# 如果正在等待API响应，跳过
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
-	# 获取所有角色（除了自己）
+
+	# 获取所有角色(除了自己)
 	var all_characters = get_tree().get_nodes_in_group("characters")
 	var available_chars = []
 	for char in all_characters:
 		if char != target_character:
 			available_chars.append(char)
-	
+
 	if available_chars.size() == 0:
 		print("[AIAgent] %s 没有其他角色可以交谈" % target_character.name)
-		_add_memory(target_character, "你想要通过对话来完成任务'%s'，但是学校里没有其他人。" % current_task.description)
+		_add_memory(target_character, "你想要通过对话来完成任务'%s',但是学校里没有其他人。" % current_task.description)
 		return
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
-	
-	# 构建对话选择的prompt，包含角色的精确坐标信息
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+
+	# 构建对话选择的prompt,包含角色的精确坐标信息
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。" % [
 		role_description,
 	]
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
-	prompt += "\n\n你当前的任务是：%s" % current_task.description
-	prompt += "\n\n学校里有以下师生可以交谈："
+	prompt += "\n\n你当前的任务是:%s" % current_task.description
+	prompt += "\n\n学校里有以下师生可以交谈:"
 	for char in available_chars:
 		var char_personality = CharacterPersonality.get_personality(char.name)
 		var char_room = room_manager.get_current_room(room_manager.rooms, char.global_position)
 		var room_name = char_room.name if char_room else "未知位置"
 		var distance = target_character.global_position.distance_to(char.global_position)
-		prompt += "\n- %s（%s，位置：%s，距离：%.0f米）" % [char.name, char_personality["position"], room_name, distance]
-	
-	prompt += "\n\n为了完成这个任务，你最想与谁交谈？请说明选择的原因，然后在最后一行只写出角色的名字。"
-	
+		prompt += "\n- %s(%s,位置:%s,距离:%.0f米)" % [char.name, char_personality["position"], room_name, distance]
+
+	prompt += "\n\n为了完成这个任务,你最想与谁交谈?请说明选择的原因,然后在最后一行只写出角色的名字。"
+
 	# 使用APIManager生成决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_task_conversation_completed):
 		http_request.request_completed.disconnect(_on_task_conversation_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_task_conversation_completed(result, response_code, headers, body, target_character, current_task, available_chars)
 	)
 	waiting_responses[target_character.name] = true
@@ -1803,138 +1589,138 @@ func _execute_task_conversation(target_character, current_task):
 # 处理任务对话的API响应
 func _on_task_conversation_completed(result, _response_code, headers, body, char_node = null, current_task = null, available_chars = []):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 任务对话的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 任务对话的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析选择的角色
 	var chosen_name = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if chosen_name == "":
 		print("[AIAgent] %s 的任务对话API响应解析失败" % target_character.name)
 		return
-	
-	# 从响应中提取角色名字（取最后一行）
+
+	# 从响应中提取角色名字(取最后一行)
 	var lines = chosen_name.strip_edges().split("\n")
 	if lines.size() > 0:
 		chosen_name = lines[-1].strip_edges()
-	
+
 	print("[AIAgent] %s 选择与 %s 交谈" % [target_character.name, chosen_name])
-	
+
 	# 找到对应的角色
 	var chosen_character = null
 	for char in available_chars:
 		if char.name.to_lower().contains(chosen_name.to_lower()) or chosen_name.to_lower().contains(char.name.to_lower()):
 			chosen_character = char
 			break
-	
+
 	if chosen_character:
 		# 检查目标角色是否在同一房间
 		var current_room = room_manager.get_current_room(room_manager.rooms, target_character.global_position)
 		var target_room = room_manager.get_current_room(room_manager.rooms, chosen_character.global_position)
-		
+
 		if current_room == target_room:
-			# 在同一房间，直接开始交谈
-			print("[AIAgent] %s 与 %s 在同一房间，开始交谈" % [target_character.name, chosen_character.name])
+			# 在同一房间,直接开始交谈
+			print("[AIAgent] %s 与 %s 在同一房间,开始交谈" % [target_character.name, chosen_character.name])
 			initiate_conversation(chosen_character, target_character)
-			_add_memory(target_character, "为了完成任务'%s'，你与%s进行了交谈。" % [current_task.description, chosen_character.name])
+			_add_memory(target_character, "为了完成任务'%s',你与%s进行了交谈。" % [current_task.description, chosen_character.name])
 		else:
-			# 不在同一房间，直接移动到目标角色的精确位置
+			# 不在同一房间,直接移动到目标角色的精确位置
 			var target_room_name = target_room.name if target_room else "未知位置"
 			print("[AIAgent] %s 需要移动到 %s 找 %s 交谈" % [target_character.name, target_room_name, chosen_character.name])
-			
+
 			# 直接移动到目标角色的位置
 			if target_character.has_method("move_to"):
 				# 获取目标角色的精确坐标
 				var target_pos = chosen_character.global_position
 				print("[AIAgent] %s 移动到坐标 (%s, %s) 寻找 %s" % [target_character.name, target_pos.x, target_pos.y, chosen_character.name])
 				target_character.move_to(target_pos)
-				
+
 				# 添加记忆
-				_add_memory(target_character, "为了完成任务'%s'，你需要去找%s交谈，正在前往%s的位置(%.0f, %.0f)。" % [current_task.description, chosen_character.name, target_room_name, target_pos.x, target_pos.y])
-				
+				_add_memory(target_character, "为了完成任务'%s',你需要去找%s交谈,正在前往%s的位置(%.0f, %.0f)。" % [current_task.description, chosen_character.name, target_room_name, target_pos.x, target_pos.y])
+
 				# 使用更智能的到达检测机制
 				_start_movement_tracking(target_character, chosen_character, current_task)
 			else:
-				print("[AIAgent] %s 无法移动，交谈失败" % target_character.name)
-				_add_memory(target_character, "你想要去找%s交谈来完成任务'%s'，但是无法移动。" % [chosen_character.name, current_task.description])
+				print("[AIAgent] %s 无法移动,交谈失败" % target_character.name)
+				_add_memory(target_character, "你想要去找%s交谈来完成任务'%s',但是无法移动。" % [chosen_character.name, current_task.description])
 	else:
 		print("[AIAgent] %s 没有找到名为'%s'的角色" % [target_character.name, chosen_name])
 		# 默认与第一个角色交谈
 		if available_chars.size() > 0:
 			var default_char = available_chars[0]
 			print("[AIAgent] %s 默认与 %s 交谈" % [target_character.name, default_char.name])
-			
+
 			# 对默认角色也进行同样的房间检查和移动逻辑
 			var current_room = room_manager.get_current_room(room_manager.rooms, target_character.global_position)
 			var target_room = room_manager.get_current_room(room_manager.rooms, default_char.global_position)
-			
+
 			if current_room == target_room:
-				# 在同一房间，直接开始交谈
+				# 在同一房间,直接开始交谈
 				initiate_conversation(default_char, target_character)
-				_add_memory(target_character, "为了完成任务'%s'，你与%s进行了交谈。" % [current_task.description, default_char.name])
+				_add_memory(target_character, "为了完成任务'%s',你与%s进行了交谈。" % [current_task.description, default_char.name])
 			else:
-				# 不在同一房间，移动到默认角色位置
+				# 不在同一房间,移动到默认角色位置
 				if target_character.has_method("move_to"):
 					var target_pos = default_char.global_position
 					var target_room_name = target_room.name if target_room else "未知位置"
 					print("[AIAgent] %s 移动到坐标 (%s, %s) 寻找默认角色 %s" % [target_character.name, target_pos.x, target_pos.y, default_char.name])
 					target_character.move_to(target_pos)
-					_add_memory(target_character, "为了完成任务'%s'，你需要去找%s交谈，正在前往%s的位置(%.0f, %.0f)。" % [current_task.description, default_char.name, target_room_name, target_pos.x, target_pos.y])
+					_add_memory(target_character, "为了完成任务'%s',你需要去找%s交谈,正在前往%s的位置(%.0f, %.0f)。" % [current_task.description, default_char.name, target_room_name, target_pos.x, target_pos.y])
 					_start_movement_tracking(target_character, default_char, current_task)
 				else:
-					_add_memory(target_character, "你想要交谈来完成任务'%s'，但是无法移动到合适的交谈对象那里。" % current_task.description)
+					_add_memory(target_character, "你想要交谈来完成任务'%s',但是无法移动到合适的交谈对象那里。" % current_task.description)
 
 # 执行任务相关的思考
 func _execute_task_thinking(target_character, current_task):
-	# 如果正在等待API响应，跳过
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
 	var status_info = get_character_status_info(target_character)
 	var scene_description = generate_scene_description()
-	
+
 	# 构建思考prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。你的性格是：%s。你的说话风格是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。你的性格是:%s。你的说话风格是:%s。" % [
 		role_description,
 		personality["personality"],
 		personality["speaking_style"]
 	]
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += status_info
 	prompt += "\n" + scene_description
-	prompt += "\n\n你当前的任务是：%s（渴望程度：%d）" % [current_task.description, current_task.priority]
-	prompt += "\n\n请思考如何完成这个任务。考虑以下方面："
-	prompt += "\n- 完成这个任务需要哪些步骤？"
-	prompt += "\n- 你需要什么资源或帮助？"
-	prompt += "\n- 可能遇到什么困难？"
-	prompt += "\n- 你的当前状态如何影响任务执行？"
-	prompt += "\n\n请用第一人称描述你的思考过程，体现出你的性格特点和说话风格（150-250字）。"
-	
+	prompt += "\n\n你当前的任务是:%s(渴望程度:%d)" % [current_task.description, current_task.priority]
+	prompt += "\n\n请思考如何完成这个任务。考虑以下方面:"
+	prompt += "\n- 完成这个任务需要哪些步骤?"
+	prompt += "\n- 你需要什么资源或帮助?"
+	prompt += "\n- 可能遇到什么困难?"
+	prompt += "\n- 你的当前状态如何影响任务执行?"
+	prompt += "\n\n请用第一人称描述你的思考过程,体现出你的性格特点和说话风格(150-250字)。"
+
 	# 使用APIManager生成思考内容
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_task_thinking_completed):
 		http_request.request_completed.disconnect(_on_task_thinking_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_task_thinking_completed(result, response_code, headers, body, target_character, current_task)
 	)
 	waiting_responses[target_character.name] = true
@@ -1942,37 +1728,37 @@ func _execute_task_thinking(target_character, current_task):
 # 处理任务思考的API响应
 func _on_task_thinking_completed(result, _response_code, headers, body, char_node = null, current_task = null):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 任务思考的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 任务思考的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析思考内容
 	var thinking_content = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if thinking_content == "":
 		print("[AIAgent] %s 的任务思考API响应解析失败" % target_character.name)
 		return
-	
+
 	thinking_content = thinking_content.strip_edges()
-	print("[AIAgent] %s 关于任务'%s'的思考：\n%s" % [target_character.name, current_task.description, thinking_content])
-	
+	print("[AIAgent] %s 关于任务'%s'的思考:\n%s" % [target_character.name, current_task.description, thinking_content])
+
 	# 添加思考记忆
-	_add_memory(target_character, "你思考了如何完成任务'%s'：%s" % [current_task.description, thinking_content])
+	_add_memory(target_character, "你思考了如何完成任务'%s':%s" % [current_task.description, thinking_content])
 
 # 完成任务
 func _complete_task(target_character, current_task):
 	# 获取角色元数据
 	var metadata = target_character.get_meta("character_data", {})
 	var tasks = metadata.get("tasks", [])
-	
+
 	# 找到并标记任务为完成
 	for i in range(tasks.size()):
 		var task = tasks[i]
@@ -1980,259 +1766,225 @@ func _complete_task(target_character, current_task):
 			task["completed"] = true
 			task["completed_at"] = Time.get_unix_time_from_system()
 			break
-	
+
 	# 保存更新的任务列表
 	metadata["tasks"] = tasks
 	target_character.set_meta("character_data", metadata)
-	
+
 	# 添加完成任务的记忆
-	_add_memory(target_character, "你成功完成了任务：%s。感觉很有成就感！" % current_task.description)
-	
+	_add_memory(target_character, "你成功完成了任务:%s。感觉很有成就感!" % current_task.description)
+
 	# 更新动态特质 - 任务成功
 	DynamicPersonality.apply_task_feedback(target_character, true, 0.5)
-	
-	print("[AIAgent] %s 完成了任务：%s" % [target_character.name, current_task.description])
 
-# 重新安排任务优先级（占位函数）
+	print("[AIAgent] %s 完成了任务:%s" % [target_character.name, current_task.description])
+
+# 重新安排任务优先级(占位函数)
 func _rearrange_task_priorities(target_character):
-	print("[AIAgent] %s 重新安排任务优先级（功能待实现）" % target_character.name)
+	print("[AIAgent] %s 重新安排任务优先级(功能待实现)" % target_character.name)
 	_add_memory(target_character, "你重新考虑了任务的优先级安排。")
 
-# 添加紧急任务（占位函数）
+# 添加紧急任务(占位函数)
 func _add_urgent_task(target_character):
-	print("[AIAgent] %s 添加紧急任务（功能待实现）" % target_character.name)
+	print("[AIAgent] %s 添加紧急任务(功能待实现)" % target_character.name)
 	_add_memory(target_character, "你意识到有一个紧急任务需要处理。")
 
 # 处理思考内容的API响应
 func _on_thinking_request_completed(result, _response_code, headers, body, char_node = null):
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
 	if result != HTTPRequest.RESULT_SUCCESS:
-		print("[AIAgent] %s 的思考内容HTTP请求失败，错误码：%s" % [target_character.name, result])
+		print("[AIAgent] %s 的思考内容HTTP请求失败,错误码:%s" % [target_character.name, result])
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 的思考内容JSON解析失败" % target_character.name)
 		return
-	
+
 	# 使用APIConfig统一解析响应
 	var thinking_content = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if thinking_content == "":
 		print("[AIAgent] %s 的思考内容API响应解析失败" % target_character.name)
 		return
-	
-	thinking_content = thinking_content.strip_edges()
-	
-	# 显示思考内容
-	print("[AIAgent] %s 的思考内容：\n%s" % [target_character.name, thinking_content])
-	
-	# 这里可以添加更多处理思考内容的逻辑，例如显示在UI上、影响角色状态等
 
-# 选择随机目标（包括房间内物品、其他角色和其他房间）
+	thinking_content = thinking_content.strip_edges()
+
+	# 显示思考内容
+	print("[AIAgent] %s 的思考内容:\n%s" % [target_character.name, thinking_content])
+
+	# 这里可以添加更多处理思考内容的逻辑,例如显示在UI上、影响角色状态等
+
+# 选择随机目标(包括房间内物品、其他角色和其他房间)
 func _choose_random_target() -> Dictionary:
 	var all_targets = []
 	var current_room = room_manager.get_current_room(room_manager.rooms, character.global_position)
-	
+
 	# 添加当前房间内的物品
 	var room_objects = get_room_objects(current_room)
 	for obj in room_objects:
 		all_targets.append({"type": "object", "target": obj, "position": obj.global_position})
-	
+
 	# 添加当前房间内的其他角色
 	var room_characters = get_room_characters(current_room)
 	for char in room_characters:
 		all_targets.append({"type": "character", "target": char, "position": char.global_position})
-	
+
 	# 添加其他房间作为目标
 	for room_name in room_manager.rooms:
 		var room = room_manager.rooms[room_name]
 		# 排除当前所在的房间
 		if current_room == null or room.name != current_room.name:
 			all_targets.append({"type": "room", "target": room, "position": room.position})
-	
+
 	if all_targets.size() > 0:
 		all_targets.shuffle()
 		return all_targets[0]
-	
+
 	return {}
 
-# 移动到目标位置（支持物品、角色和房间）
+# 移动到目标位置(支持物品、角色和房间)
 func move_to_target(target_info: Dictionary, char_node = null):
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
 	var target_controller = target_character
-	
+
 	if target_info.is_empty():
 		print("[AIAgent] %s 没有有效的移动目标" % target_character.name)
 		return
-	
+
 	if current_state != State.MOVING:
 		current_state = State.MOVING
 		var target_name = ""
 		var target_position = Vector2.ZERO
-		
+
 		match target_info.type:
 			"object":
-				target_name = target_info.target.name + "（物品）"
-				# 移动到物品附近，稍微偏移避免重叠
+				target_name = target_info.target.name + "(物品)"
+				# 移动到物品附近,稍微偏移避免重叠
 				target_position = target_info.target.global_position + Vector2(randf_range(-30, 30), randf_range(-30, 30))
 			"character":
-				target_name = target_info.target.name + "（角色）"
-				# 移动到角色附近，保持适当距离
+				target_name = target_info.target.name + "(角色)"
+				# 移动到角色附近,保持适当距离
 				target_position = target_info.target.global_position + Vector2(randf_range(-50, 50), randf_range(-50, 50))
 			"room":
-				target_name = target_info.target.name + "（房间）"
+				target_name = target_info.target.name + "(房间)"
 				# 移动到房间中心坐标
 				target_position = target_info.target.position
-		
+
 		print("[AIAgent] %s 开始移动到 %s" % [target_character.name, target_name])
-		
+
 		# 记录活动日志
-		if Logger:
+		var _logger = get_node_or_null("/root/Logger")
+		if _logger:
 			var current_room = target_character.get_meta("current_room", "未知位置")
-			Logger.log_movement(target_character.name, current_room, target_name)
-		
+			_logger.log_movement(target_character.name, current_room, target_name)
+
 		target_controller.move_to(target_position)
 
 # 发起对话
 func initiate_conversation(other_character: Node2D, char_node = null):
-	# 使用传入的角色节点，如果没有则使用当前角色
+	# 使用传入的角色节点,如果没有则使用当前角色
 	var target_character = char_node if char_node else character
-	
+
 	if current_state != State.TALKING:
 		current_state = State.TALKING
 		print("[AIAgent] %s 尝试开始与 %s 对话" % [target_character.name, other_character.name])
-		
+
 		# 记录对话日志
-		if Logger:
+		var _logger = get_node_or_null("/root/Logger")
+		if _logger:
 			var current_room = target_character.get_meta("current_room", "未知位置")
-			Logger.log_conversation_start(target_character.name, other_character.name, current_room)
-		
+			_logger.log_conversation_start(target_character.name, other_character.name, current_room)
+
 		character_manager.current_character = target_character
 		dialog_manager._try_start_conversation()
 
-# 执行默认决策（当API失败时使用）
+# 执行默认决策(当API失败时使用)
 func _execute_default_decision(target_character):
 	print("[AIAgent] %s 使用默认决策逻辑" % target_character.name)
-	
+
 	# 首先检查ScheduleSystem是否有课程表任务
 	if ScheduleSystem and ScheduleSystem.is_school_day:
 		var schedule_tasks = _get_schedule_tasks_for_character(target_character)
 		if not schedule_tasks.is_empty():
 			print("[AIAgent] %s 使用ScheduleSystem的课程表任务" % target_character.name)
 			target_character.set_meta("tasks", schedule_tasks)
-			_add_memory(target_character, "今天有新的课程安排，你准备按照课表进行活动。")
+			_add_memory(target_character, "今天有新的课程安排,你准备按照课表进行活动。")
 			return
-	
+
 	# 获取当前任务
 	var tasks = target_character.get_meta("tasks", [])
 	if tasks.is_empty():
-		# 如果没有任务且不是上学日，生成默认任务
-		_generate_default_tasks(target_character)
+		# [已删除] 不再生成默认任务
+		# 如果没有任务，等待TaskManager分配
+		print("[AIAgent] %s 没有任务，等待TaskManager分配" % target_character.name)
 		return
-	
-	# 随机选择一个决策（1或2）
+
+	# 随机选择一个决策(1或2)
 	var random_decision = randi() % 2 + 1
 	var decision = str(random_decision)
-	
-	print("[AIAgent] %s 的默认决策结果：%s" % [target_character.name, decision])
+
+	print("[AIAgent] %s 的默认决策结果:%s" % [target_character.name, decision])
 	match decision:
 		"1":  # 调整任务
-			print("[AIAgent] %s 决定调整任务（默认）" % target_character.name)
+			print("[AIAgent] %s 决定调整任务(默认)" % target_character.name)
 			_adjust_tasks_default(target_character)
 		"2":  # 继续当前任务
-			print("[AIAgent] %s 决定继续当前任务（默认）" % target_character.name)
-			_continue_current_task_default(target_character)
+			print("[AIAgent] %s 决定继续当前任务(默认)" % target_character.name)
+			# [已删除] 不再调用 _continue_current_task_default
+			# 使用新的 _continue_current_task 函数
+			await _continue_current_task(target_character)
 
-# 生成默认任务（当API失败时使用）
-func _generate_default_tasks(target_character):
-	print("[AIAgent] %s 生成默认任务列表" % target_character.name)
-	
-	# 创建10个默认任务
-	var default_tasks = []
-	for i in range(10):
-		var task = _generate_random_task(target_character)
-		if task:
-			default_tasks.append(task)
-	
-	# 按优先级排序
-	default_tasks.sort_custom(func(a, b): return a.priority > b.priority)
-	
-	# 保存任务到角色元数据
-	target_character.set_meta("tasks", default_tasks)
-	
-	# 添加任务生成记忆
-	var memories = target_character.get_meta("memories", [])
-	memories.append("你为自己制定了新的任务计划，包含了%d个重要任务，准备开始执行。" % default_tasks.size())
-	target_character.set_meta("memories", memories)
-	
-	print("[AIAgent] %s 已生成 %d 个默认任务" % [target_character.name, default_tasks.size()])
+# [已删除] 生成默认任务
+# 重构说明：不再生成默认任务，所有任务由TaskManager根据课程表分配
+# func _generate_default_tasks(target_character):
+# 	pass
 
 # 默认调整任务逻辑
 func _adjust_tasks_default(target_character):
 	print("[AIAgent] %s 执行默认任务调整" % target_character.name)
-	
+
 	# 随机选择调整方式
 	var adjustment_type = randi() % 3 + 1
 	match adjustment_type:
 		1:  # 保持不变
-			print("[AIAgent] %s 决定保持当前任务优先级（默认）" % target_character.name)
-			_add_memory(target_character, "你检查了当前的任务列表，决定保持现有的优先级安排。")
+			print("[AIAgent] %s 决定保持当前任务优先级(默认)" % target_character.name)
+			_add_memory(target_character, "你检查了当前的任务列表,决定保持现有的优先级安排。")
 		2:  # 重新安排
-			print("[AIAgent] %s 决定重新安排任务优先级（默认）" % target_character.name)
+			print("[AIAgent] %s 决定重新安排任务优先级(默认)" % target_character.name)
 			_rearrange_task_priorities_default(target_character)
 		3:  # 添加新任务
-			print("[AIAgent] %s 决定添加新的紧急任务（默认）" % target_character.name)
+			print("[AIAgent] %s 决定添加新的紧急任务(默认)" % target_character.name)
 			_add_urgent_task_default(target_character)
 
-# 默认继续当前任务逻辑
-func _continue_current_task_default(target_character):
-	print("[AIAgent] %s 执行默认任务继续逻辑" % target_character.name)
-	
-	var tasks = target_character.get_meta("tasks", [])
-	if tasks.is_empty():
-		print("[AIAgent] %s 没有任务可执行，生成新任务" % target_character.name)
-		_generate_default_tasks(target_character)
-		return
-	
-	# 获取最高优先级的任务
-	var current_task = tasks[0]
-	print("[AIAgent] %s 继续执行任务：%s（默认）" % [target_character.name, current_task.description])
-	
-	# 添加记忆
-	_add_memory(target_character, "你继续专注于当前最重要的任务：%s" % current_task.description)
-	
-	# 随机选择执行方式
-	var execution_type = randi() % 2 + 1
-	match execution_type:
-		1:  # 移动到相关位置
-			_execute_task_movement_default(target_character, current_task)
-		2:  # 与相关角色对话
-			_execute_task_conversation_default(target_character, current_task)
+# [已删除] 默认继续当前任务逻辑
+# 重构说明：使用新的 _continue_current_task 函数处理课程移动任务
+# func _continue_current_task_default(target_character):
+# 	pass
 
 # 默认重新安排任务优先级
 func _rearrange_task_priorities_default(target_character):
 	var tasks = target_character.get_meta("tasks", [])
 	if tasks.size() < 2:
 		return
-	
-	# 只对未评估的任务（priority=0）让Agent自主判断
+
+	# 只对未评估的任务(priority=0)让Agent自主判断
 	# 已设置优先级的任务保持不变
 	for i in range(tasks.size()):
 		if tasks[i].get("priority", 0) == 0:
 			# 标记为需要Agent自主评估
 			tasks[i].needs_evaluation = true
-	
+
 	# 重新排序
 	tasks.sort_custom(func(a, b): return a.priority > b.priority)
 	target_character.set_meta("tasks", tasks)
-	
-	_add_memory(target_character, "你重新调整了任务的优先级，现在专注于最重要的事情。")
-	print("[AIAgent] %s 已重新安排任务优先级（默认）" % target_character.name)
+
+	_add_memory(target_character, "你重新调整了任务的优先级,现在专注于最重要的事情。")
+	print("[AIAgent] %s 已重新安排任务优先级(默认)" % target_character.name)
 
 # 默认添加紧急任务
 func _add_urgent_task_default(target_character):
@@ -2243,91 +1995,67 @@ func _add_urgent_task_default(target_character):
 		"协助同事完成工作",
 		"准备重要报告"
 	]
-	
+
 	var urgent_task = {
 		"description": urgent_tasks[randi() % urgent_tasks.size()],
 		"task_type": "emergency",  # 紧急类型
-		"priority": 9,  # 紧急任务固定优先级9（突发事件：生病、受伤、DDL迫在眉睫）
+		"priority": 9,  # 紧急任务固定优先级9(突发事件:生病、受伤、DDL迫在眉睫)
 		"created_at": Time.get_unix_time_from_system(),
 		"completed": false
 	}
-	
+
 	var tasks = target_character.get_meta("tasks", [])
 	tasks.append(urgent_task)
 	tasks.sort_custom(func(a, b): return a.priority > b.priority)
 	target_character.set_meta("tasks", tasks)
-	
-	_add_memory(target_character, "你添加了一个新的紧急任务：%s" % urgent_task.description)
-	print("[AIAgent] %s 添加了紧急任务：%s（默认）" % [target_character.name, urgent_task.description])
 
-# 默认执行任务移动
-func _execute_task_movement_default(target_character, current_task):
-	# 随机选择一个房间移动
-	var room_names = room_manager.rooms.keys()
-	if room_names.size() > 0:
-		var random_room_name = room_names[randi() % room_names.size()]
-		var room = room_manager.rooms[random_room_name]
-		# CharacterController脚本直接附加在角色根节点上
-		if target_character and target_character.has_method("move_to"):
-			print("[AIAgent] %s 移动到 %s 执行任务（默认）" % [target_character.name, random_room_name])
-			target_character.move_to(room.position)
-			_add_memory(target_character, "你移动到%s来完成任务：%s" % [random_room_name, current_task.description])
+	_add_memory(target_character, "你添加了一个新的紧急任务:%s" % urgent_task.description)
+	print("[AIAgent] %s 添加了紧急任务:%s(默认)" % [target_character.name, urgent_task.description])
 
-# 默认执行任务对话
-func _execute_task_conversation_default(target_character, current_task):
-	# 随机选择一个角色对话
-	var characters = get_tree().get_nodes_in_group("character")
-	var available_chars = []
-	for char in characters:
-		if char != target_character:
-			available_chars.append(char)
-	
-	if available_chars.size() > 0:
-		var random_char = available_chars[randi() % available_chars.size()]
-		print("[AIAgent] %s 与 %s 对话执行任务（默认）" % [target_character.name, random_char.name])
-		initiate_conversation(random_char, target_character)
+# [已删除] 默认执行任务函数
+# 重构说明:不再使用默认任务执行,所有任务由TaskManager分配并直接执行
 
 # 处理找不到目标的情况
 func _handle_target_not_found(target_character, target_name: String, current_task):
-	# 如果正在等待API响应，跳过
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
-	
+
 	# 获取所有房间列表
 	var room_names = []
 	for room_name in room_manager.rooms:
 		room_names.append(room_name)
-	
+
 	# 构建决策prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。" % [
 		role_description,
 	]
-	
-	prompt += "\n\n你当前的任务是：%s" % current_task.description
-	prompt += "\n你想要找到'%s'来完成这个任务，但是在当前房间没有找到这个目标。" % target_name
-	prompt += "\n\n学校有以下场所：%s" % ", ".join(room_names)
-	prompt += "\n\n请选择你的行动："
+
+	prompt += "\n\n你当前的任务是:%s" % current_task.description
+	prompt += "\n你想要找到'%s'来完成这个任务,但是在当前房间没有找到这个目标。" % target_name
+	prompt += "\n\n学校有以下场所:%s" % ", ".join(room_names)
+	prompt += "\n\n请选择你的行动:"
 	prompt += "\n1. 去其他房间寻找'%s'" % target_name
-	prompt += "\n2. 留在原地，重新安排任务"
-	prompt += "\n\n请只回复数字1或2，不要有任何其他文字。"
-	
+	prompt += "\n2. 留在原地,重新安排任务"
+	prompt += "\n\n请只回复数字1或2,不要有任何其他文字。"
+
 	print(prompt)
-	
+
 	# 使用APIManager生成决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_target_not_found_decision_completed):
 		http_request.request_completed.disconnect(_on_target_not_found_decision_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_target_not_found_decision_completed(result, response_code, headers, body, target_character, target_name, current_task)
 	)
 	waiting_responses[target_character.name] = true
@@ -2335,91 +2063,91 @@ func _handle_target_not_found(target_character, target_name: String, current_tas
 # 处理找不到目标的决策API响应
 func _on_target_not_found_decision_completed(result, _response_code, headers, body, char_node = null, target_name: String = "", current_task = null):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 找不到目标决策的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 找不到目标决策的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析决策
 	var decision = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if decision == "":
 		print("[AIAgent] %s 的找不到目标决策API响应解析失败" % target_character.name)
 		return
-	
+
 	decision = decision.strip_edges()
-	print("[AIAgent] %s 的找不到目标决策：%s" % [target_character.name, decision])
-	
+	print("[AIAgent] %s 的找不到目标决策:%s" % [target_character.name, decision])
+
 	match decision:
 		"1":  # 去其他房间寻找
 			print("[AIAgent] %s 决定去其他房间寻找'%s'" % [target_character.name, target_name])
 			await _choose_room_to_search(target_character, target_name, current_task)
 		"2":  # 重新安排任务
 			print("[AIAgent] %s 决定重新安排任务" % target_character.name)
-			_add_memory(target_character, "你本来要找'%s'来完成任务'%s'，但是找不到，所以需要重新安排任务。" % [target_name, current_task.description])
+			_add_memory(target_character, "你本来要找'%s'来完成任务'%s',但是找不到,所以需要重新安排任务。" % [target_name, current_task.description])
 			await _reschedule_task(target_character, current_task, target_name)
 		_:
-			print("[AIAgent] %s 的找不到目标决策无效：%s" % [target_character.name, decision])
-			_add_memory(target_character, "你想要找到'%s'来完成任务，但是没有找到这个目标。" % target_name)
+			print("[AIAgent] %s 的找不到目标决策无效:%s" % [target_character.name, decision])
+			_add_memory(target_character, "你想要找到'%s'来完成任务,但是没有找到这个目标。" % target_name)
 
 # 选择要搜索的房间
 func _choose_room_to_search(target_character, target_name: String, current_task):
-	# 如果正在等待API响应，跳过
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
-	
+
 	# 获取当前房间
 	var current_room = room_manager.get_current_room(room_manager.rooms, target_character.global_position)
 	var current_room_name = current_room.name if current_room else "未知房间"
-	
-	# 获取所有房间列表（排除当前房间）
+
+	# 获取所有房间列表(排除当前房间)
 	var room_names = []
 	for room_name in room_manager.rooms:
 		if room_name != current_room_name:
 			room_names.append(room_name)
-	
+
 	if room_names.size() == 0:
 		print("[AIAgent] %s 没有其他房间可以搜索" % target_character.name)
-		_add_memory(target_character, "你想要去其他房间寻找'%s'，但是没有其他房间可以去。" % target_name)
+		_add_memory(target_character, "你想要去其他房间寻找'%s',但是没有其他房间可以去。" % target_name)
 		return
-	
+
 	# 构建房间选择prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。" % [
 		role_description,
 	]
-	
-	prompt += "\n\n你当前的任务是：%s" % current_task.description
-	prompt += "\n你想要找到'%s'来完成这个任务，但是在当前房间'%s'没有找到。" % [target_name, current_room_name]
-	prompt += "\n\n你可以去以下房间寻找："
+
+	prompt += "\n\n你当前的任务是:%s" % current_task.description
+	prompt += "\n你想要找到'%s'来完成这个任务,但是在当前房间'%s'没有找到。" % [target_name, current_room_name]
+	prompt += "\n\n你可以去以下房间寻找:"
 	for i in range(room_names.size()):
 		prompt += "\n%d. %s" % [i + 1, room_names[i]]
-	
-	prompt += "\n\n请选择你想要去的房间，只回复对应的数字（1-%d），不要有任何其他文字。" % room_names.size()
-	
+
+	prompt += "\n\n请选择你想要去的房间,只回复对应的数字(1-%d),不要有任何其他文字。" % room_names.size()
+
 	print(prompt)
-	
+
 	# 使用APIManager生成决策
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_room_choice_completed):
 		http_request.request_completed.disconnect(_on_room_choice_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_room_choice_completed(result, response_code, headers, body, target_character, target_name, current_task, room_names)
 	)
 	waiting_responses[target_character.name] = true
@@ -2427,87 +2155,87 @@ func _choose_room_to_search(target_character, target_name: String, current_task)
 # 处理房间选择的API响应
 func _on_room_choice_completed(result, _response_code, headers, body, char_node = null, target_name: String = "", current_task = null, room_names: Array = []):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 房间选择的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 房间选择的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析选择
 	var choice = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if choice == "":
 		print("[AIAgent] %s 的房间选择API响应解析失败" % target_character.name)
 		return
-	
+
 	choice = choice.strip_edges()
-	print("[AIAgent] %s 选择的房间：%s" % [target_character.name, choice])
-	
+	print("[AIAgent] %s 选择的房间:%s" % [target_character.name, choice])
+
 	# 验证选择是否有效
 	var choice_index = choice.to_int() - 1
 	if choice_index >= 0 and choice_index < room_names.size():
 		var selected_room_name = room_names[choice_index]
 		var selected_room = room_manager.rooms[selected_room_name]
-		
+
 		print("[AIAgent] %s 开始移动到 %s 寻找'%s'" % [target_character.name, selected_room_name, target_name])
-		
+
 		# 移动到选择的房间
 		if target_character and target_character.has_method("move_to"):
 			target_character.move_to(selected_room.position)
-			_add_memory(target_character, "为了寻找'%s'来完成任务'%s'，你移动到了%s。" % [target_name, current_task.description, selected_room_name])
+			_add_memory(target_character, "为了寻找'%s'来完成任务'%s',你移动到了%s。" % [target_name, current_task.description, selected_room_name])
 	else:
-		print("[AIAgent] %s 的房间选择无效：%s" % [target_character.name, choice])
-		_add_memory(target_character, "你想要选择房间去寻找'%s'，但是选择无效。" % target_name)
+		print("[AIAgent] %s 的房间选择无效:%s" % [target_character.name, choice])
+		_add_memory(target_character, "你想要选择房间去寻找'%s',但是选择无效。" % target_name)
 
 # 重新安排任务
 func _reschedule_task(target_character, current_task, failed_target_name: String):
-	# 如果正在等待API响应，跳过
+	# 如果正在等待API响应,跳过
 	if target_character.name in waiting_responses and waiting_responses[target_character.name]:
 		return
-	
+
 	# 获取角色人设
 	var personality = CharacterPersonality.get_personality(target_character.name)
 	var role_type = personality.get("role_type", "student")
 	var role_description = "教师" if role_type == "teacher" else "学生"
-	
+
 	# 获取场景描述
 	var scene_description = generate_scene_description()
-	
+
 	# 构建重新安排任务的prompt
-	var prompt = "你是一个%s，名字是%s。你的职位是：%s。" % [
+	var prompt = "你是一个%s,名字是%s。你的职位是:%s。" % [
 		role_description,
 	]
-	
+
 	prompt += get_company_basic_info()
 	prompt += get_company_employees_info()
 	prompt += "\n" + scene_description
-	
-	prompt += "\n\n你原本的任务是：%s" % current_task.description
+
+	prompt += "\n\n你原本的任务是:%s" % current_task.description
 	prompt += "\n但是你找不到'%s'来完成这个任务。" % failed_target_name
-	prompt += "\n\n请重新安排一个新的任务，这个任务应该："
+	prompt += "\n\n请重新安排一个新的任务,这个任务应该:"
 	prompt += "\n1. 适合你的职位和当前环境"
 	prompt += "\n2. 可以在当前环境中完成"
 	prompt += "\n3. 符合学校生活的常理"
-	prompt += "\n\n请只回复新任务的描述，不要有任何其他文字。"
-	
+	prompt += "\n\n请只回复新任务的描述,不要有任何其他文字。"
+
 	print(prompt)
-	
+
 	# 使用APIManager生成新任务
 	var character_name = character.name if character else "Unknown"
 	var http_request = await api_manager.generate_dialog(prompt, character_name)
-	
+
 	# 断开之前可能存在的连接
 	if http_request.request_completed.is_connected(_on_reschedule_task_completed):
 		http_request.request_completed.disconnect(_on_reschedule_task_completed)
-	
+
 	# 连接回调函数
-	http_request.request_completed.connect(func(result, response_code, headers, body): 
+	http_request.request_completed.connect(func(result, response_code, headers, body):
 		_on_reschedule_task_completed(result, response_code, headers, body, target_character, current_task)
 	)
 	waiting_responses[target_character.name] = true
@@ -2515,63 +2243,63 @@ func _reschedule_task(target_character, current_task, failed_target_name: String
 # 处理重新安排任务的API响应
 func _on_reschedule_task_completed(result, _response_code, headers, body, char_node = null, old_task = null):
 	var target_character = char_node if char_node else character
-	
+
 	# 重置等待状态
 	waiting_responses[target_character.name] = false
-	
+
 	if result != HTTPRequest.RESULT_SUCCESS:
 		print("[AIAgent] %s 重新安排任务的HTTP请求失败" % target_character.name)
 		return
-	
+
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if not response:
 		print("[AIAgent] %s 重新安排任务的JSON解析失败" % target_character.name)
 		return
-	
+
 	# 解析新任务
 	var new_task_description = APIConfig.parse_response(api_manager.current_settings.api_type, response)
 	if new_task_description == "":
 		print("[AIAgent] %s 的重新安排任务API响应解析失败" % target_character.name)
 		return
-	
+
 	new_task_description = new_task_description.strip_edges()
-	print("[AIAgent] %s 重新安排的新任务：%s" % [target_character.name, new_task_description])
-	
+	print("[AIAgent] %s 重新安排的新任务:%s" % [target_character.name, new_task_description])
+
 	# 更新任务
 	var metadata = target_character.get_meta("character_data", {})
 	if not metadata.has("current_task"):
 		metadata["current_task"] = {}
-	
+
 	metadata["current_task"]["description"] = new_task_description
 	metadata["current_task"]["start_time"] = Time.get_unix_time_from_system()
 	target_character.set_meta("character_data", metadata)
-	
-	_add_memory(target_character, "由于找不到目标，你重新安排了新任务：%s" % new_task_description)
-	print("[AIAgent] %s 的任务已更新为：%s" % [target_character.name, new_task_description])
+
+	_add_memory(target_character, "由于找不到目标,你重新安排了新任务:%s" % new_task_description)
+	print("[AIAgent] %s 的任务已更新为:%s" % [target_character.name, new_task_description])
 
 # 获取角色的对话伙伴
 func _get_conversation_partner(character: CharacterBody2D) -> CharacterBody2D:
 	if not dialog_manager or not dialog_manager.dialog_service:
 		return null
-	
+
 	# 获取角色参与的对话ID列表
 	var conversation_ids = dialog_manager.dialog_service.get_character_conversations(character)
 	if conversation_ids.is_empty():
 		return null
-	
+
 	# 获取第一个对话的对话伙伴
 	var conversation_id = conversation_ids[0]
 	var active_conversations = dialog_manager.dialog_service.active_conversations
 	if not active_conversations.has(conversation_id):
 		return null
-	
+
 	var conversation = active_conversations[conversation_id]
 	if conversation.speaker == character:
 		return conversation.listener
 	else:
 		return conversation.speaker
 
-# 开始移动跟踪，智能检测角色是否到达目标位置
+# 开始移动跟踪,智能检测角色是否到达目标位置
 func _start_movement_tracking(moving_character: CharacterBody2D, target_character: CharacterBody2D, current_task):
 	var tracking_data = {
 		"moving_character": moving_character,
@@ -2582,14 +2310,14 @@ func _start_movement_tracking(moving_character: CharacterBody2D, target_characte
 		"stuck_time": 0.0,
 		"check_count": 0
 	}
-	
+
 	# 创建定时器进行周期性检查
 	var tracking_timer = Timer.new()
 	tracking_timer.wait_time = 0.5  # 每0.5秒检查一次
 	tracking_timer.timeout.connect(func(): _check_movement_progress(tracking_data, tracking_timer))
 	moving_character.add_child(tracking_timer)
 	tracking_timer.start()
-	
+
 	print("[AIAgent] 开始跟踪 %s 移动到 %s 的进度" % [moving_character.name, target_character.name])
 
 # 检查移动进度
@@ -2599,40 +2327,40 @@ func _check_movement_progress(tracking_data: Dictionary, tracking_timer: Timer):
 	var current_task = tracking_data["current_task"]
 	var start_time = tracking_data["start_time"]
 	var last_pos = tracking_data["last_position"]
-	
+
 	tracking_data["check_count"] += 1
 	var current_time = Time.get_unix_time_from_system()
 	var elapsed_time = current_time - start_time
 	var current_pos = moving_char.global_position
 	var distance_to_target = current_pos.distance_to(target_char.global_position)
-	
-	# 检查是否到达目标位置（交谈距离内）
+
+	# 检查是否到达目标位置(交谈距离内)
 	if distance_to_target <= 150:
-		print("[AIAgent] %s 成功到达 %s 附近，开始交谈" % [moving_char.name, target_char.name])
+		print("[AIAgent] %s 成功到达 %s 附近,开始交谈" % [moving_char.name, target_char.name])
 		initiate_conversation(target_char, moving_char)
-		_add_memory(moving_char, "为了完成任务'%s'，你成功找到了%s并进行了交谈。" % [current_task.description, target_char.name])
+		_add_memory(moving_char, "为了完成任务'%s',你成功找到了%s并进行了交谈。" % [current_task.description, target_char.name])
 		_cleanup_tracking_timer(tracking_timer)
 		return
-	
-	# 检查是否卡住（位置没有明显变化）
+
+	# 检查是否卡住(位置没有明显变化)
 	var movement_distance = current_pos.distance_to(last_pos)
 	if movement_distance < 10:  # 移动距离小于10像素认为可能卡住
 		tracking_data["stuck_time"] += tracking_timer.wait_time
 	else:
 		tracking_data["stuck_time"] = 0.0
 		tracking_data["last_position"] = current_pos
-	
-	# 超时或卡住太久，放弃移动
+
+	# 超时或卡住太久,放弃移动
 	if elapsed_time > 15.0 or tracking_data["stuck_time"] > 5.0:
 		var reason = "超时" if elapsed_time > 15.0 else "卡住"
-		print("[AIAgent] %s 移动到 %s 失败：%s (距离: %.0f)" % [moving_char.name, target_char.name, reason, distance_to_target])
-		_add_memory(moving_char, "你试图去找%s交谈来完成任务'%s'，但是移动过程中遇到了问题（%s）。" % [target_char.name, current_task.description, reason])
+		print("[AIAgent] %s 移动到 %s 失败:%s (距离: %.0f)" % [moving_char.name, target_char.name, reason, distance_to_target])
+		_add_memory(moving_char, "你试图去找%s交谈来完成任务'%s',但是移动过程中遇到了问题(%s)。" % [target_char.name, current_task.description, reason])
 		_cleanup_tracking_timer(tracking_timer)
 		return
-	
+
 	# 每10次检查输出一次进度信息
 	if tracking_data["check_count"] % 10 == 0:
-		print("[AIAgent] %s 移动进度：距离 %s 还有 %.0f 像素" % [moving_char.name, target_char.name, distance_to_target])
+		print("[AIAgent] %s 移动进度:距离 %s 还有 %.0f 像素" % [moving_char.name, target_char.name, distance_to_target])
 
 # 清理跟踪定时器
 func _cleanup_tracking_timer(tracking_timer: Timer):
@@ -2642,49 +2370,49 @@ func _cleanup_tracking_timer(tracking_timer: Timer):
 
 # ========== 体验采样和信念更新 ==========
 
-# 体验采样回调（每SAMPLE_INTERVAL秒调用）
+# 体验采样回调(每SAMPLE_INTERVAL秒调用)
 func _on_experience_sample():
 	# 获取当前房间
 	var current_room = room_manager.get_current_room(room_manager.rooms, character.global_position)
 	if not current_room:
 		return
-	
+
 	var room_name = current_room.name
 	var current_time = Time.get_unix_time_from_system()
 	var time_in_room = current_time - current_room_start_time
-	
+
 	# ========== 感知层与系统层分离 ==========
 	# 不再直接访问RoomArea获取客观参数
 	# 改为通过RewardSystem请求系统发放奖赏
 	# AgentRewardReceiver会自动接收奖赏并传递给PerceptionSystem
-	
+
 	if RewardSystem.instance:
-		# 请求系统层发放奖赏（Agent不可见客观参数）
+		# 请求系统层发放奖赏(Agent不可见客观参数)
 		var result = RewardSystem.instance.distribute_reward(
 			character.name, room_name, time_in_room
 		)
-		
+
 		if result.has("error"):
 			push_warning("[AIAgent] %s 体验采样失败: %s" % [character.name, result.error])
 			return
-		
+
 		# 奖赏已通过信号发放给AgentRewardReceiver
 		# AgentRewardReceiver会自动:
-		# 1. 接收奖赏（带极小感知噪声）
+		# 1. 接收奖赏(带极小感知噪声)
 		# 2. 传递给PerceptionSystem进行贝叶斯更新
 		# 3. 缓存到历史记录
 	else:
-		push_error("[AIAgent] RewardSystem未初始化，无法获取奖赏")
+		push_error("[AIAgent] RewardSystem未初始化,无法获取奖赏")
 		return
-	
+
 	last_sample_time = current_time
-	
+
 	# 获取角色参数用于MVT决策
 	var personality = CharacterPersonality.get_personality(character.name)
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
-	
+
 	# ========== MVT驱动行为决策 ==========
-	# 根据MVT计算最优停留时间，决定是否离开当前情境
+	# 根据MVT计算最优停留时间,决定是否离开当前情境
 	_check_mvt_leave_decision(room_name, time_in_room, personality, is_depression)
 
 # ❌ 已删除: _get_actual_gain_from_room()
@@ -2697,117 +2425,117 @@ func _on_enter_new_room(new_room_name: String):
 	# 重置房间计时
 	current_room_start_time = Time.get_unix_time_from_system()
 	last_sample_time = current_room_start_time
-	
+
 	# 启动体验采样定时器
 	if experience_timer and not experience_timer.is_stopped():
 		experience_timer.start()
-	
-	print("[AIAgent] %s 进入新房间：%s，开始体验采样" % [character.name, new_room_name])
+
+	print("[AIAgent] %s 进入新房间:%s,开始体验采样" % [character.name, new_room_name])
 
 # 当Agent离开房间时调用
 func _on_leave_room(room_name: String):
 	# 停止体验采样
 	if experience_timer:
 		experience_timer.stop()
-	
-	# 强制更新信念（如果有未处理的样本）
+
+	# 强制更新信念(如果有未处理的样本)
 	var personality = CharacterPersonality.get_personality(character.name)
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
 	var belief = PerceptionSystem.get_belief(character.name, room_name, is_depression)
-	
+
 	if belief.samples.size() > 0:
 		PerceptionSystem._update_beliefs(character.name, room_name)
-		print("[AIAgent] %s 离开房间 %s，更新信念：S=%.2f, a=%.2f" % [
+		print("[AIAgent] %s 离开房间 %s,更新信念:S=%.2f, a=%.2f" % [
 			character.name, room_name, belief.S_mean, belief.a_mean
 		])
 
-# 获取感知到的最优停留时间（用于决策）
+# 获取感知到的最优停留时间(用于决策)
 func _get_perceived_optimal_time(room_name: String) -> float:
 	var personality = CharacterPersonality.get_personality(character.name)
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
-	
+
 	# 获取感知参数
 	var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
 	var perceived_S = perceived.S
 	var perceived_a = perceived.a
-	
+
 	# 获取效用参数
 	var utility_params = UtilitySystem.get_agent_utility_params(personality)
 	var alpha = utility_params.alpha
 	var beta_effort = utility_params.beta_effort
-	
-	# 获取努力成本（通过RewardSystem，不直接访问RoomArea）
+
+	# 获取努力成本(通过RewardSystem,不直接访问RoomArea)
 	var effort = _get_effort_from_system(room_name)
-	
+
 	# 获取p_base
 	var p_base = 0.5
 	if personality.has("cognitive_mechanism"):
 		p_base = personality["cognitive_mechanism"].get("p_base", 0.5)
-	
+
 	# 计算最优时间
-	return UtilitySystem.calculate_optimal_time(perceived_S, perceived_a, effort, 
+	return UtilitySystem.calculate_optimal_time(perceived_S, perceived_a, effort,
 											  alpha, beta_effort, p_base)
 
-# 通过系统层获取努力成本（不直接访问RoomArea）
+# 通过系统层获取努力成本(不直接访问RoomArea)
 func _get_effort_from_system(room_name: String) -> float:
-	# 优先通过RewardSystem获取（系统层接口）
+	# 优先通过RewardSystem获取(系统层接口)
 	if RewardSystem.instance:
 		var room_data = RewardSystem.instance._get_room_objective_params(room_name)
 		if not room_data.is_empty():
 			return room_data.get("E", 0.5)
-	
-	# 降级方案：通过RoomManager获取
+
+	# 降级方案:通过RoomManager获取
 	if room_manager and room_manager.has_method("get_room_objective_params_internal"):
 		var room_data = room_manager.get_room_objective_params_internal(room_name)
 		if not room_data.is_empty():
 			return room_data.get("E", 0.5)
-	
-	push_warning("[AIAgent] %s 无法获取房间 %s 的努力成本，使用默认值" % [character.name, room_name])
+
+	push_warning("[AIAgent] %s 无法获取房间 %s 的努力成本,使用默认值" % [character.name, room_name])
 	return 0.5  # 默认值
 
 # ========== MVT驱动行为决策 ==========
 # 根据MVT计算结果决定是否离开当前情境
-func _check_mvt_leave_decision(room_name: String, time_in_room: float, 
+func _check_mvt_leave_decision(room_name: String, time_in_room: float,
 								personality: Dictionary, is_depression: bool) -> void:
 	# 获取MVT计算的最优停留时间
 	var optimal_time = _get_perceived_optimal_time(room_name)
-	
-	# 获取当前效用（用于判断）
+
+	# 获取当前效用(用于判断)
 	var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
 	var utility_params = UtilitySystem.get_agent_utility_params(personality)
-	
-	# 获取努力成本（通过系统层接口）
+
+	# 获取努力成本(通过系统层接口)
 	var effort = _get_effort_from_system(room_name)
-	
+
 	# 计算当前效用
 	var current_gain = (perceived.S / max(perceived.a, 0.01)) * (1.0 - exp(-perceived.a * time_in_room))
-	var current_utility = UtilitySystem.calculate_utility(current_gain, effort, 
+	var current_utility = UtilitySystem.calculate_utility(current_gain, effort,
 														  utility_params.alpha, utility_params.beta_effort)
-	
+
 	# MVT决策逻辑
 	var should_leave = false
 	var leave_reason = ""
-	
-	# 条件1：已超过最优停留时间
+
+	# 条件1:已超过最优停留时间
 	if time_in_room >= optimal_time:
 		should_leave = true
-		leave_reason = "已达到最优停留时间(%.0f秒)，继续停留效用将下降" % optimal_time
-	
-	# 条件2：当前效用为负（即使时间未到最优，但已经不值得继续了）
+		leave_reason = "已达到最优停留时间(%.0f秒),继续停留效用将下降" % optimal_time
+
+	# 条件2:当前效用为负(即使时间未到最优,但已经不值得继续了)
 	elif current_utility < -0.1:
 		should_leave = true
-		leave_reason = "当前情境效用为负(%.2f)，继续参与感到不值得" % current_utility
-	
-	# 条件3：抑郁Agent的特殊回避行为（高努力敏感性导致提前离开）
+		leave_reason = "当前情境效用为负(%.2f),继续参与感到不值得" % current_utility
+
+	# 条件3:抑郁Agent的特殊回避行为(高努力敏感性导致提前离开)
 	elif is_depression and utility_params.beta_effort > 0.7 and effort > 0.5 and time_in_room > optimal_time * 0.5:
 		should_leave = true
-		leave_reason = "感到疲惫（高努力敏感性），决定提前离开"
-	
+		leave_reason = "感到疲惫(高努力敏感性),决定提前离开"
+
 	# 执行离开决策
 	if should_leave:
-		print("[MVT决策] %s 决定离开 %s，原因：%s" % [character.name, room_name, leave_reason])
-		_add_memory(character, "你决定离开%s，因为%s" % [room_name, leave_reason])
-		
+		print("[MVT决策] %s 决定离开 %s,原因:%s" % [character.name, room_name, leave_reason])
+		_add_memory(character, "你决定离开%s,因为%s" % [room_name, leave_reason])
+
 		# 触发离开行为
 		_execute_mvt_leave_behavior(room_name)
 
@@ -2816,149 +2544,149 @@ func _execute_mvt_leave_behavior(current_room_name: String) -> void:
 	# 停止体验采样
 	if experience_timer:
 		experience_timer.stop()
-	
-	# 选择下一个目标（基于MVT效用最大化）
+
+	# 选择下一个目标(基于MVT效用最大化)
 	var next_room = _select_next_room_by_mvt(current_room_name)
-	
+
 	if next_room:
 		print("[MVT行为] %s 将移动到 %s" % [character.name, next_room.name])
-		
-		# 更新当前房间时间记录（准备进入新房间）
+
+		# 更新当前房间时间记录(准备进入新房间)
 		_on_leave_room(current_room_name)
-		
+
 		# 执行移动
 		if character and character.has_method("move_to"):
 			character.move_to(next_room.position)
 			_add_memory(character, "你决定前往%s寻找新的机会" % next_room.name)
 	else:
-		# 如果没有更好的选择，在当前房间随机移动或停留
-		print("[MVT行为] %s 没有找到更好的情境，将在当前区域探索" % character.name)
+		# 如果没有更好的选择,在当前房间随机移动或停留
+		print("[MVT行为] %s 没有找到更好的情境,将在当前区域探索" % character.name)
 		_execute_exploration_behavior()
 
-# 基于MVT选择下一个房间（效用最大化）
+# 基于MVT选择下一个房间(效用最大化)
 func _select_next_room_by_mvt(current_room_name: String) -> RoomData:
 	var personality = CharacterPersonality.get_personality(character.name)
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
 	var utility_params = UtilitySystem.get_agent_utility_params(personality)
-	
+
 	var best_room = null
 	var best_expected_utility = -999999.0
-	
-	# 遍历所有房间，计算预期效用
+
+	# 遍历所有房间,计算预期效用
 	for room_name in room_manager.rooms:
 		if room_name == current_room_name:
 			continue  # 跳过当前房间
-		
+
 		var room = room_manager.rooms[room_name]
-		
-		# 获取对该房间的感知（如果有历史）或初始化
+
+		# 获取对该房间的感知(如果有历史)或初始化
 		var perceived = PerceptionSystem.get_perceived_params(character.name, room_name, is_depression)
-		
-		# 获取房间努力成本（通过系统层接口）
+
+		# 获取房间努力成本(通过系统层接口)
 		var effort = _get_effort_from_system(room_name)
-		
-		# 预测进入该房间后的初始效用（t=5秒时的效用）
+
+		# 预测进入该房间后的初始效用(t=5秒时的效用)
 		var predicted_gain = (perceived.S / max(perceived.a, 0.01)) * (1.0 - exp(-perceived.a * 5.0))
-		var expected_utility = UtilitySystem.calculate_utility(predicted_gain, effort, 
+		var expected_utility = UtilitySystem.calculate_utility(predicted_gain, effort,
 															   utility_params.alpha, utility_params.beta_effort)
-		
-		# 考虑距离成本（简单线性衰减）
+
+		# 考虑距离成本(简单线性衰减)
 		var distance = character.global_position.distance_to(room.position)
 		var distance_cost = distance * 0.001  # 距离惩罚
 		expected_utility -= distance_cost
-		
-		print("[MVT选择] %s: 预期效用=%.2f (感知S=%.2f, a=%.2f, 努力=%.2f)" % 
+
+		print("[MVT选择] %s: 预期效用=%.2f (感知S=%.2f, a=%.2f, 努力=%.2f)" %
 			  [room_name, expected_utility, perceived.S, perceived.a, effort])
-		
+
 		if expected_utility > best_expected_utility:
 			best_expected_utility = expected_utility
 			best_room = room
-	
+
 	# 只有预期效用显著为正时才切换
 	if best_expected_utility > 0.1:
 		return best_room
 	else:
 		return null  # 没有找到更好的选择
 
-# 执行探索行为（当没有更好选择时）
+# 执行探索行为(当没有更好选择时)
 func _execute_exploration_behavior() -> void:
 	# 在当前房间内随机移动一小段距离
 	var random_offset = Vector2(randf_range(-100, 100), randf_range(-100, 100))
 	var explore_target = character.global_position + random_offset
-	
+
 	if character and character.has_method("move_to"):
 		character.move_to(explore_target)
-		_add_memory(character, "你在当前区域随意走动，思考下一步该做什么")
+		_add_memory(character, "你在当前区域随意走动,思考下一步该做什么")
 
 # ========== ScheduleSystem 集成 ==========
 
 # 从ScheduleSystem获取当前角色的课程表任务
 func _get_schedule_tasks_for_character(target_character: Node) -> Array:
 	var schedule_tasks = []
-	
+
 	# 获取角色类型
 	if not target_character.has_meta("character_data"):
 		return schedule_tasks
-	
+
 	var data = target_character.get_meta("character_data")
 	var role_type = data.get("role_type", "")
 	var personality = CharacterPersonality.get_personality(target_character.name)
-	
+
 	# 安全获取day_night_system并根据角色类型和当前时间获取相应任务
 	var dns = get_node_or_null("/root/DayNightSystem")
 	if dns:
 		var current_hour = dns.current_hour
-		
+
 		# 上午课程
 		if current_hour < 10.75:  # 午休前
 			if current_hour < 8.75:
-				_add_schedule_task(schedule_tasks, target_character, "班主任课", "教室（主教学区）", "课堂发言", 8.0, role_type, personality)
+				_add_schedule_task(schedule_tasks, target_character, "班主任课", "教室(主教学区)", "课堂发言", 8.0, role_type, personality)
 			elif current_hour < 9.666:
-				_add_schedule_task(schedule_tasks, target_character, "英语课", "教室（主教学区）", "课堂发言", 8.916, role_type, personality)
+				_add_schedule_task(schedule_tasks, target_character, "英语课", "教室(主教学区)", "课堂发言", 8.916, role_type, personality)
 			else:
-				_add_schedule_task(schedule_tasks, target_character, "小组讨论", "教室（小组讨论区）", "小组合作", 9.833, role_type, personality)
-		
+				_add_schedule_task(schedule_tasks, target_character, "小组讨论", "教室(小组讨论区)", "小组合作", 9.833, role_type, personality)
+
 		# 午休
 		elif current_hour < 11.75:
 			_add_schedule_task(schedule_tasks, target_character, "午休", "食堂", "同伴互动", 10.75, role_type, personality)
-		
+
 		# 下午课程
 		else:
 			if current_hour < 12.5:
-				_add_schedule_task(schedule_tasks, target_character, "数学课", "教室（主教学区）", "课堂发言", 11.75, role_type, personality)
+				_add_schedule_task(schedule_tasks, target_character, "数学课", "教室(主教学区)", "课堂发言", 11.75, role_type, personality)
 			else:
 				_add_schedule_task(schedule_tasks, target_character, "体育活动", "体育馆", "体育活动", 12.666, role_type, personality)
-	
+
 	return schedule_tasks
 
-# 辅助函数：添加单个课程任务
+# 辅助函数:添加单个课程任务
 func _add_schedule_task(task_list: Array, character: Node, subject: String, room: String, activity: String, start_time: float, role_type: String, personality: Dictionary):
 	var priority = 3  # 默认优先级
 	var description = ""
-	
+
 	# 根据角色类型个性化
 	if role_type == "depression_risk_student":
-		# 抑郁风险学生：高努力情境低优先级
-		if room == "教室（主教学区）" and activity == "课堂发言":
+		# 抑郁风险学生:高努力情境低优先级
+		if room == "教室(主教学区)" and activity == "课堂发言":
 			priority = 2
-			description = "尝试参与" + subject + "，但可能会感到疲惫"
+			description = "尝试参与" + subject + ",但可能会感到疲惫"
 		elif room == "体育馆":
 			priority = 1
-			description = subject + "时间，可能会选择旁观"
+			description = subject + "时间,可能会选择旁观"
 		elif room == "食堂":
 			priority = 2
-			description = "午餐时间，可能会独自用餐"
+			description = "午餐时间,可能会独自用餐"
 		else:
 			description = "参与" + subject
 	elif role_type == "healthy_student":
-		# 健康学生：正常参与
+		# 健康学生:正常参与
 		priority = 4
 		description = "积极参与" + subject
 	elif role_type == "teacher":
-		# 教师：教学任务最高优先级
+		# 教师:教学任务最高优先级
 		priority = 5
 		description = "教授" + subject
-	
+
 	var task = {
 		"id": "schedule_" + subject + "_" + character.name,
 		"name": subject,
@@ -2970,69 +2698,69 @@ func _add_schedule_task(task_list: Array, character: Node, subject: String, room
 		"priority": priority,
 		"from_schedule": true
 	}
-	
+
 	task_list.append(task)
 
-# 公共接口：添加任务（供ScheduleSystem调用）
+# 公共接口:添加任务(供ScheduleSystem调用)
 func add_task(task: Dictionary) -> void:
 	var tasks = character.get_meta("tasks", [])
 	tasks.append(task)
 	# 按优先级排序
 	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
 	character.set_meta("tasks", tasks)
-	print("[AIAgent] %s 添加任务：%s（优先级：%d）" % [character.name, task.get("name", "未命名"), task.get("priority", 0)])
+	print("[AIAgent] %s 添加任务:%s(优先级:%d)" % [character.name, task.get("name", "未命名"), task.get("priority", 0)])
 
-# 公共接口：清除所有任务
+# 公共接口:清除所有任务
 func clear_tasks() -> void:
 	character.set_meta("tasks", [])
 	print("[AIAgent] %s 清除所有任务" % character.name)
 
-# 评估任务优先级（Agent自主判断）
+# 评估任务优先级(Agent自主判断)
 func _evaluate_task_priorities():
 	"""根据任务类型和Agent人设评估未设置优先级的任务"""
 	var tasks = character.get_meta("tasks", [])
 	if tasks.is_empty():
 		return
-	
+
 	var personality = CharacterPersonality.get_personality(character.name)
 	var role_type = personality.get("role_type", "")
 	var beta_effort = personality.get("cognitive_mechanism", {}).get("beta_effort", 0.5)
-	
+
 	for task in tasks:
 		# 跳过已设置优先级的任务
 		if task.get("priority", 0) != 0:
 			continue
-		
+
 		var task_type = task.get("task_type", "normal")
 		var description = task.get("description", "")
-		
+
 		# 根据任务类型和Agent人设评估优先级
 		match task_type:
 			"emergency":
 				task.priority = 9  # 紧急任务
-			
+
 			"important_urgent":
-				# 重要且略紧急（如一周后的考试）
+				# 重要且略紧急(如一周后的考试)
 				task.priority = 6
-			
+
 			"normal_work":
-				# 普通工作（作业、稿件、活动）
+				# 普通工作(作业、稿件、活动)
 				if role_type == "teacher":
 					task.priority = 4  # 教师工作
 				else:
 					task.priority = 4  # 学生作业
-			
+
 			"daily":
-				# 日常任务（吃饭、睡觉、休息）
+				# 日常任务(吃饭、睡觉、休息)
 				task.priority = 3
-			
+
 			"social":
-				# 社交任务，抑郁Agent可能回避
+				# 社交任务,抑郁Agent可能回避
 				if role_type == "depression_risk_student" and beta_effort > 0.6:
 					task.priority = 2  # 回避社交
 				else:
 					task.priority = 3
-			
+
 			_:
 				# 默认根据描述判断
 				if "考试" in description or "DDL" in description or "截止" in description:
@@ -3043,40 +2771,40 @@ func _evaluate_task_priorities():
 					task.priority = 3
 				else:
 					task.priority = 3  # 默认普通
-		
+
 		# 移除评估标记
 		if task.has("needs_evaluation"):
 			task.erase("needs_evaluation")
-	
+
 	# 重新排序任务
 	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
 	character.set_meta("tasks", tasks)
 
 # 检查附近是否有其他角色
 func _check_nearby_characters():
-	"""检查附近是否有其他角色，根据概率决定是否发起对话"""
+	"""检查附近是否有其他角色,根据概率决定是否发起对话"""
 	var cm = get_node_or_null("/root/CharacterManager")
 	if not cm:
 		return
-	
+
 	var nearby_char = cm.get_nearby_character(character)
 	if not nearby_char:
 		return
-	
+
 	# 检查是否已经在对话中
 	if dialog_manager and dialog_manager.is_character_in_conversation(character):
 		return
-	
-	# 获取角色人设，根据性格决定是否发起对话
+
+	# 获取角色人设,根据性格决定是否发起对话
 	var personality = CharacterPersonality.get_personality(character.name)
 	var extraversion = personality.get("big_five", {}).get("extraversion", 50)
 	var role_type = personality.get("role_type", "")
-	
+
 	# 计算对话概率
 	var talk_probability = 0.0
-	
+
 	if role_type == "depression_risk_student":
-		# 抑郁Agent社交回避，对话概率低
+		# 抑郁Agent社交回避,对话概率低
 		talk_probability = 0.1  # 10%概率
 	elif extraversion > 70:
 		# 外向Agent喜欢社交
@@ -3087,54 +2815,54 @@ func _check_nearby_characters():
 	else:
 		# 普通Agent
 		talk_probability = 0.25  # 25%概率
-	
+
 	# 随机决定是否发起对话
 	if randf() < talk_probability:
-		print("[AIAgent] %s 发现附近角色 %s，决定发起对话" % [character.name, nearby_char.name])
+		print("[AIAgent] %s 发现附近角色 %s,决定发起对话" % [character.name, nearby_char.name])
 		initiate_conversation(nearby_char)
 
 # 检查当前是否应该上课
 func _check_current_class():
-	"""检查当前时间是否有课程，如果有则强制添加课程任务"""
+	"""检查当前时间是否有课程,如果有则强制添加课程任务"""
 	var tm = get_node_or_null("/root/TaskManager")
 	if not tm:
 		return
-	
+
 	var current_class = tm.get_current_class_info()
 	if not current_class or current_class.is_empty():
 		return
-	
+
 	var class_type = current_class.get("type", "")
 	if class_type != "class":
 		return  # 不是上课时间
-	
+
 	var subject = current_class.get("subject", "")
 	var room = current_class.get("room", "")
-	
+
 	# 检查是否已经有这个课程任务
 	var tasks = character.get_meta("tasks", [])
 	for task in tasks:
 		if task.get("type") == "class" and subject in task.get("description", ""):
 			return  # 已有课程任务
-	
+
 	# 添加课程任务
 	var personality = CharacterPersonality.get_personality(character.name)
 	var role_type = personality.get("role_type", "")
-	
+
 	var class_task = {
-		"description": "上课：" + subject + "（在" + room + "）",
+		"description": "上课:" + subject + "(在" + room + ")",
 		"priority": 8,  # 课程任务优先级8
 		"type": "class",
 		"target_room": room,
 		"created_at": Time.get_unix_time_from_system(),
 		"completed": false
 	}
-	
+
 	tasks.append(class_task)
 	tasks.sort_custom(func(a, b): return a.get("priority", 0) > b.get("priority", 0))
 	character.set_meta("tasks", tasks)
-	
-	print("[AIAgent] %s 添加课程任务：%s（优先级：8）" % [character.name, subject])
+
+	print("[AIAgent] %s 添加课程任务:%s(优先级:8)" % [character.name, subject])
 
 # 生成任务内心独白
 func _generate_task_monologue(character_node, task: Dictionary) -> String:
@@ -3144,23 +2872,23 @@ func _generate_task_monologue(character_node, task: Dictionary) -> String:
 	var beta_effort = personality.get("cognitive_mechanism", {}).get("beta_effort", 0.5)
 	var task_desc = task.get("description", "")
 	var priority = task.get("priority", 5)
-	
+
 	# 根据角色类型和任务生成不同的内心独白
 	if role_type == "depression_risk_student":
 		if beta_effort > 0.6:
 			if priority < 4:
-				return "这个任务感觉好麻烦...不太想做，但又不得不做..."
+				return "这个任务感觉好麻烦...不太想做,但又不得不做..."
 			else:
-				return "虽然有点难，但还是要试试看..."
+				return "虽然有点难,但还是要试试看..."
 		else:
-			return "这个任务看起来还行，准备开始吧。"
+			return "这个任务看起来还行,准备开始吧。"
 	elif role_type == "teacher":
-		return "作为老师，我需要认真完成这个任务。"
+		return "作为老师,我需要认真完成这个任务。"
 	else:
 		# 健康学生
 		if priority >= 6:
-			return "这个任务很重要，我要认真完成！"
+			return "这个任务很重要,我要认真完成!"
 		elif priority >= 4:
-			return "这个任务需要做，但不是很紧急。"
+			return "这个任务需要做,但不是很紧急。"
 		else:
-			return "这个任务可以慢慢来，先休息一下吧。"
+			return "这个任务可以慢慢来,先休息一下吧。"

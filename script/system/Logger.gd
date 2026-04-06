@@ -6,16 +6,20 @@ extends Node
 # 2. monologue_log.txt - 所有角色的任务内心独白
 # 3. dialogue_log.txt - 所有角色之间的对话
 
-const LOG_DIR = "user://logs"
+# 日志目录改为桌面，方便查看
+const LOG_DIR = "/Users/yuke/Desktop/Microverse_Logs"
 const ACTIVITY_LOG = "activity_log.txt"
 const MONOLOGUE_LOG = "monologue_log.txt"
 const DIALOGUE_LOG = "dialogue_log.txt"
 
 func _ready():
-	# 确保日志目录存在
-	var dir = DirAccess.open("user://")
-	if not dir.dir_exists("logs"):
-		dir.make_dir("logs")
+	# 确保日志目录存在（使用桌面路径）
+	var dir = DirAccess.open("/Users/yuke/Desktop")
+	if not dir:
+		# 如果桌面路径无法访问，回退到用户目录
+		dir = DirAccess.open("user://")
+	if not dir.dir_exists("Microverse_Logs"):
+		dir.make_dir("Microverse_Logs")
 	
 	# 创建或清空日志文件
 	_create_log_file(ACTIVITY_LOG)
