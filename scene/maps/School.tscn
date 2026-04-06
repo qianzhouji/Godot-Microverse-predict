@@ -37,6 +37,8 @@
 [ext_resource type="Script" uid="uid://dwbuqa6u6pc8y" path="res://script/RoomManager.gd" id="31_8h615"]
 [ext_resource type="PackedScene" path="res://scene/characters/PrincipalLi.tscn" id="32_45tuo"]
 [ext_resource type="PackedScene" path="res://scene/characters/StudentXiaogang.tscn" id="33_sepw8"]
+[ext_resource type="Script" path="res://script/system/TimingSystem.gd" id="34_timing"]
+[ext_resource type="Script" path="res://script/system/TimelineState.gd" id="35_timeline"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_3he53"]
 
@@ -17080,3 +17082,9 @@ shape = SubResource("RectangleShape2D_study_room")
 
 [node name="RoomManager" type="Node2D" parent="." unique_id=1523979036]
 script = ExtResource("31_8h615")
+
+[node name="TimingSystem" type="Node" parent="." unique_id=990108194]
+script = ExtResource("34_timing")
+
+[node name="TimelineState" type="Node" parent="TimingSystem" unique_id=990108195]
+script = ExtResource("35_timeline")
