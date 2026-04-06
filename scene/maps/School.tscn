@@ -16749,16 +16749,16 @@ outlines = Array[PackedVector2Array]([PackedVector2Array(32, 72, 184, 72, 184, 1
 size = Vector2(416, 183)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_f7hqq"]
-size = Vector2(387, 184)
+size = Vector2(381.75, 184.5)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_qy4lc"]
-size = Vector2(289, 185)
+size = Vector2(501.75, 136.4375)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_10dvn"]
-size = Vector2(312, 116)
+size = Vector2(505, 269)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_jkaac"]
-size = Vector2(288, 184)
+size = Vector2(291.5, 177)
 
 [node name="Office" type="Node2D" unique_id=1284905091]
 
@@ -16767,6 +16767,7 @@ tile_map_data = PackedByteArray("AAAAAAAAAQA6ADoAAAAAAAIAAQA6ADsAAAAAAAMAAQA6ADs
 tile_set = SubResource("TileSet_bnfxt")
 
 [node name="ReceptionChair" type="Node2D" parent="." unique_id=598619522]
+visible = false
 
 [node name="FrontChair10" parent="ReceptionChair" unique_id=1216456363 instance=ExtResource("17_xf40e")]
 position = Vector2(280, 496)
@@ -16782,6 +16783,7 @@ tile_map_data = PackedByteArray("AAAUAAgAAAAAABoAAAAUAAkAAAAAABsAAAAUAAoAAAAAABw
 tile_set = SubResource("TileSet_pbbta")
 
 [node name="HrChars" type="Node2D" parent="." unique_id=2000973940]
+visible = false
 
 [node name="FrontChair8" parent="HrChars" unique_id=1112060856 instance=ExtResource("17_xf40e")]
 position = Vector2(136, 72)
@@ -16794,6 +16796,7 @@ sit_position = Vector2(0, -16)
 sit_direction = "down"
 
 [node name="FrontChairs" type="Node2D" parent="." unique_id=1852647496]
+visible = false
 
 [node name="FrontChair" parent="FrontChairs" unique_id=1301348045 instance=ExtResource("17_xf40e")]
 position = Vector2(1008, 264)
@@ -16835,6 +16838,7 @@ tile_map_data = PackedByteArray("AAAZAAMAAAAHAB4AAAAbAAMAAAAJAB4AAAAcAAMAAAAHAB4
 tile_set = SubResource("TileSet_opch4")
 
 [node name="MeetingRoomChairs" type="Node2D" parent="." unique_id=1843948759]
+visible = false
 
 [node name="Chair" parent="MeetingRoomChairs" unique_id=1625067019 instance=ExtResource("18_r1j2e")]
 position = Vector2(384, 512)
@@ -16873,6 +16877,7 @@ visible = false
 navigation_polygon = SubResource("NavigationPolygon_5a3wp")
 
 [node name="BackChairs" type="Node2D" parent="." unique_id=1032143321]
+visible = false
 
 [node name="BackChair" parent="BackChairs" unique_id=18374863 instance=ExtResource("16_dme33")]
 position = Vector2(1008, 352)
@@ -16924,6 +16929,7 @@ sit_direction = "left"
 position = Vector2(896, 464)
 
 [node name="Characters" type="Node2D" parent="." unique_id=703426829]
+visible = false
 script = ExtResource("15_y022p")
 
 [node name="StudentXiaohong" parent="Characters" unique_id=1822526265 instance=ExtResource("29_vmdq2")]
@@ -16965,11 +16971,12 @@ position = Vector2(473, 563)
 [node name="SettingsLayer" parent="." unique_id=386943111 instance=ExtResource("26_ik20s")]
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1273256135]
+visible = false
 
 [node name="GodUI" parent="CanvasLayer" unique_id=1544268040 instance=ExtResource("27_ik20s")]
+visible = false
 
 [node name="RoomArea_ClassroomMain" type="Area2D" parent="." unique_id=990108184]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "教室（主教学区）"
 room_desc = "教室的北侧是主教学区，有多个课桌，用于日常课堂教学和课外活动"
@@ -16982,7 +16989,6 @@ position = Vector2(944, 516.5)
 shape = SubResource("RectangleShape2D_loaku")
 
 [node name="RoomArea_ClassroomGroup" type="Area2D" parent="." unique_id=990108185]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "教室（小组讨论区）"
 room_desc = "教室的南侧是小组讨论区，有四张课桌，适合课堂发言、小组合作和竞选活动"
@@ -16992,11 +16998,10 @@ effort_level = 0.6
 activity_types = Array[String](["小组合作", "竞选"])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_ClassroomGroup" unique_id=1333595183]
-position = Vector2(526.5, 516)
+position = Vector2(527.875, 516.25)
 shape = SubResource("RectangleShape2D_f7hqq")
 
 [node name="RoomArea_Corridor" type="Area2D" parent="." unique_id=990108187]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "走廊"
 room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的地方"
@@ -17006,11 +17011,10 @@ effort_level = 0.2
 activity_types = Array[String](["偶遇互动"])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor" unique_id=1882605038]
-position = Vector2(480, 324.5)
+position = Vector2(900.875, 349.78125)
 shape = SubResource("RectangleShape2D_qy4lc")
 
 [node name="RoomArea_Canteen" type="Area2D" parent="." unique_id=990108186]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "食堂"
 room_desc = "食堂是学生们用餐和交流的地方，有饮料贩卖机、饮水机和多个座位"
@@ -17020,25 +17024,10 @@ effort_level = 0.2
 activity_types = Array[String](["同伴互动"])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Canteen" unique_id=826004662]
-position = Vector2(480, 166)
+position = Vector2(895.5, 146.5)
 shape = SubResource("RectangleShape2D_10dvn")
 
-[node name="RoomArea_Corridor3" type="Area2D" parent="." unique_id=990108190]
-visible = false
-script = ExtResource("30_yhhlg")
-room_name = "走廊3"
-room_desc = "走廊连接各个教室，是学生课间走动和偶遇互动的地方"
-initial_reward_rate = 0.3
-reward_decay_rate = 0.3
-effort_level = 0.2
-activity_types = Array[String](["偶遇互动"])
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Corridor3" unique_id=1882605040]
-position = Vector2(750, 324.5)
-shape = SubResource("RectangleShape2D_qy4lc")
-
 [node name="RoomArea_Gym" type="Area2D" parent="." unique_id=990108188]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "体育馆"
 room_desc = "体育馆内有运动场地和器材，适合体育活动和锻炼"
@@ -17048,7 +17037,7 @@ effort_level = 0.8
 activity_types = Array[String](["体育活动"])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Gym" unique_id=1103466636]
-position = Vector2(176, 516)
+position = Vector2(486.25, 329.5)
 shape = SubResource("RectangleShape2D_jkaac")
 
 [node name="RoomManager" type="Node2D" parent="." unique_id=1523979036]
