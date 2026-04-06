@@ -16761,13 +16761,13 @@ size = Vector2(505, 269)
 size = Vector2(291.5, 177)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_small_corridor"]
-size = Vector2(200, 100)
+size = Vector2(312, 143)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_library"]
-size = Vector2(300, 200)
+size = Vector2(286, 239)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_study_room"]
-size = Vector2(250, 180)
+size = Vector2(288, 337)
 
 [node name="Office" type="Node2D" unique_id=1284905091]
 
@@ -16980,10 +16980,8 @@ position = Vector2(168, 550)
 [node name="SettingsLayer" parent="." unique_id=386943111 instance=ExtResource("26_ik20s")]
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1273256135]
-visible = false
 
 [node name="GodUI" parent="CanvasLayer" unique_id=1544268040 instance=ExtResource("27_ik20s")]
-visible = false
 
 [node name="RoomArea_ClassroomMain" type="Area2D" parent="." unique_id=990108184]
 script = ExtResource("30_yhhlg")
@@ -17050,7 +17048,6 @@ position = Vector2(486.25, 329.5)
 shape = SubResource("RectangleShape2D_jkaac")
 
 [node name="RoomArea_SmallCorridor" type="Area2D" parent="." unique_id=990108191]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "小走廊"
 room_desc = "小走廊连接各个教室，是学生课间走动和偶遇互动的地方"
@@ -17060,27 +17057,25 @@ effort_level = 0.2
 activity_types = Array[String](["偶遇互动"])
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_SmallCorridor" unique_id=1882605041]
-position = Vector2(750, 200)
+position = Vector2(482, 183.5)
 shape = SubResource("RectangleShape2D_small_corridor")
 
 [node name="RoomArea_Library" type="Area2D" parent="." unique_id=990108192]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "图书馆"
 room_desc = "图书馆内有大量书籍，是学生们阅读和自习的安静场所"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_Library" unique_id=1882605042]
-position = Vector2(200, 200)
+position = Vector2(175, 135.5)
 shape = SubResource("RectangleShape2D_library")
 
 [node name="RoomArea_StudyRoom" type="Area2D" parent="." unique_id=990108193]
-visible = false
 script = ExtResource("30_yhhlg")
 room_name = "自习室"
 room_desc = "自习室提供安静的学习环境，适合学生独立完成作业和复习"
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RoomArea_StudyRoom" unique_id=1882605043]
-position = Vector2(1000, 400)
+position = Vector2(178, 435.5)
 shape = SubResource("RectangleShape2D_study_room")
 
 [node name="RoomManager" type="Node2D" parent="." unique_id=1523979036]
