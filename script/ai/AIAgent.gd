@@ -412,14 +412,20 @@ func _execute_action(request: ActionRequest):
 # 1. 路径移动
 func _execute_move(request: ActionRequest):
 	print("[AIAgent] %s 执行移动" % character.name)
-
+	
+	# 判断是否是悄悄话移动（根据step2判断）
+	var is_whisper = false
+	if cached_request and cached_request.cached_step2:
+		if cached_request.cached_step2.action_type == ActionRequest.ActionType.START_WHISPER:
+			is_whisper = true
+	
 	# 使用定位函数计算目标位置
-	var target_pos = _calculate_move_target(request.target_id)
-
+	var target_pos = _calculate_move_target(request.target_id, is_whisper)
+	
 	if target_pos == Vector2.ZERO:
-		print("[AIAgent] %s 移动失败:无效目标位置" % character.name)
+		print("[AIAgent] %s 移动失败：无效目标位置" % character.name)
 		return
-
+	
 	# 使用CharacterController的move_to方法
 	if character.has_method("move_to"):
 		character.move_to(target_pos)
@@ -427,36 +433,37 @@ func _execute_move(request: ActionRequest):
 		_target_position = target_pos
 		print("[AIAgent] %s 开始移动到 %s" % [character.name, str(target_pos)])
 	else:
-		print("[AIAgent] %s 移动失败:CharacterController没有move_to方法" % character.name)
+		print("[AIAgent] %s 移动失败：CharacterController没有move_to方法" % character.name)
 
-func _calculate_move_target(target_name: String) -> Vector2:
+func _calculate_move_target(target_name: String, is_whisper: bool = false) -> Vector2:
 	"""
-	定位函数:根据目标名称计算移动目标坐标
-
+	定位函数：根据目标名称计算移动目标坐标
+	
 	参数:
 		target_name: 子场景名或角色名
-
+		is_whisper: 是否是悄悄话移动（需要贴身）
+		
 	返回:
 		目标坐标 Vector2
-
+		
 	逻辑:
-		1. 如果target_name是子场景名(非当前子场景)→ 返回该场景内随机坐标
+		1. 如果target_name是子场景名（非当前子场景）→ 返回该场景内随机坐标
 		2. 如果target_name是角色名:
-		   - 判断是否与目标在同一中范围
-		   - 是 → 返回目标身边小范围坐标
-		   - 否 → 返回目标所在中范围的随机坐标
+		   - 悄悄话模式 → 贴身位置（±15px）
+		   - 同一中范围 → 目标身边小范围（±30px）
+		   - 不同中范围 → 目标中范围中心（±20%）
 	"""
 	if target_name.is_empty():
 		return Vector2.ZERO
-
+	
 	# 先尝试查找角色
 	var target_character = _find_character_by_name(target_name)
-
+	
 	if target_character:
-		# 是角色名,判断位置关系
-		return _calculate_target_position_for_character(target_character)
+		# 是角色名，判断位置关系
+		return _calculate_target_position_for_character(target_character, is_whisper)
 	else:
-		# 不是角色名,尝试作为子场景名
+		# 不是角色名，尝试作为子场景名
 		return _calculate_target_position_for_room(target_name)
 
 func _find_character_by_name(char_name: String) -> Node:
@@ -470,50 +477,50 @@ func _find_character_by_name(char_name: String) -> Node:
 func _calculate_target_position_for_character(target_char: Node, is_whisper: bool = false) -> Vector2:
 	"""
 	计算移动到目标角色的位置
-	
+
 	参数:
 		target_char: 目标角色节点
-		is_whisper: 是否是悄悄话（需要贴身）
-	
+		is_whisper: 是否是悄悄话(需要贴身)
+
 	逻辑:
-		- 悄悄话模式 → 贴身位置（15像素内）
-		- 同一中范围且非悄悄话 → 目标身边小范围（30像素内）
-		- 不同中范围 → 目标所在中范围的中心位置（±20%随机偏移）
+		- 悄悄话模式 → 贴身位置(15像素内)
+		- 同一中范围且非悄悄话 → 目标身边小范围(30像素内)
+		- 不同中范围 → 目标所在中范围的中心位置(±20%随机偏移)
 	"""
 	if not target_char:
 		return Vector2.ZERO
-	
+
 	# 获取当前角色和目标角色的位置
 	var my_pos = character.global_position
 	var target_pos = target_char.global_position
-	
+
 	# 获取当前房间
 	var current_room = _get_current_room()
 	var target_room = _get_current_room_at_position(target_pos)
-	
-	# 判断是否在同一中范围（使用新的中范围划分系统）
+
+	# 判断是否在同一中范围(使用新的中范围划分系统)
 	var in_same_medium_range = false
 	if current_room and target_room and current_room == target_room:
 		in_same_medium_range = _is_in_same_medium_range(current_room, my_pos, target_pos)
-	
+
 	if is_whisper:
-		# 悄悄话模式：贴身位置（15像素内）
+		# 悄悄话模式:贴身位置(15像素内)
 		var whisper_offset = Vector2(randf_range(-15, 15), randf_range(-15, 15))
 		return target_pos + whisper_offset
 	elif in_same_medium_range:
-		# 同一中范围：移动到目标身边小范围（30像素内）
+		# 同一中范围:移动到目标身边小范围(30像素内)
 		var small_range_offset = Vector2(randf_range(-30, 30), randf_range(-30, 30))
 		return target_pos + small_range_offset
 	else:
-		# 不同中范围：移动到目标所在中范围的中心位置
+		# 不同中范围:移动到目标所在中范围的中心位置
 		if target_room:
 			var target_medium_range = _get_medium_range_description(target_room, target_pos)
 			var range_center = _get_medium_range_center_position(target_room, target_medium_range)
-			# 在中范围中心附近随机偏移（±20%）
+			# 在中范围中心附近随机偏移(±20%)
 			var random_offset = Vector2(randf_range(-20, 20), randf_range(-20, 20))
 			return range_center + random_offset
 		else:
-			# 找不到房间，直接移动到目标附近
+			# 找不到房间,直接移动到目标附近
 			var medium_range_offset = Vector2(randf_range(-50, 50), randf_range(-50, 50))
 			return target_pos + medium_range_offset
 
