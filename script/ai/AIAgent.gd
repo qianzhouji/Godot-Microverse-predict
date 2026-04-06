@@ -12,7 +12,7 @@ enum AgentState {
 	WAITING_FOR_CLICK,       # 等待Click执行
 	EXECUTING_ACTION,        # 执行行动中
 	IN_DIALOGUE,             # 在对话中
-	IN_ACTIVITY              # 在活动中（体育/自习）
+	IN_ACTIVITY              # 在活动中(体育/自习)
 }
 
 # ============================================
@@ -22,26 +22,26 @@ var character: CharacterBody2D = null          # 角色节点
 var room_manager: RoomManager = null           # 房间管理器
 
 # ============================================
-# 感知层组件（保留）
+# 感知层组件(保留)
 # ============================================
 var reward_receiver: AgentRewardReceiver = null    # 奖赏接收器
 
 # ============================================
-# 状态管理（新增）
+# 状态管理(新增)
 # ============================================
 var current_state: AgentState = AgentState.IDLE
 var current_activity: String = ""              # 当前活动类型
 var activity_start_time: float = 0.0           # 活动开始时间
-var last_activity: String = ""                 # 上一周期活动（用于体验）
+var last_activity: String = ""                 # 上一周期活动(用于体验)
 
 # ============================================
-# 决策缓存（新增）
+# 决策缓存(新增)
 # ============================================
 var cached_request: ActionRequest = null       # 缓存的行动请求
 var is_waiting_execution: bool = false         # 是否等待执行
 
 # ============================================
-# 玩家控制（保留）
+# 玩家控制(保留)
 # ============================================
 var is_player_controlled: bool = false
 
@@ -50,26 +50,26 @@ var is_player_controlled: bool = false
 # ============================================
 func _ready():
 	print("[AIAgent] 初始化AIAgent...")
-	
+
 	# 获取角色引用
 	character = get_parent() as CharacterBody2D
 	if not character:
 		push_error("[AIAgent] 父节点不是CharacterBody2D")
 		return
-	
+
 	# 获取房间管理器
 	room_manager = _get_room_manager()
-	
+
 	# 创建感知层组件
 	_create_reward_receiver()
-	
+
 	# 连接时序系统信号
 	_connect_to_timing_system()
-	
+
 	print("[AIAgent] %s 初始化完成" % character.name)
 
 # ============================================
-# 感知层组件创建（保留原逻辑）
+# 感知层组件创建(保留原逻辑)
 # ============================================
 func _create_reward_receiver() -> void:
 	reward_receiver = AgentRewardReceiver.new()
@@ -78,12 +78,12 @@ func _create_reward_receiver() -> void:
 	print("[AIAgent] %s 奖赏接收器已创建" % character.name)
 
 # ============================================
-# 连接时序系统（新增）
+# 连接时序系统(新增)
 # ============================================
 func _connect_to_timing_system() -> void:
-	# 延迟连接，确保TimingSystem已初始化
+	# 延迟连接,确保TimingSystem已初始化
 	await get_tree().create_timer(1.0).timeout
-	
+
 	if TimingSystem.instance:
 		TimingSystem.instance.click_triggered.connect(_on_click_triggered)
 		print("[AIAgent] %s 已连接到时序系统" % character.name)
@@ -91,47 +91,47 @@ func _connect_to_timing_system() -> void:
 		push_warning("[AIAgent] %s TimingSystem未找到" % character.name)
 
 # ============================================
-# Click触发回调（核心入口）
+# Click触发回调(核心入口)
 # ============================================
 func _on_click_triggered(game_time: float, day: int, click_num: int):
 	if is_player_controlled:
 		return
-	
+
 	print("\n[AIAgent] %s 收到Click #%d" % [character.name, click_num])
-	
-	# 1. 如果有缓存的请求，执行它
+
+	# 1. 如果有缓存的请求,执行它
 	if is_waiting_execution and cached_request:
 		_execute_cached_request()
 		return
-	
+
 	# 2. 否则开始新的感知-体验-决策循环
 	_perform_cognitive_cycle()
 
 # ============================================
-# 认知循环：感知 → 体验 → 决策
+# 认知循环:感知 → 体验 → 决策
 # ============================================
 func _perform_cognitive_cycle():
 	# 1. 感知阶段
 	current_state = AgentState.PERCEIVING
 	var perception = _perceive()
 	print("[AIAgent] %s 感知完成" % character.name)
-	
-	# 2. 体验阶段（如果有上一周期活动）
+
+	# 2. 体验阶段(如果有上一周期活动)
 	current_state = AgentState.EXPERIENCING
 	if not last_activity.is_empty():
 		_experience(last_activity)
 		print("[AIAgent] %s 体验完成" % character.name)
-	
+
 	# 3. 决策阶段
 	current_state = AgentState.DECIDING
 	var request = _make_decision(perception)
 	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
-	
+
 	# 4. 提交请求到时序系统
 	_submit_request(request)
 
 # ============================================
-# 感知阶段（新增）
+# 感知阶段(新增)
 # ============================================
 func _perceive() -> Dictionary:
 	var perception = {
@@ -142,76 +142,76 @@ func _perceive() -> Dictionary:
 		"time_constraints": {},
 		"current_time": 0.0
 	}
-	
+
 	# 1. 获取当前子场景
 	var current_room_area = _get_current_room()
 	if current_room_area:
 		perception.current_room = current_room_area.room_name
-	
+
 	# 2. 获取同场景其他Agent
 	perception.nearby_agents = _get_agents_in_same_room()
-	
+
 	# 3. 获取时间轴约束
 	if TimelineState.instance:
 		perception.time_constraints = TimelineState.instance.get_constraints()
-	
+
 	# 4. 获取当前游戏时间
 	if TimingSystem.instance:
 		perception.current_time = TimingSystem.instance.current_game_time
-	
+
 	# TODO: 集成DialogueManager获取对话行为和内容
-	
+
 	return perception
 
 # ============================================
-# 体验阶段（新增）
+# 体验阶段(新增)
 # ============================================
 func _experience(previous_activity: String) -> float:
 	# 1. 从奖赏接收器获取最近接收的奖赏
 	if not reward_receiver:
 		return 0.0
-	
+
 	var last_reward = reward_receiver.get_last_reward()
 	if last_reward.is_empty():
 		return 0.0
-	
+
 	var objective_gain = last_reward.get("gain", 0.0)
 	var perceived_gain = last_reward.get("perceived_gain", 0.0)
 	var room_name = last_reward.get("room", "")
-	
+
 	# 2. 贝叶斯更新已经在AgentRewardReceiver中自动完成
 	# 这里只需要获取更新后的感知参数
 	var personality = _get_personality()
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
-	
+
 	var perceived_params = PerceptionSystem.get_perceived_params(
 		character.name,
 		room_name,
 		is_depression
 	)
-	
+
 	print("[AIAgent] %s 体验: 客观=%.3f, 感知=%.3f" % [character.name, objective_gain, perceived_gain])
-	
+
 	return perceived_gain
 
 # ============================================
-# 决策阶段（新增）
+# 决策阶段(新增)
 # ============================================
 func _make_decision(perception: Dictionary) -> ActionRequest:
 	print("[AIAgent] %s 开始决策..." % character.name)
-	
+
 	# 1. 构建决策Prompt
 	var prompt = PromptBuilder.build_decision_prompt(self, perception)
 	if prompt.is_empty():
 		push_error("[AIAgent] %s Prompt构建失败" % character.name)
 		return ActionRequest.new(character.name, ActionRequest.ActionType.WAIT)
-	
+
 	# 2. 调用本地部署的大模型API
 	var response = await _call_local_llm(prompt)
-	
+
 	# 3. 解析响应为ActionRequest
 	var request = _parse_decision_response(response)
-	
+
 	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
 	return request
 
@@ -220,13 +220,13 @@ func _make_decision(perception: Dictionary) -> ActionRequest:
 # ============================================
 func _call_local_llm(prompt: String) -> String:
 	# 本地部署的大模型API配置
-	# 默认使用Ollama本地服务，可通过修改配置支持其他本地模型
+	# 默认使用Ollama本地服务,可通过修改配置支持其他本地模型
 	var api_url = "http://localhost:11434/api/generate"
 	var model_name = "qwen2.5:14b"  # 或其他本地模型
-	
+
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
-	
+
 	var body = {
 		"model": model_name,
 		"prompt": prompt,
@@ -236,39 +236,39 @@ func _call_local_llm(prompt: String) -> String:
 			"num_predict": 500
 		}
 	}
-	
+
 	var json_body = JSON.stringify(body)
 	var headers = ["Content-Type: application/json"]
-	
+
 	print("[AIAgent] %s 调用本地LLM..." % character.name)
-	
+
 	var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
 	if error != OK:
 		push_error("[AIAgent] HTTP请求失败: %d" % error)
 		http_request.queue_free()
 		return "{}"
-	
+
 	# 等待响应
 	var result = await http_request.request_completed
 	http_request.queue_free()
-	
+
 	var response_code = result[1]
 	var body_text = result[3].get_string_from_utf8()
-	
+
 	if response_code != 200:
 		push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
 		return "{}"
-	
+
 	# 解析Ollama响应
 	var json = JSON.new()
 	var parse_result = json.parse(body_text)
 	if parse_result != OK:
 		push_error("[AIAgent] JSON解析失败: %s" % body_text)
 		return "{}"
-	
+
 	var response_data = json.get_data()
 	var response_text = response_data.get("response", "")
-	
+
 	print("[AIAgent] %s 收到LLM响应" % character.name)
 	return response_text
 
@@ -278,25 +278,25 @@ func _call_local_llm(prompt: String) -> String:
 func _parse_decision_response(response: String) -> ActionRequest:
 	# 尝试从响应中提取JSON
 	var json_text = _extract_json_from_text(response)
-	
+
 	var json = JSON.new()
 	var parse_result = json.parse(json_text)
-	
+
 	if parse_result != OK:
-		print("[AIAgent] 无法解析决策响应，使用默认WAIT: %s" % response)
+		print("[AIAgent] 无法解析决策响应,使用默认WAIT: %s" % response)
 		return ActionRequest.new(character.name, ActionRequest.ActionType.WAIT)
-	
+
 	var data = json.get_data()
-	
+
 	# 获取行动类型
 	var action_type_str = data.get("action_type", "WAIT")
 	var action_type = _string_to_action_type(action_type_str)
-	
+
 	# 创建请求
 	var request = ActionRequest.new(character.name, action_type)
 	request.target_id = data.get("target_id", "")
 	request.target_range_id = data.get("target_range_id", "")
-	
+
 	# 处理两步缓存
 	if data.has("cached_step2"):
 		var step2_data = data.cached_step2
@@ -304,7 +304,7 @@ func _parse_decision_response(response: String) -> ActionRequest:
 			var step2_type = _string_to_action_type(step2_data.action_type)
 			request.cached_step2 = ActionRequest.new(character.name, step2_type)
 			request.cached_step2.target_id = step2_data.get("target_id", "")
-	
+
 	print("[AIAgent] %s 解析决策: %s" % [character.name, request.get_action_name()])
 	return request
 
@@ -315,10 +315,10 @@ func _extract_json_from_text(text: String) -> String:
 	# 查找JSON代码块
 	var json_start = text.find("{")
 	var json_end = text.rfind("}")
-	
+
 	if json_start >= 0 and json_end > json_start:
 		return text.substr(json_start, json_end - json_start + 1)
-	
+
 	return text
 
 # ============================================
@@ -346,13 +346,13 @@ func _string_to_action_type(type_str: String) -> ActionRequest.ActionType:
 			return ActionRequest.ActionType.WAIT
 
 # ============================================
-# 提交请求到时序系统（新增）
+# 提交请求到时序系统(新增)
 # ============================================
 func _submit_request(request: ActionRequest):
 	cached_request = request
 	is_waiting_execution = true
 	current_state = AgentState.WAITING_FOR_CLICK
-	
+
 	if TimingSystem.instance:
 		var success = TimingSystem.instance.submit_action_request(character.name, request)
 		if success:
@@ -361,26 +361,26 @@ func _submit_request(request: ActionRequest):
 			print("[AIAgent] %s 请求提交失败" % character.name)
 
 # ============================================
-# 执行缓存的请求（新增）
+# 执行缓存的请求(新增)
 # ============================================
 func _execute_cached_request():
 	if not cached_request:
 		return
-	
+
 	print("[AIAgent] %s 执行请求: %s" % [character.name, cached_request.get_action_name()])
-	
+
 	current_state = AgentState.EXECUTING_ACTION
 	_execute_action(cached_request)
-	
+
 	# 记录活动用于下一周期的体验
 	last_activity = _get_activity_name(cached_request)
-	
+
 	# 清空缓存
 	cached_request = null
 	is_waiting_execution = false
 
 # ============================================
-# 行动执行分发（新增）
+# 行动执行分发(新增)
 # ============================================
 func _execute_action(request: ActionRequest):
 	match request.action_type:
@@ -406,20 +406,20 @@ func _execute_action(request: ActionRequest):
 			_execute_wait(request)
 
 # ============================================
-# 具体行动执行（8种）
+# 具体行动执行(8种)
 # ============================================
 
 # 1. 路径移动
 func _execute_move(request: ActionRequest):
 	print("[AIAgent] %s 执行移动" % character.name)
-	
+
 	# 使用定位函数计算目标位置
 	var target_pos = _calculate_move_target(request.target_id)
-	
+
 	if target_pos == Vector2.ZERO:
-		print("[AIAgent] %s 移动失败：无效目标位置" % character.name)
+		print("[AIAgent] %s 移动失败:无效目标位置" % character.name)
 		return
-	
+
 	# 使用CharacterController的move_to方法
 	if character.has_method("move_to"):
 		character.move_to(target_pos)
@@ -427,20 +427,20 @@ func _execute_move(request: ActionRequest):
 		_target_position = target_pos
 		print("[AIAgent] %s 开始移动到 %s" % [character.name, str(target_pos)])
 	else:
-		print("[AIAgent] %s 移动失败：CharacterController没有move_to方法" % character.name)
+		print("[AIAgent] %s 移动失败:CharacterController没有move_to方法" % character.name)
 
 func _calculate_move_target(target_name: String) -> Vector2:
 	"""
-	定位函数：根据目标名称计算移动目标坐标
-	
+	定位函数:根据目标名称计算移动目标坐标
+
 	参数:
 		target_name: 子场景名或角色名
-		
+
 	返回:
 		目标坐标 Vector2
-		
+
 	逻辑:
-		1. 如果target_name是子场景名（非当前子场景）→ 返回该场景内随机坐标
+		1. 如果target_name是子场景名(非当前子场景)→ 返回该场景内随机坐标
 		2. 如果target_name是角色名:
 		   - 判断是否与目标在同一中范围
 		   - 是 → 返回目标身边小范围坐标
@@ -448,15 +448,15 @@ func _calculate_move_target(target_name: String) -> Vector2:
 	"""
 	if target_name.is_empty():
 		return Vector2.ZERO
-	
+
 	# 先尝试查找角色
 	var target_character = _find_character_by_name(target_name)
-	
+
 	if target_character:
-		# 是角色名，判断位置关系
+		# 是角色名,判断位置关系
 		return _calculate_target_position_for_character(target_character)
 	else:
-		# 不是角色名，尝试作为子场景名
+		# 不是角色名,尝试作为子场景名
 		return _calculate_target_position_for_room(target_name)
 
 func _find_character_by_name(char_name: String) -> Node:
@@ -478,7 +478,7 @@ func _calculate_target_position_for_character(target_char: Node, is_whisper: boo
 	逻辑:
 		- 悄悄话模式 → 贴身位置（15像素内）
 		- 同一中范围且非悄悄话 → 目标身边小范围（30像素内）
-		- 不同中范围 → 目标所在中范围的随机位置
+		- 不同中范围 → 目标所在中范围的中心位置（±20%随机偏移）
 	"""
 	if not target_char:
 		return Vector2.ZERO
@@ -487,23 +487,31 @@ func _calculate_target_position_for_character(target_char: Node, is_whisper: boo
 	var my_pos = character.global_position
 	var target_pos = target_char.global_position
 	
-	# 判断是否在同一中范围（距离小于中范围阈值，约150像素）
-	var distance = my_pos.distance_to(target_pos)
-	var SAME_MEDIUM_RANGE_THRESHOLD = 150.0  # 同一中范围的距离阈值
+	# 获取当前房间
+	var current_room = _get_current_room()
+	var target_room = _get_current_room_at_position(target_pos)
+	
+	# 判断是否在同一中范围（使用新的中范围划分系统）
+	var in_same_medium_range = false
+	if current_room and target_room and current_room == target_room:
+		in_same_medium_range = _is_in_same_medium_range(current_room, my_pos, target_pos)
 	
 	if is_whisper:
 		# 悄悄话模式：贴身位置（15像素内）
 		var whisper_offset = Vector2(randf_range(-15, 15), randf_range(-15, 15))
 		return target_pos + whisper_offset
-	elif distance < SAME_MEDIUM_RANGE_THRESHOLD:
+	elif in_same_medium_range:
 		# 同一中范围：移动到目标身边小范围（30像素内）
 		var small_range_offset = Vector2(randf_range(-30, 30), randf_range(-30, 30))
 		return target_pos + small_range_offset
 	else:
-		# 不同中范围：移动到目标所在中范围的随机位置
-		var target_room = _get_current_room_at_position(target_pos)
+		# 不同中范围：移动到目标所在中范围的中心位置
 		if target_room:
-			return _get_random_position_in_room(target_room, 0.3)  # 30%偏移，不要离中心太远
+			var target_medium_range = _get_medium_range_description(target_room, target_pos)
+			var range_center = _get_medium_range_center_position(target_room, target_medium_range)
+			# 在中范围中心附近随机偏移（±20%）
+			var random_offset = Vector2(randf_range(-20, 20), randf_range(-20, 20))
+			return range_center + random_offset
 		else:
 			# 找不到房间，直接移动到目标附近
 			var medium_range_offset = Vector2(randf_range(-50, 50), randf_range(-50, 50))
@@ -512,38 +520,38 @@ func _calculate_target_position_for_character(target_char: Node, is_whisper: boo
 func _calculate_target_position_for_room(room_name: String) -> Vector2:
 	"""
 	计算移动到子场景的位置
-	
-	返回该场景内的随机坐标（不要离中心太远）
+
+	返回该场景内的随机坐标(不要离中心太远)
 	"""
 	var room = _get_room_by_name(room_name)
 	if not room:
 		print("[AIAgent] 未找到子场景: %s" % room_name)
 		return Vector2.ZERO
-	
+
 	return _get_random_position_in_room(room, 0.3)  # 30%偏移
 
 func _get_random_position_in_room(room, max_offset_ratio: float = 0.3) -> Vector2:
 	"""
 	获取房间内的随机位置
-	
+
 	参数:
 		room: 房间数据
-		max_offset_ratio: 最大偏移比例（相对于房间半宽/半高）
+		max_offset_ratio: 最大偏移比例(相对于房间半宽/半高)
 		              0.3表示在中心±30%范围内随机
 	"""
 	if not room:
 		return Vector2.ZERO
-	
+
 	var room_pos = room.position
 	var room_size = room.size if room.has("size") else Vector2(200, 100)
-	
-	# 在中心附近随机偏移（不要离中心太远）
+
+	# 在中心附近随机偏移(不要离中心太远)
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5
-	
+
 	var offset_x = randf_range(-half_width * max_offset_ratio, half_width * max_offset_ratio)
 	var offset_y = randf_range(-half_height * max_offset_ratio, half_height * max_offset_ratio)
-	
+
 	return room_pos + Vector2(offset_x, offset_y)
 
 func _get_current_room_at_position(pos: Vector2):
@@ -558,36 +566,36 @@ func _execute_start_dialogue(request: ActionRequest):
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "对话"
 	activity_start_time = Time.get_unix_time_from_system()
-	
+
 	# 获取目标Agent
 	var target_agent = _find_agent_by_id(request.target_id)
 	if not target_agent:
-		print("[AIAgent] %s 开始对话失败：目标不存在" % character.name)
+		print("[AIAgent] %s 开始对话失败:目标不存在" % character.name)
 		current_state = AgentState.IDLE
 		return
-	
+
 	# 向DialogueManager注册新对话
 	# TODO: DialogueManager.start_dialogue(self, target_agent)
-	
+
 	print("[AIAgent] %s 已向 %s 发起对话" % [character.name, request.target_id])
 
-# 3. 开始悄悄话（私密对话）
+# 3. 开始悄悄话(私密对话)
 func _execute_start_whisper(request: ActionRequest):
 	print("[AIAgent] %s 开始悄悄话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "悄悄话"
 	activity_start_time = Time.get_unix_time_from_system()
-	
+
 	# 获取目标Agent
 	var target_agent = _find_agent_by_id(request.target_id)
 	if not target_agent:
-		print("[AIAgent] %s 开始悄悄话失败：目标不存在" % character.name)
+		print("[AIAgent] %s 开始悄悄话失败:目标不存在" % character.name)
 		current_state = AgentState.IDLE
 		return
-	
-	# 向DialogueManager注册悄悄话（私密对话）
+
+	# 向DialogueManager注册悄悄话(私密对话)
 	# TODO: DialogueManager.start_whisper(self, target_agent)
-	
+
 	print("[AIAgent] %s 已向 %s 发起悄悄话" % [character.name, request.target_id])
 
 # 4. 加入对话
@@ -596,96 +604,96 @@ func _execute_join_dialogue(request: ActionRequest):
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "对话"
 	activity_start_time = Time.get_unix_time_from_system()
-	
+
 	# 获取对话ID或目标
 	var dialogue_id = request.target_id
-	
+
 	# 向DialogueManager申请加入
 	# TODO: DialogueManager.join_dialogue(self, dialogue_id)
-	
+
 	print("[AIAgent] %s 已加入对话 %s" % [character.name, dialogue_id])
 
 # 4. 退出对话
 func _execute_exit_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 退出对话" % character.name)
-	
+
 	# 计算对话时长
 	var duration = Time.get_unix_time_from_system() - activity_start_time
-	
+
 	# 向DialogueManager通知退出
 	# TODO: DialogueManager.exit_dialogue(self)
-	
+
 	current_state = AgentState.IDLE
 	current_activity = ""
-	
-	print("[AIAgent] %s 已退出对话，时长：%.1f秒" % [character.name, duration])
+
+	print("[AIAgent] %s 已退出对话,时长:%.1f秒" % [character.name, duration])
 
 # 5. 开始体育活动
 func _execute_start_sports(request: ActionRequest):
 	print("[AIAgent] %s 开始体育活动" % character.name)
-	
+
 	# 验证当前在体育馆
 	var current_room = _get_current_room()
 	if not current_room or current_room.room_name != "体育馆":
-		print("[AIAgent] %s 开始体育活动失败：不在体育馆" % character.name)
+		print("[AIAgent] %s 开始体育活动失败:不在体育馆" % character.name)
 		return
-	
+
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "体育活动"
 	activity_start_time = Time.get_unix_time_from_system()
-	
+
 	# 向ActivityManager注册
 	# TODO: ActivityManager.start_activity(self, "sports")
-	
+
 	print("[AIAgent] %s 已开始体育活动" % character.name)
 
 # 6. 结束体育活动
 func _execute_end_sports(request: ActionRequest):
 	print("[AIAgent] %s 结束体育活动" % character.name)
-	
+
 	var duration = Time.get_unix_time_from_system() - activity_start_time
-	
+
 	# 向ActivityManager通知结束
 	# TODO: ActivityManager.end_activity(self, "sports")
-	
+
 	current_state = AgentState.IDLE
 	current_activity = ""
-	
-	print("[AIAgent] %s 已结束体育活动，时长：%.1f秒" % [character.name, duration])
+
+	print("[AIAgent] %s 已结束体育活动,时长:%.1f秒" % [character.name, duration])
 
 # 7. 开始自习
 func _execute_start_study(request: ActionRequest):
 	print("[AIAgent] %s 开始自习" % character.name)
-	
+
 	# 验证当前在图书馆或自习室
 	var current_room = _get_current_room()
 	var valid_rooms = ["图书馆", "自习室"]
 	if not current_room or not current_room.room_name in valid_rooms:
-		print("[AIAgent] %s 开始自习失败：不在图书馆或自习室" % character.name)
+		print("[AIAgent] %s 开始自习失败:不在图书馆或自习室" % character.name)
 		return
-	
+
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "自习"
 	activity_start_time = Time.get_unix_time_from_system()
-	
+
 	# 向ActivityManager注册
 	# TODO: ActivityManager.start_activity(self, "study")
-	
+
 	print("[AIAgent] %s 已开始自习" % character.name)
 
 # 8. 结束自习
 func _execute_end_study(request: ActionRequest):
 	print("[AIAgent] %s 结束自习" % character.name)
-	
+
 	var duration = Time.get_unix_time_from_system() - activity_start_time
-	
+
 	# 向ActivityManager通知结束
 	# TODO: ActivityManager.end_activity(self, "study")
-	
+
 	current_state = AgentState.IDLE
 	current_activity = ""
-	
-	print("[AIAgent] %s 已结束自习，时长：%.1f秒" % [character.name, duration])
+
+	print("[AIAgent] %s 已结束自习,时长:%.1f秒" % [character.name, duration])
 
 # 9. 等待
 func _execute_wait(request: ActionRequest):
@@ -705,20 +713,20 @@ func _physics_process(delta: float):
 	# 处理移动检查
 	if _is_moving and character:
 		_movement_check_timer += delta
-		
+
 		# 定期检测是否到达目标
 		if _movement_check_timer >= MOVEMENT_CHECK_INTERVAL:
 			_movement_check_timer = 0.0
-			
-			# 检查是否到达目标（使用CharacterController的导航路径）
+
+			# 检查是否到达目标(使用CharacterController的导航路径)
 			var current_pos = character.global_position
 			var distance_to_target = current_pos.distance_to(_target_position)
-			
-			# 如果距离小于阈值，认为到达目标
+
+			# 如果距离小于阈值,认为到达目标
 			if distance_to_target < 20.0:  # 20像素阈值
 				_is_moving = false
-				print("[AIAgent] %s 移动完成，距离目标：%.1f" % [character.name, distance_to_target])
-				
+				print("[AIAgent] %s 移动完成,距离目标:%.1f" % [character.name, distance_to_target])
+
 				# 检查是否有缓存的step2
 				if cached_request and cached_request.cached_step2:
 					_validate_and_execute_step2()
@@ -728,14 +736,170 @@ func _get_room_by_name(room_name: String):
 	"""根据房间名称获取房间数据"""
 	if not room_manager:
 		return null
-	
+
 	# 遍历所有房间查找匹配的名称
 	for room_id in room_manager.rooms:
 		var room = room_manager.rooms[room_id]
 		if room.name == room_name or room.room_name == room_name:
 			return room
-	
+
 	return null
+
+# ============================================
+# 中范围划分系统
+# ============================================
+
+enum MediumRangeType {
+	FOUR_QUADRANT,    # 4象限(教室、图书馆、自习室、食堂)
+	LEFT_RIGHT,       # 左右分区(大走廊)
+	SINGLE            # 单区域(小走廊)
+}
+
+func _get_room_medium_range_type(room_name: String) -> MediumRangeType:
+	"""
+	获取房间的中范围划分类型
+
+	4象限:教室、图书馆、自习室、食堂
+	左右分区:大走廊
+	单区域:小走廊
+	"""
+	var four_quadrant_rooms = ["教室", "图书馆", "自习室", "食堂"]
+	var left_right_rooms = ["大走廊"]
+
+	for room_prefix in four_quadrant_rooms:
+		if room_prefix in room_name:
+			return MediumRangeType.FOUR_QUADRANT
+
+	for room_prefix in left_right_rooms:
+		if room_prefix in room_name:
+			return MediumRangeType.LEFT_RIGHT
+
+	return MediumRangeType.SINGLE
+
+func _get_quadrant_at_position(room, pos: Vector2) -> int:
+	"""
+	获取指定位置在房间中的象限编号
+
+	象限定义(平面直角坐标系):
+	- 右上 = 1(x > center.x, y < center.y)
+	- 左上 = 2(x < center.x, y < center.y)
+	- 左下 = 3(x < center.x, y > center.y)
+	- 右下 = 4(x > center.x, y > center.y)
+
+	注意:Godot中y轴向下为正,所以y < center.y是上方
+	"""
+	if not room:
+		return 0
+
+	var room_pos = room.position
+	var is_right = pos.x >= room_pos.x
+	var is_top = pos.y <= room_pos.y  # y小的是上方
+
+	if is_right and is_top:
+		return 1  # 右上
+	elif not is_right and is_top:
+		return 2  # 左上
+	elif not is_right and not is_top:
+		return 3  # 左下
+	else:
+		return 4  # 右下
+
+func _get_left_right_zone_at_position(room, pos: Vector2) -> String:
+	"""
+	获取指定位置在走廊中的左右分区
+
+	- 左区:x < center.x
+	- 右区:x >= center.x
+	"""
+	if not room:
+		return ""
+
+	if pos.x < room.position.x:
+		return "左区"
+	else:
+		return "右区"
+
+func _get_medium_range_description(room, pos: Vector2) -> String:
+	"""获取指定位置的中范围描述"""
+	if not room:
+		return ""
+
+	var range_type = _get_room_medium_range_type(room.room_name)
+
+	match range_type:
+		MediumRangeType.FOUR_QUADRANT:
+			var quadrant = _get_quadrant_at_position(room, pos)
+			return "第%d象限" % quadrant
+		MediumRangeType.LEFT_RIGHT:
+			var zone = _get_left_right_zone_at_position(room, pos)
+			return zone
+		MediumRangeType.SINGLE:
+			return "中心区域"
+		_:
+			return ""
+
+func _is_in_same_medium_range(room, pos1: Vector2, pos2: Vector2) -> bool:
+	"""判断两个位置是否在同一中范围内"""
+	if not room:
+		return false
+
+	var range_type = _get_room_medium_range_type(room.room_name)
+
+	match range_type:
+		MediumRangeType.FOUR_QUADRANT:
+			var q1 = _get_quadrant_at_position(room, pos1)
+			var q2 = _get_quadrant_at_position(room, pos2)
+			return q1 == q2 and q1 != 0
+		MediumRangeType.LEFT_RIGHT:
+			var z1 = _get_left_right_zone_at_position(room, pos1)
+			var z2 = _get_left_right_zone_at_position(room, pos2)
+			return z1 == z2 and z1 != ""
+		MediumRangeType.SINGLE:
+			return true  # 单区域总是同一中范围
+		_:
+			return false
+
+func _get_medium_range_center_position(room, range_desc: String) -> Vector2:
+	"""
+	获取中范围的中心位置
+
+	参数:
+		range_desc: 中范围描述,如"第1象限"、"左区"
+	"""
+	if not room:
+		return Vector2.ZERO
+
+	var room_pos = room.position
+	var room_size = room.size if room.has("size") else Vector2(200, 100)
+	var half_width = room_size.x * 0.5
+	var half_height = room_size.y * 0.5
+
+	var range_type = _get_room_medium_range_type(room.room_name)
+
+	match range_type:
+		MediumRangeType.FOUR_QUADRANT:
+			# 解析象限编号
+			var quadrant = int(range_desc.replace("第", "").replace("象限", ""))
+			match quadrant:
+				1:  # 右上
+					return room_pos + Vector2(half_width * 0.5, -half_height * 0.5)
+				2:  # 左上
+					return room_pos + Vector2(-half_width * 0.5, -half_height * 0.5)
+				3:  # 左下
+					return room_pos + Vector2(-half_width * 0.5, half_height * 0.5)
+				4:  # 右下
+					return room_pos + Vector2(half_width * 0.5, half_height * 0.5)
+
+		MediumRangeType.LEFT_RIGHT:
+			if range_desc == "左区":
+				return room_pos + Vector2(-half_width * 0.5, 0)
+			elif range_desc == "右区":
+				return room_pos + Vector2(half_width * 0.5, 0)
+
+		MediumRangeType.SINGLE:
+			return room_pos
+
+	return room_pos
 
 func _find_agent_by_id(agent_id: String):
 	var agents = get_tree().get_nodes_in_group("ai_agents")
@@ -750,23 +914,23 @@ func _find_agent_by_id(agent_id: String):
 func _validate_and_execute_step2():
 	if not cached_request or not cached_request.cached_step2:
 		return
-	
+
 	print("[AIAgent] %s 验证并执行Step2" % character.name)
-	
-	# 立即感知（无体验）
+
+	# 立即感知(无体验)
 	var new_perception = _perceive()
-	
+
 	var step2 = cached_request.cached_step2
-	
+
 	# 验证Step2是否仍然有效
 	if _is_step2_valid(step2, new_perception):
-		print("[AIAgent] %s Step2有效，继续执行" % character.name)
+		print("[AIAgent] %s Step2有效,继续执行" % character.name)
 		_execute_action(step2)
 		last_activity = _get_activity_name(step2)
 	else:
-		print("[AIAgent] %s Step2无效，重新决策" % character.name)
+		print("[AIAgent] %s Step2无效,重新决策" % character.name)
 		_make_decision(new_perception)
-	
+
 	# 清空缓存
 	cached_request = null
 	is_waiting_execution = false
@@ -776,18 +940,18 @@ func _is_step2_valid(step2: ActionRequest, perception: Dictionary) -> bool:
 	if step2.target_id:
 		var target = _find_agent_by_id(step2.target_id)
 		if not target:
-			print("[AIAgent] Step2无效：目标已不存在")
+			print("[AIAgent] Step2无效:目标已不存在")
 			return false
-	
+
 	# 检查时间约束是否变化
 	var constraints = TimelineState.instance.get_constraints()
 	if step2.action_type == ActionRequest.ActionType.START_DIALOGUE:
 		if not constraints.can_start_dialogue:
-			print("[AIAgent] Step2无效：现在不能开始对话")
+			print("[AIAgent] Step2无效:现在不能开始对话")
 			return false
-	
+
 	# 其他验证...
-	
+
 	return true
 
 # ============================================
@@ -822,7 +986,7 @@ func _get_agents_in_same_room() -> Array:
 	var current_room = _get_current_room()
 	if not current_room:
 		return agents
-	
+
 	# TODO: 获取同房间其他Agent
 	return agents
 
@@ -832,7 +996,7 @@ func _get_personality() -> Dictionary:
 	return CharacterPersonality.get_personality(character.name)
 
 # ============================================
-# 玩家控制（保留）
+# 玩家控制(保留)
 # ============================================
 func toggle_player_control(enabled: bool):
 	is_player_controlled = enabled
@@ -843,112 +1007,121 @@ func toggle_player_control(enabled: bool):
 		print("[AIAgent] %s 切换到AI控制" % character.name)
 
 # ============================================
-# 场景描述生成（新版）
+# 场景描述生成(新版)
 # ============================================
 func generate_scene_description() -> String:
 	var description = ""
-	
+
 	# 1. 所有可用场景的精确名称和功能
 	description += "【所有可用场景】"
 	description += _get_all_rooms_description()
-	
+
 	# 2. 当前场景信息
 	var current_room = _get_current_room()
 	if current_room:
 		description += "\n\n【当前场景】"
-		description += "\n你当前所在场景：" + current_room.room_name
-		description += "\n场景功能：" + current_room.room_desc
-		
+		description += "\n你当前所在场景:" + current_room.room_name
+		description += "\n场景功能:" + current_room.room_desc
+
 		# 添加情境参数(使用感知系统)
 		description += _get_room_situation_params(current_room.room_name)
-		
+
 		# 3. 当前场景内的角色及中范围关系
 		description += _get_characters_in_medium_range_description()
-	
+
 	# 4. 时间信息
 	description += "\n\n【时间信息】"
 	description += get_environment_info()
-	
+
 	return description
 
 func _get_all_rooms_description() -> String:
 	"""获取所有场景的精确名称和功能描述"""
 	var desc = ""
-	
+
 	if not room_manager:
 		return desc
-	
+
 	for room_id in room_manager.rooms:
 		var room = room_manager.rooms[room_id]
-		desc += "\n- " + room.room_name + "：" + room.room_desc
-	
+		desc += "\n- " + room.room_name + ":" + room.room_desc
+
 	return desc
 
 func _get_characters_in_medium_range_description() -> String:
 	"""
-	获取当前场景内所有角色的精确名称，以及中范围关系
-	
-	返回格式：
-	- 角色A（学生）[同一中范围]
-	- 角色B（老师）[不同中范围，距离约XX米]
+	获取当前场景内所有角色的精确名称,以及中范围关系
+
+	按中范围分组显示角色,并标注每个角色所在的具体中范围
 	"""
 	var desc = "\n\n【场景内角色】"
-	
+
 	var current_room = _get_current_room()
 	if not current_room:
 		return desc + "\n无"
-	
+
 	var room_characters = get_room_characters(current_room)
-	
+
 	if room_characters.size() == 0:
 		return desc + "\n当前场景内没有其他角色"
-	
-	# 按中范围分组
-	var same_medium_range = []
-	var different_medium_range = []
-	
+
+	# 获取当前角色的中范围
 	var my_pos = character.global_position
-	var MEDIUM_RANGE_THRESHOLD = 150.0  # 中范围阈值
-	
+	var my_medium_range = _get_medium_range_description(current_room, my_pos)
+
+	desc += "\n你当前所在中范围:" + my_medium_range
+
+	# 按中范围分组
+	var characters_by_range = {}
+
 	for char in room_characters:
-		var distance = my_pos.distance_to(char.global_position)
+		var char_pos = char.global_position
+		var char_medium_range = _get_medium_range_description(current_room, char_pos)
 		var char_personality = CharacterPersonality.get_personality(char.name)
 		var position = char_personality.get("position", "未知职位")
-		
+		var distance = my_pos.distance_to(char_pos)
+
 		var char_info = {
 			"name": char.name,
 			"position": position,
-			"distance": distance
+			"distance": distance,
+			"medium_range": char_medium_range
 		}
-		
-		if distance < MEDIUM_RANGE_THRESHOLD:
-			same_medium_range.append(char_info)
-		else:
-			different_medium_range.append(char_info)
-	
+
+		if not characters_by_range.has(char_medium_range):
+			characters_by_range[char_medium_range] = []
+		characters_by_range[char_medium_range].append(char_info)
+
 	# 输出同一中范围的角色
-	if same_medium_range.size() > 0:
-		desc += "\n【同一中范围内（可对话）】"
-		for char_info in same_medium_range:
-			desc += "\n- " + char_info.name + "（" + char_info.position + "）"
-	
-	# 输出不同中范围的角色
-	if different_medium_range.size() > 0:
-		desc += "\n【不同中范围（需移动才能对话）】"
-		for char_info in different_medium_range:
-			desc += "\n- " + char_info.name + "（" + char_info.position + "），距离约" + str(int(char_info.distance)) + "米"
-	
+	if characters_by_range.has(my_medium_range):
+		desc += "\n\n【同一中范围内(可普通对话)】"
+		for char_info in characters_by_range[my_medium_range]:
+			desc += "\n- " + char_info.name + "(" + char_info.position + ")"
+
+	# 输出其他中范围的角色
+	var other_ranges = []
+	for range_name in characters_by_range.keys():
+		if range_name != my_medium_range:
+			other_ranges.append(range_name)
+
+	if other_ranges.size() > 0:
+		desc += "\n\n【其他中范围(需移动才能对话)】"
+		for range_name in other_ranges:
+			desc += "\n" + range_name + ":"
+			for char_info in characters_by_range[range_name]:
+				desc += "\n  - " + char_info.name + "(" + char_info.position + "),距离约" + str(int(char_info.distance)) + "米"
+
 	return desc
 
 func get_environment_info() -> String:
 	var environment_info = "这是一所初中学校,有教室、食堂、走廊和体育馆。"
 	environment_info += "教室分为北侧的主教学区和南侧的小组讨论区,食堂提供午餐,体育馆可以进行体育活动。"
-	
+
 	# 添加时间信息
 	if TimelineState.instance:
 		var period = TimelineState.instance.current_period
 		var subject = TimelineState.instance.current_subject
-		
+
 		match period:
 			"class_time":
 				environment_info += "\n现在是上课时间," + subject + "正在进行中。"
@@ -960,38 +1133,38 @@ func get_environment_info() -> String:
 				environment_info += "\n现在是活动时间。"
 			_:
 				environment_info += "\n现在是自由活动时间。"
-	
+
 	return environment_info
 
 func get_room_objects(room) -> Array:
 	if not room:
 		return []
-	
+
 	var room_objects = []
 	var objects = get_tree().get_nodes_in_group("interactable")
-	
+
 	for obj in objects:
 		if room_manager and room_manager.is_position_in_room(obj.global_position, room):
 			room_objects.append(obj)
-	
+
 	return room_objects
 
 func get_room_characters(room) -> Array:
 	if not room:
 		return []
-	
+
 	var room_characters = []
 	var characters = get_tree().get_nodes_in_group("character")
-	
+
 	for char in characters:
 		if char != character and room_manager and room_manager.is_position_in_room(char.global_position, room):
 			room_characters.append(char)
-	
+
 	return room_characters
 
 func get_object_info(obj: Node2D) -> String:
 	var info = obj.name
-	
+
 	# 根据物品类型添加功能描述
 	if obj is StaticBody2D:
 		if "Chair" in obj.name or obj.is_in_group("chairs"):
@@ -1004,34 +1177,34 @@ func get_object_info(obj: Node2D) -> String:
 			info += "(一个书架,存放各种书籍)"
 		else:
 			info += "(一个物品)"
-	
+
 	# 添加距离信息
 	var distance = int(obj.global_position.distance_to(character.global_position))
 	info += ",距离约" + str(distance) + "米"
-	
+
 	return info
 
 func _get_room_situation_params(room_name: String) -> String:
 	var personality = CharacterPersonality.get_personality(character.name)
 	var is_depression = personality.get("role_type", "") == "depression_risk_student"
-	
+
 	# 使用感知系统获取Agent对情境的主观感知
 	var params_desc = PerceptionSystem.get_belief_description(character.name, room_name, is_depression)
-	
+
 	return params_desc
 
 func get_character_status_info(char_node = null) -> String:
 	var target_character = char_node if char_node else character
 	var status_info = ""
-	
+
 	# 基本状态信息
 	var mood = target_character.get_meta("mood", "普通")
 	status_info += "\n\n个人状态信息:"
 	status_info += "\n- 心情状态:" + mood
-	
+
 	# 使用MemoryManager获取格式化的记忆信息
 	status_info += MemoryManager.get_formatted_memories_for_prompt(target_character, 5)
-	
+
 	return status_info
 
 func _find_target_by_name(target_name: String):
@@ -1045,9 +1218,9 @@ func _add_memory(target_character, content: String):
 	MemoryManager.add_memory(target_character, content, MemoryManager.MemoryType.PERSONAL, MemoryManager.MemoryImportance.NORMAL)
 
 # ============================================
-# MVT决策（保留，后续添加）
+# MVT决策(保留,后续添加)
 # ============================================
-func _check_mvt_leave_decision(room_name: String, time_in_room: float, 
+func _check_mvt_leave_decision(room_name: String, time_in_room: float,
 							   personality: Dictionary, is_depression: bool):
 	# TODO: 从原AIAgent保留此函数
 	pass
