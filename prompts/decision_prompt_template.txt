@@ -48,30 +48,104 @@
 ## 决策指令
 根据以上信息，请决定你下一步的行动。
 
-可选行动类型：
-1. MOVE_TO_RANGE - 移动到指定中范围（需要指定目标范围ID）
-2. START_DIALOGUE - 开始对话（需要指定目标Agent）
-3. JOIN_DIALOGUE - 加入已有对话
-4. EXIT_DIALOGUE - 退出当前对话
-5. START_SPORTS - 开始体育活动（仅限体育馆）
-6. END_SPORTS - 结束体育活动
-7. START_STUDY - 开始自习（仅限图书馆/自习室）
-8. END_STUDY - 结束自习
-9. WAIT - 等待
+### 行动选择原则
+
+**不需要移动的情况**：
+- 如果你已经在目标Agent的中范围内，可以直接START_DIALOGUE
+- 如果你已经在对话附近，可以直接JOIN_DIALOGUE
+- 如果你已经在体育馆，可以直接START_SPORTS
+- 如果你已经在图书馆/自习室，可以直接START_STUDY
+- 如果你已经在对话中，可以直接EXIT_DIALOGUE
+
+**需要移动的情况**：
+- 如果你想和某个Agent对话，但不在他的中范围内 → MOVE_TO_RANGE
+- 你想加入某个对话，但不在该中范围内 → MOVE_TO_RANGE
+
+### 可选行动类型
+
+1. **MOVE_TO_RANGE** - 移动到指定中范围
+   - 使用场景：需要接近目标Agent或进入特定区域
+   - 必需参数：target_range_id（目标范围ID）
+   - 示例：移动到"教室_主教学区_左上"以接近AgentB
+
+2. **START_DIALOGUE** - 开始对话
+   - 使用场景：已经在目标Agent的中范围内，想发起对话
+   - 必需参数：target_id（目标Agent ID）
+   - 注意：不需要先移动，前提是你已经在他的中范围内
+
+3. **JOIN_DIALOGUE** - 加入已有对话
+   - 使用场景：已经在某个对话的中范围内
+   - 可选参数：target_id（对话ID或发起者ID）
+
+4. **EXIT_DIALOGUE** - 退出当前对话
+   - 使用场景：正在对话中，想退出
+
+5. **START_SPORTS** - 开始体育活动
+   - 使用场景：已经在体育馆内
+   - 限制：仅限体育馆场景
+
+6. **END_SPORTS** - 结束体育活动
+   - 使用场景：正在进行体育活动
+
+7. **START_STUDY** - 开始自习
+   - 使用场景：已经在图书馆或自习室内
+   - 限制：仅限图书馆、自习室场景
+
+8. **END_STUDY** - 结束自习
+   - 使用场景：正在进行自习
+
+9. **WAIT** - 等待
+   - 使用场景：暂时不需要行动
+
+### 决策示例
+
+**示例1：直接开始对话（无需移动）**
+```json
+{
+    "action_type": "START_DIALOGUE",
+    "target_id": "AgentB",
+    "reasoning": "AgentB就在我的中范围内，我想和他讨论刚才的问题"
+}
+```
+
+**示例2：先移动后对话**
+```json
+{
+    "action_type": "MOVE_TO_RANGE",
+    "target_range_id": "教室_主教学区_左上",
+    "reasoning": "AgentB在左上象限，我需要移动过去",
+    "cached_step2": {
+        "action_type": "START_DIALOGUE",
+        "target_id": "AgentB"
+    }
+}
+```
+
+**示例3：直接开始自习（无需移动）**
+```json
+{
+    "action_type": "START_STUDY",
+    "reasoning": "我现在在图书馆，想开始自习"
+}
+```
+
+### 输出格式
 
 请按以下JSON格式输出你的决策：
 {
     "action_type": "行动类型",
     "target_id": "目标ID（如适用）",
-    "target_range_id": "目标范围ID（如适用）",
-    "reasoning": "决策理由（简要说明）",
+    "target_range_id": "目标范围ID（移动时必需）",
+    "reasoning": "决策理由（简要说明为什么选择这个行动）",
     "cached_step2": {
-        "action_type": "第二步行动类型（可选）",
+        "action_type": "第二步行动类型（可选，仅当第一步是MOVE_TO_RANGE时使用）",
         "target_id": "第二步目标ID（可选）"
     }
 }
 
-注意：
-- 如果当前是上课时间（class_time），你不能随意离开或开始对话
-- 如果感知到周围有有趣的对话，你可以考虑移动过去加入
-- 你的决策应该符合你的人格特质和当前心情
+### 重要提醒
+
+- **优先选择不需要移动的行动**：如果当前位置已经可以执行目标行动，不要浪费一步去移动
+- **检查当前时段约束**：上课时间不能随意离开或开始对话
+- **考虑你的人格特质**：外向者更可能主动开始对话，内向者可能选择等待
+- **利用感知信息**：如果你感知到附近有有趣的对话，可以考虑加入
