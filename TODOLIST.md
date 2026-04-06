@@ -23,59 +23,141 @@
 
 ---
 
-## 二、对话系统重构（广播式对话）⏳
+## 二、对话系统重构（广播式对话 + 场景集成）⏳
 
 ### 设计目标
-从1对1结构化对话转向更自然的广播式社交，Agent在特定范围内听到对话，自主决定是否参与。
+将对话系统与场景系统深度集成，基于子场景（RoomArea）定义对话范围，实现自然的社交互动。
 
 ### 核心设计
 
-#### 1. 广播机制
-```
-Agent A 发言
-    ↓ 广播到范围内所有Agent
-Agent B 收到 → 决定是否回复
-Agent C 收到 → 决定是否回复
-Agent D 收到 → 决定忽略
+#### 1. 三层对话范围架构
+
+| 层级 | 定义方式 | 范围 | 使用场景 |
+|------|---------|------|---------|
+| **大范围** | 整个子场景（RoomArea） | 教室/讨论室的全部区域 | 教师讲课、广播通知 |
+| **中范围** | 子场景内的分区 | 子场景划分为多个区域 | 正常交谈、小组讨论 |
+| **小范围** | 以Agent为中心的圆形 | 极近距离（约60px半径） | 悄悄话、私密对话 |
+
+#### 2. 大范围（子场景级）
+
+**适用场景**: 仅教室（主教学区）和教室（小组讨论区）
+
+```gdscript
+# 大范围 = 整个RoomArea的边界框
+func get_large_range(room_area: Area2D) -> Rect2:
+    var collision_shape = room_area.get_node("CollisionShape2D")
+    var shape = collision_shape.shape
+    var size = shape.size
+    var pos = collision_shape.position
+    return Rect2(pos - size/2, size)
 ```
 
-#### 2. 三种声音范围
+**使用权限**: 
+- 教师角色可以使用大范围广播
+- 特殊场景（如紧急通知）
 
-| 范围 | 场景 | 大小参考 | 使用方式 |
-|------|------|---------|---------|
-| **大范围** | 老师上课 | 比教室略大 | 教师主动使用 |
-| **中范围** | 小组讨论 | 1/6～1/8教室 | 正常交谈默认 |
-| **小范围** | 悄悄话/1v1 | 极近（2-3人贴身） | 私密对话使用 |
+#### 3. 中范围（子场景分区）
 
-#### 3. 触发机制（无任务时）
+**分区规则**:
+
+| 子场景类型 | 分区方式 | 中范围数量 |
+|-----------|---------|-----------|
+| 健身房、食堂、图书馆、自习室 | 均分为4个象限 | 4个中范围 |
+| 教室（主教学区） | 均分为4个象限 | 4个中范围 |
+| 教室（小组讨论区） | 均分为4个象限 | 4个中范围 |
+| 大走廊 | 均分为左右两个区域 | 2个中范围 |
+| 小走廊 | 整个区域作为一个中范围 | 1个中范围 |
+
+```gdscript
+# 计算中范围分区
+func get_medium_ranges(room_area: Area2D) -> Array[Rect2]:
+    var collision_shape = room_area.get_node("CollisionShape2D")
+    var shape = collision_shape.shape
+    var size = shape.size
+    var center = collision_shape.position
+    var ranges = []
+    
+    match room_area.room_name:
+        "大走廊":
+            # 左右两个分区
+            ranges.append(Rect2(center - Vector2(size.x/2, size.y/2), Vector2(size.x/2, size.y)))
+            ranges.append(Rect2(center + Vector2(0, -size.y/2), Vector2(size.x/2, size.y)))
+        "小走廊":
+            # 整个区域
+            ranges.append(Rect2(center - size/2, size))
+        _:
+            # 4象限分区
+            var quadrant_size = size / 2
+            ranges.append(Rect2(center - size/2, quadrant_size))  # 左上
+            ranges.append(Rect2(center + Vector2(0, -size.y/2), quadrant_size))  # 右上
+            ranges.append(Rect2(center + Vector2(-size.x/2, 0), quadrant_size))  # 左下
+            ranges.append(Rect2(center, quadrant_size))  # 右下
+    
+    return ranges
 ```
-Agent无任务
+
+**对话触发机制**:
+- Agent可以感知整个子场景内的所有Agent（保留原有设计）
+- 想要开启对话，需要进入目标Agent所在的**中范围**
+- 对话广播只发送到同一中范围内的Agent
+
+#### 4. 小范围（贴身范围）
+
+**定义**: 以Agent为中心，半径约60px的圆形区域
+
+```gdscript
+const SMALL_RANGE_RADIUS = 60.0
+
+func get_small_range(agent_position: Vector2) -> Dictionary:
+    return {
+        "center": agent_position,
+        "radius": SMALL_RANGE_RADIUS
+    }
+
+func is_in_small_range(listener_pos: Vector2, speaker_pos: Vector2) -> bool:
+    return listener_pos.distance_to(speaker_pos) <= SMALL_RANGE_RADIUS
+```
+
+**对话触发机制**:
+- Agent想要进行私密对话，需要进入目标Agent的**小范围**
+- 小范围对话不会被中范围或大范围内的其他Agent听到
+- 适用于悄悄话、私密交流
+
+#### 5. 对话广播流程
+
+```
+Agent A 决定发言
     ↓
-感知中范围内其他Agent
+确定对话范围类型（大/中/小）
     ↓
-综合评估：
-  - 当前情境
-  - 当前心情
-  - 人物间情感关系
-  - 记忆
-  - 性格（外向/内向）
+获取该范围内的所有Agent
     ↓
-概率触发对话
+向范围内的Agent广播对话内容
+    ↓
+每个接收Agent：
+  - 基于内容、身份、情感关系决定是否回复
+  - 如需回复，进入自己的发言流程
 ```
 
-**触发概率设计**:
-- 毫无交集 + 心情一般 + 内向 → 极低概率
-- 有交集 + 心情好 + 外向 → 较高概率
+#### 6. 范围选择策略
 
-#### 4. 回复机制
-对于接收到对话广播的Agent：
-- 基于发言内容、发言者身份、情感关系决定是否回复
-- 思考回复内容
-- Prompt中只包含自己的信息 + 其他Agent的名字和职业
+| 场景 | 自动选择 | 手动切换 |
+|------|---------|---------|
+| 教师在教室讲课 | 大范围 | 教师可主动切换为中/小 |
+| 学生在教室自习 | 中范围（所在象限） | 可切换为小范围 |
+| 走廊偶遇 | 中范围 | 可切换为小范围 |
+| 想要私密对话 | - | 必须进入小范围 |
 
-#### 5. 多人同时回复处理
-- 待设计：并行处理还是串行处理
-- 待设计：如何管理对话线程
+```gdscript
+# Agent选择对话范围
+func select_voice_range(context: Dictionary) -> int:
+    if context.is_teacher and context.in_classroom:
+        return VOICE_RANGE_LARGE
+    elif context.want_private_talk:
+        return VOICE_RANGE_SMALL
+    else:
+        return VOICE_RANGE_MEDIUM
+```
 
 ---
 
@@ -177,10 +259,12 @@ Agent A 的 Prompt：
 ## 五、待讨论问题
 
 ### 对话系统
-- [ ] 如何决定使用哪种声音范围？Agent能否主动切换？
+- [x] 如何决定使用哪种声音范围？→ **基于子场景类型和Agent意图**
+- [x] Agent能否主动切换？→ **可以，教师可切换，学生可切换中/小范围**
 - [ ] 多人同时回复如何处理？并行还是串行？
 - [ ] 是否需要对话ID或话题追踪？
 - [ ] 对话的"热度"如何衰减？（避免无限对话）
+- [ ] 中范围分区算法实现（4象限/左右分区/整个区域）
 
 ### 情感系统
 - [ ] 情感随时间衰减的机制？（长期不联系会淡化吗？）
@@ -202,7 +286,8 @@ Agent A 的 Prompt：
 | P0 | 情感关系系统基础实现 | 2-3小时 |
 | P0 | 集成到DailyReflectionSystem | 1-2小时 |
 | P1 | 对话系统广播机制 | 3-4小时 |
-| P1 | 三种声音范围实现 | 2小时 |
+| P1 | 三种声音范围实现（与场景集成） | 3-4小时 |
+| P2 | 中范围分区算法 | 2小时 |
 | P2 | 对话触发概率系统 | 2-3小时 |
 | P2 | Prompt重构（信息隔离） | 2小时 |
 | P3 | 多人回复处理机制 | 2-3小时 |
@@ -232,5 +317,14 @@ Agent A 的 Prompt：
 
 ---
 
-*最后更新：2026-04-06*
+*最后更新：2026-04-06 13:55*
 *维护者：百舟楫*
+
+## 九、设计变更记录
+
+### 2026-04-06 对话系统与场景集成设计更新
+- **大范围**: 整个子场景（仅教室和讨论室可用）
+- **中范围**: 子场景内分区（4象限/左右分区/整个区域）
+- **小范围**: 以Agent为中心的圆形贴身范围
+- **感知机制**: 保留子场景级感知，对话需进入对应范围
+- **权限控制**: 大范围仅限教师使用
