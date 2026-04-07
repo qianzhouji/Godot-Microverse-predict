@@ -8,12 +8,29 @@
 
 ## 目录
 
-1. [架构概述](#架构概述)
-2. [中央时序系统](#中央时序系统)
-3. [AIAgent认知循环](#aiagent认知循环)
-4. [项目配置](#项目配置)
-5. [文件索引](#文件索引)
-6. [重构历史](#重构历史)
+1. [项目概述](#项目概述)
+2. [架构概述](#架构概述)
+3. [中央时序系统](#中央时序系统)
+4. [AIAgent认知循环](#aiagent认知循环)
+5. [MVT理论实现](#mvt理论实现)
+6. [项目进度](#项目进度)
+7. [项目配置](#项目配置)
+8. [文件索引](#文件索引)
+9. [重构历史](#重构历史)
+
+---
+
+## 项目概述
+
+这是一个基于**努力决策理论**和**边际价值定理(MVT)**的AI Agent模拟系统，用于探究**抑郁风险青少年**与**健康青少年**在动态社会情境中的认知机制差异。
+
+### 核心研究问题
+
+**抑郁风险学生是否在努力导向决策中存在系统性偏差？**
+
+- 抑郁风险学生是否对**努力成本**过度敏感？
+- 抑郁风险学生是否对**奖赏衰减**感知异常？
+- 这些认知偏差如何影响其**情境选择**和**社交行为**？
 
 ---
 
@@ -62,6 +79,49 @@
 | **两步缓存** | Agent可缓存最多2步行动请求，Step1执行后验证Step2有效性 |
 | **对话独立时序** | 对话发言不等待Click，按优先级队列即时处理 |
 | **行为/内容分离** | 对话行为全场景可见，对话内容仅范围内可见 |
+
+### 三层认知架构与代码映射
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Layer 1: 客观现实（系统层）- Agent不可见                        │
+│  ├─ RoomArea.gd          - 定义情境参数(S, a, E)                 │
+│  ├─ RewardSystem.gd      - 奖赏发放中介                          │
+│  ├─ RoomManager.gd       - 房间管理与内部接口                    │
+│  └─ RoomData.gd          - 房间数据结构                          │
+│                                                                 │
+│  职责：维护客观世界，通过RewardSystem发放"奖赏"                  │
+│  原则：Agent不能直接读取S,a,E，只能接收系统发放的奖赏数值        │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+                    【通过RewardSystem发放】
+                    （Agent只接收"奖赏"数值）
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  Layer 2: 感知推断（认知层）- 个体差异                           │
+│  ├─ AgentRewardReceiver.gd - Agent奖赏接收器                     │
+│  └─ PerceptionSystem.gd  - 贝叶斯感知系统                        │
+│                                                                 │
+│  职责：从奖赏序列推断情境特征，个体差异体现在先验和感知精度      │
+│  • 健康Agent：中性乐观先验 S~Uniform(0.5, 0.25)                  │
+│  • 抑郁Agent：悲观预期先验 S~Uniform(0.3, 0.15)                  │
+│  • 感知噪声：极小（σ=2%），主要噪声在决策层                      │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+              【主观感知】(Ŝ, â, 不确定性)
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  Layer 3: 效用评估（决策层）                                      │
+│  ├─ UtilitySystem.gd     - 效用计算与MVT决策                     │
+│  ├─ AIAgent.gd           - Agent决策中枢                         │
+│  └─ DynamicPersonality.gd - 动态特质管理（外部控制）              │
+│                                                                 │
+│  职责：计算主观效用，驱动行为决策                                  │
+│  公式：U = G̃^α - β_effort × E                                   │
+│  抑郁Agent：α↓ (0.55), β↑ (0.8)                                 │
+│  健康Agent：α↑ (0.8), β↓ (0.4)                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -284,6 +344,166 @@ y↑
 
 ---
 
+## MVT理论实现
+
+### 核心公式实现
+
+#### 1. 客观收益函数（RewardSystem.gd）
+```gdscript
+# G(t) = (S/a)[1 - exp(-at)]
+func _calculate_objective_gain(S: float, a: float, time: float) -> float:
+    var gain = (S / a) * (1.0 - exp(-a * time))
+    return clamp(gain, 0.0, 1.0)
+```
+
+#### 2. 主观效用函数（UtilitySystem.gd）
+```gdscript
+# U(G) = G^α - β_effort × E
+static func calculate_utility(gain: float, effort: float, 
+                              alpha: float, beta_effort: float) -> float:
+    var gain_utility = pow(max(gain, 0.0), alpha)
+    var effort_cost = beta_effort * effort
+    return gain_utility - effort_cost
+```
+
+#### 3. 最优停留时间公式（UtilitySystem.gd）
+```gdscript
+# log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
+static func calculate_optimal_time(perceived_S, perceived_a, effort,
+                                   alpha, beta_effort, p_base, eta_s, eta_a):
+    var term1 = log(eta_s * log(perceived_S))      # log[ηS·log(S)]
+    var term2 = -log(p_base)                        # −log(ρbase)
+    var term3 = -beta_effort * effort               # −βeffort·effort
+    var term4 = -eta_a * log(perceived_a)           # −ηa·log(a)
+    var epsilon = randfn(0.0, 0.1)                  # ε (随机噪声)
+    var log_T = term1 + term2 + term3 + term4 + epsilon
+    return clamp(exp(log_T), 1.0, 60.0)
+```
+
+#### 4. 信念更新（PerceptionSystem.gd）
+```gdscript
+# 使用非线性最小二乘拟合 G(t) = (S/a)[1 - exp(-at)]
+# 网格搜索最优 S 和 a，然后贝叶斯更新
+```
+
+### 认知机制参数
+
+| 参数 | 符号 | 健康Agent | 抑郁Agent | 功能 |
+|------|------|----------|----------|------|
+| 离开阈值 | ρ_base | 0.5-0.6 | 0.3-0.4 | 对环境平均奖赏率的估计 |
+| 初始奖赏感知权重 | η_s | 0.5 | 0.4 | 对初始丰富度的敏感度 |
+| 衰减率感知权重 | η_a | 0.5 | 0.7 | 对奖赏衰减的敏感度 |
+| 收益敏感性 | α | 0.8 | 0.5-0.6 | 收益的非线性效用 |
+| **努力敏感性** | **β_effort** | **0.4** | **0.8** | **核心差异参数** |
+
+---
+
+## 项目进度
+
+### 当前进度概览
+
+```
+[完成度: 75%]
+
+中央时序系统     ████████████████████ 100%
+AIAgent核心      ███████████████████░  95%
+Prompt系统       ████████████████████ 100%
+感知体验系统     ████████████████████ 100%
+中范围划分系统   ████████████████████ 100%
+ActivityManager  ░░░░░░░░░░░░░░░░░░░░   0%
+DialogueManager  ░░░░░░░░░░░░░░░░░░░░   0%
+情感关系系统     ░░░░░░░░░░░░░░░░░░░░   0%
+测试调试         ░░░░░░░░░░░░░░░░░░░░   0%
+```
+
+### 已完成工作
+
+#### 第一阶段：中央时序系统（100%完成）
+
+| 组件 | 文件 | 状态 |
+|------|------|------|
+| 时序系统核心 | `script/system/TimingSystem.gd` | ✅ 完成 |
+| 时间轴状态 | `script/system/TimelineState.gd` | ✅ 完成 |
+| 行动请求 | `script/data/ActionRequest.gd` | ✅ 完成 |
+| 场景集成 | `scene/maps/School.tscn` | ✅ 已添加节点 |
+
+#### 第二阶段：AIAgent核心重构（95%完成）
+
+| 组件 | 文件 | 状态 |
+|------|------|------|
+| AIAgent核心 | `script/ai/AIAgent.gd` | ✅ 完成框架 |
+| Prompt构建器 | `script/ai/PromptBuilder.gd` | ✅ 完成 |
+| Prompt模板 | `prompts/*.txt` | ✅ 完成 |
+| 原AIAgent备份 | `script/ai/AIAgent_backup_20250406.gd` | ✅ 已备份 |
+
+**已完成**:
+- 清理旧代码（定时器、旧任务系统、旧对话系统）
+- 新增认知循环（感知→体验→决策→执行）
+- 8个行动执行方法框架
+- 本地LLM API调用（Ollama）
+- 两步缓存验证机制
+- 中范围划分系统
+- MVT理论公式完整实现
+
+#### 第三阶段：Prompt系统（100%完成）
+
+| 组件 | 文件 | 状态 |
+|------|------|------|
+| 决策Prompt模板 | `prompts/decision_prompt_template.txt` | ✅ 完成 |
+| 对话回复模板 | `prompts/dialogue_reply_template.txt` | ✅ 完成 |
+| Prompt构建器 | `script/ai/PromptBuilder.gd` | ✅ 完成 |
+
+#### 第四阶段：感知层分离（100%完成）
+
+| 系统 | 文件 | 说明 |
+|------|------|------|
+| 奖赏系统 | `RewardSystem.gd` | 系统层奖赏发放 |
+| 奖赏接收 | `AgentRewardReceiver.gd` | 感知层接收 |
+| 感知系统 | `PerceptionSystem.gd` | 贝叶斯感知 |
+
+### 待完成工作
+
+#### 高优先级（下一步）
+
+| 优先级 | 任务 | 说明 | 预计时间 |
+|--------|------|------|---------|
+| P0 | ActivityManager | 活动管理与奖赏计算闭环 | 2-3小时 |
+| P0 | DialogueManager | 对话生命周期管理 | 3-4小时 |
+| P0 | 集成测试 | 测试Agent认知循环和移动功能 | 2-3小时 |
+
+#### 中优先级
+
+| 优先级 | 任务 | 说明 | 预计时间 |
+|--------|------|------|---------|
+| P1 | 情感关系系统 | 情感类型定义、每日反思集成 | 3-4小时 |
+| P1 | 对话系统完善 | 行为与内容分离、发言优先级队列 | 4-5小时 |
+| P1 | UI和调试工具 | 时序系统状态面板、Agent实时监控 | 2-3小时 |
+
+#### 低优先级
+
+| 优先级 | 任务 | 说明 | 预计时间 |
+|--------|------|------|---------|
+| P2 | 性能优化 | API调用批处理、决策缓存机制 | 2-3小时 |
+| P2 | 文档完善 | API文档、使用手册、架构图更新 | 1-2小时 |
+
+### 下一步计划
+
+**建议执行顺序**:
+
+1. **选项A：实现ActivityManager**（2-3小时）
+   - 创建活动管理系统，计算和发放奖赏
+   - 收益：完成体验闭环
+
+2. **选项B：实现DialogueManager**（3-4小时）
+   - 创建对话管理系统，支持对话生命周期
+   - 收益：可以测试对话功能
+
+3. **选项C：集成测试**（2-3小时）
+   - 启动时序系统，验证Click触发
+   - 测试Agent认知循环、移动功能、对话功能
+
+---
+
 ## 项目配置
 
 ### AutoLoad配置
@@ -340,6 +560,7 @@ CharacterManager="*res://script/CharacterManager.gd"
 | MemoryManager.gd | `script/ai/memory/MemoryManager.gd` | 记忆管理 |
 | DailyReflectionSystem.gd | `script/ai/DailyReflectionSystem.gd` | 每日反思 |
 | DynamicPersonality.gd | `script/ai/DynamicPersonality.gd` | 动态人格 |
+| UtilitySystem.gd | `script/ai/UtilitySystem.gd` | MVT效用计算 |
 
 ### 场景文件
 
@@ -370,77 +591,38 @@ CharacterManager="*res://script/CharacterManager.gd"
 | 任务生成 | 随机生成 | 课程表驱动 |
 | Prompt管理 | 硬编码在代码中 | 配置文件+模板分离 |
 
-### 已完成工作
+### 2026-04-07 MVT公式修正
 
-**中央时序系统（100%）**:
-- TimingSystem.gd - 全局时钟 + Click触发
-- TimelineState.gd - 课程表 + 行为约束
-- ActionRequest.gd - 行动请求数据结构
+- ✅ **修正 UtilitySystem.gd**
+  - 重写 `calculate_optimal_time()` 使用理论解析公式
+  - 更新 `get_agent_utility_params()` 返回全部四个MVT核心参数
+  - 更新 `get_utility_params_description()` 添加MVT参数描述
+- ✅ **修正 AIAgent.gd**
+  - 实现 `_check_mvt_leave_decision()` 完整MVT离开决策检查
+- ✅ **修正 PerceptionSystem.gd**
+  - 重写 `_update_beliefs()` 使用非线性最小二乘拟合理论收益函数
+- ✅ **更新项目文档**
+  - 更新 README.md、PROJECT_STRUCTURE.md、IMPLEMENTATION_LOGIC.md
 
-**AIAgent核心重构（95%）**:
-- 清理旧代码（定时器、旧任务系统、旧对话系统）
-- 新增认知循环（感知→体验→决策→执行）
-- 8个行动执行方法框架
-- 本地LLM API调用（Ollama）
-- 两步缓存验证机制
-- 中范围划分系统
+### 2026-04-06 重大更新日
 
-**Prompt系统（100%）**:
-- 模板与代码分离
-- 变量自动填充
-- 支持热更新
+#### 上午：感知层与系统层分离完成
+- ✅ 创建 RewardSystem.gd（系统层奖赏发放）
+- ✅ 创建 AgentRewardReceiver.gd（感知层接收器）
+- ✅ 修改 AIAgent.gd（移除直接RoomArea访问）
+- ✅ 修改 RoomManager.gd（添加内部接口）
+- ✅ 修改 RoomArea.gd（移除直接暴露参数的接口）
+- ✅ 配置 AutoLoad（RewardSystem设置为单例）
 
-**感知层分离（100%）**:
-- RewardSystem.gd - 系统层奖赏发放
-- AgentRewardReceiver.gd - 感知层接收
-- PerceptionSystem.gd - 贝叶斯感知
+#### 下午：动态人设系统扩展
+- ✅ 扩展 DynamicPersonality.gd（任务反馈、社交反馈、教师评价）
+- ✅ 新增边界保护机制（偏离基线≤20%）
 
-### 待完成工作
-
-| 优先级 | 任务 | 说明 |
-|--------|------|------|
-| P0 | ActivityManager | 活动管理与奖赏计算闭环 |
-| P0 | DialogueManager | 对话生命周期管理 |
-| P1 | 情感关系系统 | 情感类型定义、每日反思集成 |
-| P1 | UI和调试工具 | 时序系统状态面板、Agent实时监控 |
-| P2 | 性能优化 | API调用批处理、决策缓存 |
-
-### 当前进度
-
-```
-[完成度: 75%]
-
-中央时序系统     ████████████████████ 100%
-AIAgent核心      ███████████████████░  95%
-Prompt系统       ████████████████████ 100%
-感知体验系统     ████████████████████ 100%
-中范围划分系统   ████████████████████ 100%
-ActivityManager  ░░░░░░░░░░░░░░░░░░░░   0%
-DialogueManager  ░░░░░░░░░░░░░░░░░░░░   0%
-测试调试         ░░░░░░░░░░░░░░░░░░░░   0%
-```
-
----
-
-## 附录：AIAgent重构分析
-
-### 原系统 vs 新系统对比
-
-| 组件 | 原系统 | 新系统 | 处理方式 |
-|------|--------|--------|----------|
-| 时序管理 | 60秒决策定时器 | Click周期触发 | 完全重构 |
-| 任务系统 | TaskManager驱动 | 课程表驱动 | 舍弃旧系统 |
-| 对话系统 | 1对1结构化对话 | 广播式+优先级队列 | 完全重构 |
-| 感知系统 | 直接读取RoomArea | RewardSystem信号 | 分层隔离 |
-
-### 代码保留/舍弃统计
-
-| 类别 | 数量 | 说明 |
-|------|------|------|
-| 原函数总数 | 81个 | AIAgent.gd |
-| 舍弃 | ~40个 | 定时器、旧任务、旧对话 |
-| 保留 | ~25个 | 感知、移动、工具函数 |
-| 新增 | ~15个 | 新认知循环、行动执行 |
+#### 傍晚：每日反思系统实现
+- ✅ 创建 DailyReflectionSystem.gd
+- ✅ LLM-based反思分析
+- ✅ 四项认知参数动态调整
+- ✅ 完整PHQ-9九项评估
 
 ### 完全保留的系统
 
@@ -460,6 +642,9 @@ DialogueManager  ░░░░░░░░░░░░░░░░░░░░   
 ---
 
 *本文档合并了以下历史文档*:
+- PROJECT_STATUS.md
+- Progress_Report.md
+- Refactoring_Summary.md
 - Phase1_TimingSystem_Implementation.md
 - Phase2_AIAgent_Refactor_Plan.md
 - AUTOLOAD_SETUP.md
