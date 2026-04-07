@@ -1,7 +1,7 @@
 # Agent认知系统详细文档
 
-> **系统名称**: AIAgent + PerceptionSystem + AgentRewardReceiver
-> **版本**: 1.0
+> **系统名称**: AIAgent + PerceptionSystem + AgentRewardReceiver + UtilitySystem
+> **版本**: 1.1
 > **最后更新**: 2026-04-07
 
 ---
@@ -24,10 +24,22 @@
 ### 设计目标
 
 Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责：
-- 感知当前场景和环境信息
+- 感知当前场景和环境信息（含其他Agent活动状态）
 - 体验系统层发放的奖赏并更新信念
+- 基于MVT理论计算最优停留时间
 - 基于认知参数做出决策
 - 执行行动并与环境交互
+
+### 实现状态
+
+| 组件 | 状态 | 说明 |
+|------|------|------|
+| 感知阶段 | ✅ 已完成 | 场景信息 + 其他Agent活动状态 |
+| 体验阶段 | ✅ 已完成 | 奖赏接收 + 贝叶斯更新 |
+| 决策阶段 | ✅ 已完成 | LLM决策 + MVT参数注入 |
+| 行动执行 | ✅ 已完成 | 8种行动类型 + 两步缓存 |
+| ActivityManager | ❌ 待实现 | 活动注册与奖赏闭环 |
+| DialogueManager | ❌ 待实现 | 对话生命周期管理 |
 
 ### 架构位置
 
@@ -36,7 +48,8 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 │  系统层（System Layer）                                       │
 │  ├─ TimingSystem         - 触发认知循环                      │
 │  ├─ RewardSystem         - 发放客观奖赏                      │
-│  └─ TimelineState        - 提供时间约束                      │
+│  ├─ TimelineState        - 提供时间约束                      │
+│  └─ ActivityManager      - 活动管理（待实现）                 │
 └─────────────────────────────────────────────────────────────┘
                               ↓ click_triggered 信号
 ┌─────────────────────────────────────────────────────────────┐
@@ -48,6 +61,7 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 ┌─────────────────────────────────────────────────────────────┐
 │  认知层（Cognitive Layer）                                    │
 │  ├─ AIAgent              - 认知循环中枢                      │
+│  ├─ UtilitySystem        - MVT效用计算                       │
 │  ├─ PromptBuilder        - 构建决策Prompt                    │
 │  └─ DynamicPersonality   - 动态人格特质                      │
 └─────────────────────────────────────────────────────────────┘
@@ -61,13 +75,16 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 
 ### 核心特性
 
-| 特性 | 说明 |
-|------|------|
-| **四层认知架构** | 感知 → 体验 → 决策 → 执行 |
-| **贝叶斯感知** | 基于观测样本更新对情境的信念 |
-| **MVT决策** | 基于边际价值定理计算最优停留时间 |
-| **两步缓存** | 支持复杂行动计划的缓存和验证 |
-| **中范围划分** | 精确的空间感知和移动定位 |
+| 特性 | 说明 | 状态 |
+|------|------|------|
+| **四层认知架构** | 感知 → 体验 → 决策 → 执行 | ✅ 已实现 |
+| **贝叶斯感知** | 基于观测样本更新对情境的信念 | ✅ 已实现 |
+| **MVT决策** | 基于边际价值定理计算最优停留时间 | ✅ 已实现 |
+| **两步缓存** | 支持复杂行动计划的缓存和验证 | ✅ 已实现 |
+| **中范围划分** | 精确的空间感知和移动定位 | ✅ 已实现 |
+| **活动状态感知** | 感知其他Agent的活动状态 | ✅ 已实现 |
+| **活动管理闭环** | 活动注册、追踪、奖赏发放 | ❌ 待实现 |
+| **对话管理** | 对话生命周期、优先级队列 | ❌ 待实现 |
 
 ---
 
@@ -93,11 +110,30 @@ Click触发
 
 | 参数 | 符号 | 范围 | 健康Agent | 抑郁Agent | 说明 |
 |------|------|------|----------|----------|------|
-| 离开阈值 | p_base | 0-1 | 0.5-0.6 | 0.3-0.4 | 对环境平均奖赏的估计 |
-| 初始奖赏感知权重 | η_s | 0-1 | 0.5-0.7 | 0.6 | 对初始丰富度的敏感度 |
-| 衰减率感知权重 | η_a | 0-1 | 0.4-0.55 | 0.7-0.75 | 对奖赏衰减的敏感度 |
+| 离开阈值 | ρ_base | 0-1 | 0.5-0.6 | 0.3-0.4 | 对环境平均奖赏率的估计 |
+| 初始奖赏感知权重 | η_s | 0-1 | 0.5 | 0.4 | 对初始丰富度的敏感度 |
+| 衰减率感知权重 | η_a | 0-1 | 0.5 | 0.7 | 对奖赏衰减的敏感度 |
 | 收益敏感性 | α | 0-1 | 0.8 | 0.5-0.6 | 收益的非线性效用 |
-| 努力敏感性 | β_effort | 0-1 | 0.4 | **0.8** | 核心差异参数 |
+| **努力敏感性** | **β_effort** | **0-1** | **0.4** | **0.8** | **核心差异参数** |
+
+### MVT理论公式
+
+**客观收益函数**:
+```
+G(t) = (S/a)[1 - exp(-at)]
+```
+
+**主观效用函数**:
+```
+U(G) = G^α - β_effort × E
+```
+
+**最优停留时间（解析解）**:
+```
+log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
+```
+
+其中 ε 为决策层随机噪声（标准差0.1）
 
 ---
 
@@ -216,11 +252,22 @@ func _perceive() -> Dictionary
 | 键 | 类型 | 说明 |
 |----|------|------|
 | `current_room` | String | 当前房间名称 |
-| `nearby_agents` | Array | 同场景其他Agent |
+| `nearby_agents` | Array | 同场景其他Agent（含活动状态） |
 | `visible_behaviors` | Array | 可见的对话行为 |
 | `audible_contents` | Array | 可听到的对话内容 |
 | `time_constraints` | Dictionary | 时间轴约束 |
 | `current_time` | float | 当前游戏时间 |
+
+**nearby_agents 结构**:
+```gdscript
+{
+    "name": "角色名称",
+    "position": Vector2,
+    "state": AgentState,
+    "activity": "活动类型",
+    "activity_status": "活动状态描述"  // 如："正在与 B 对话"
+}
+```
 
 ---
 
@@ -513,18 +560,20 @@ Click触发
 
 ### 10种行动类型
 
-| 行动 | 编号 | 场景限制 | 说明 |
-|------|------|---------|------|
-| MOVE_TO_RANGE | 0 | 任意 | 移动到指定中范围 |
-| START_DIALOGUE | 1 | 同一中范围 | 开始普通对话 |
-| START_WHISPER | 2 | 贴身位置 | 开始悄悄话 |
-| JOIN_DIALOGUE | 3 | 任意 | 加入已有对话 |
-| EXIT_DIALOGUE | 4 | 对话中 | 退出对话 |
-| START_SPORTS | 5 | 体育馆 | 开始体育活动 |
-| END_SPORTS | 6 | 体育馆 | 结束体育活动 |
-| START_STUDY | 7 | 图书馆/自习室 | 开始自习 |
-| END_STUDY | 8 | 图书馆/自习室 | 结束自习 |
-| WAIT | 9 | 任意 | 等待 |
+| 行动 | 编号 | 场景限制 | 说明 | 状态 |
+|------|------|---------|------|------|
+| MOVE_TO_RANGE | 0 | 任意 | 移动到指定中范围 | ✅ 已实现 |
+| START_DIALOGUE | 1 | 同一中范围 | 开始普通对话 | ✅ 已实现 |
+| START_WHISPER | 2 | 贴身位置 | 开始悄悄话 | ✅ 已实现 |
+| JOIN_DIALOGUE | 3 | 任意 | 加入已有对话 | ✅ 已实现 |
+| EXIT_DIALOGUE | 4 | 对话中 | 退出对话 | ✅ 已实现 |
+| START_SPORTS | 5 | 体育馆 | 开始体育活动 | ✅ 已实现 |
+| END_SPORTS | 6 | 体育馆 | 结束体育活动 | ✅ 已实现 |
+| START_STUDY | 7 | 图书馆/自习室 | 开始自习 | ✅ 已实现 |
+| END_STUDY | 8 | 图书馆/自习室 | 结束自习 | ✅ 已实现 |
+| WAIT | 9 | 任意 | 等待 | ✅ 已实现 |
+
+**注意**：START_DIALOGUE、START_WHISPER、JOIN_DIALOGUE 需要 DialogueManager 配合才能实现完整的对话生命周期管理。
 
 ### 两步缓存机制
 
@@ -606,6 +655,113 @@ func _execute_move(request: ActionRequest):
         character.move_to(target_pos)
         _is_moving = true
 ```
+
+### 示例4：MVT最优停留时间计算
+
+```gdscript
+# 使用UtilitySystem计算最优停留时间
+func _check_mvt_leave_decision(room_name: String, time_in_room: float,
+                               personality: Dictionary, is_depression: bool) -> Dictionary:
+    # 获取认知参数
+    var params = UtilitySystem.get_agent_utility_params(personality)
+    
+    # 获取感知参数
+    var perceived_params = PerceptionSystem.get_perceived_params(
+        character.name, room_name, is_depression
+    )
+    
+    # 获取情境努力成本
+    var effort = 0.5
+    if RewardSystem.instance:
+        var room_data = RewardSystem.instance._get_room_objective_params(room_name)
+        effort = room_data.get("E", 0.5)
+    
+    # 计算最优停留时间
+    var optimal_time = UtilitySystem.calculate_optimal_time(
+        perceived_params.S,
+        perceived_params.a,
+        effort,
+        params.alpha,
+        params.beta_effort,
+        params.p_base,
+        params.eta_s,
+        params.eta_a
+    )
+    
+    # 决策：是否离开
+    var should_leave = time_in_room >= optimal_time
+    
+    return {
+        "should_leave": should_leave,
+        "optimal_time": optimal_time,
+        "current_time": time_in_room,
+        "reason": "MVT预测的最优停留时间"
+    }
+```
+
+### 示例5：感知其他Agent活动状态
+
+```gdscript
+# 生成场景描述，包含其他Agent的活动状态
+func _get_characters_in_medium_range_description() -> String:
+    var desc = "\n\n【场景内角色】"
+    var current_room = _get_current_room()
+    var room_characters = get_room_characters(current_room)
+    
+    # 按中范围分组
+    var characters_by_range = {}
+    
+    for char in room_characters:
+        var char_medium_range = _get_medium_range_description(current_room, char.global_position)
+        var char_personality = CharacterPersonality.get_personality(char.name)
+        var position = char_personality.get("position", "未知职位")
+        
+        # 获取活动状态
+        var activity_status = _get_character_activity_status(char)
+        
+        var char_info = {
+            "name": char.name,
+            "position": position,
+            "activity_status": activity_status  // 如："正在与 B 对话"
+        }
+        
+        if not characters_by_range.has(char_medium_range):
+            characters_by_range[char_medium_range] = []
+        characters_by_range[char_medium_range].append(char_info)
+    
+    # 输出格式示例：
+    # 【同一中范围内(可普通对话)】
+    # - A(学生)：未在进行活动
+    # - B(学生)：正在与 C 对话
+    # - C(学生)：正在与 B 对话
+    
+    return desc
+```
+
+---
+
+## 附录：系统实现状态清单
+
+### 已实现 ✅
+
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| AIAgent核心 | `script/ai/AIAgent.gd` | 认知循环中枢、行动执行 |
+| PerceptionSystem | `script/ai/PerceptionSystem.gd` | 贝叶斯感知、信念更新 |
+| AgentRewardReceiver | `script/ai/AgentRewardReceiver.gd` | 奖赏接收、添加噪声 |
+| UtilitySystem | `script/ai/UtilitySystem.gd` | MVT效用计算、最优停留时间 |
+| PromptBuilder | `script/ai/PromptBuilder.gd` | Prompt构建 |
+| TimingSystem | `script/system/TimingSystem.gd` | Click触发 |
+| TimelineState | `script/system/TimelineState.gd` | 时间约束 |
+| RewardSystem | `script/system/RewardSystem.gd` | 奖赏发放 |
+
+### 待实现 ❌
+
+| 组件 | 文件 | 功能 | 优先级 |
+|------|------|------|--------|
+| ActivityManager | `script/system/ActivityManager.gd` | 活动注册、追踪、奖赏闭环 | P0 |
+| DialogueManager | `script/ai/DialogueManager.gd` | 对话生命周期管理 | P0 |
+| PriorityQueue | `script/ai/PriorityQueue.gd` | 发言优先级队列 | P1 |
 
 ---
 
