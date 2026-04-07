@@ -96,45 +96,62 @@ static func add_sample(agent_name: String, room_name: String, time: float, actua
 	if belief.samples.size() >= 3:
 		_update_beliefs(agent_name, room_name)
 
-# 贝叶斯更新信念（简化版）
+# 贝叶斯更新信念（使用非线性最小二乘拟合理论收益函数）
 static func _update_beliefs(agent_name: String, room_name: String) -> void:
 	var belief = agent_beliefs[agent_name][room_name]
 	
 	if belief.samples.size() < 2:
 		return
 	
-	# 从样本中估计
+	# 从样本中提取时间和收益
 	var times = []
 	var gains = []
 	for sample in belief.samples:
 		times.append(sample.time)
 		gains.append(sample.gain)
 	
-	# 简化：用线性回归估计初始收益和衰减趋势
-	# 实际应该用非线性回归拟合 G(t) = (S/a)[1 - exp(-at)]
+	# 使用非线性最小二乘拟合 G(t) = (S/a)[1 - exp(-at)]
+	# 通过网格搜索找到最优的 S 和 a
+	var best_S = belief.S_mean
+	var best_a = belief.a_mean
+	var best_error = 999999.0
 	
-	# 估计初始收益（第一个样本）
-	var observed_S = gains[0]
+	# 网格搜索参数范围
+	var S_candidates = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+	var a_candidates = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 	
-	# 估计衰减（收益下降速度）
-	var decay_estimate = 0.0
-	if gains.size() >= 2:
-		var gain_change = gains[-1] - gains[0]
-		var time_elapsed = times[-1] - times[0]
-		if time_elapsed > 0:
-			decay_estimate = -gain_change / time_elapsed  # 正值表示衰减
-		decay_estimate = clamp(decay_estimate, 0.0, 1.0)
+	for S in S_candidates:
+		for a in a_candidates:
+			if a < 0.01:
+				continue
+			var total_error = 0.0
+			for i in range(times.size()):
+				var t = times[i]
+				var observed_gain = gains[i]
+				# 理论收益: G(t) = (S/a)[1 - exp(-at)]
+				var predicted_gain = (S / a) * (1.0 - exp(-a * t))
+				var error = pow(observed_gain - predicted_gain, 2)
+				total_error += error
+			
+			if total_error < best_error:
+				best_error = total_error
+				best_S = S
+				best_a = a
 	
-	# 贝叶斯更新（共轭先验简化）
-	# 后验 = 先验 × 似然
+	# 贝叶斯更新：将拟合结果与先验结合
+	# 后验 = 先验 × 似然（使用正态分布共轭先验）
+	
+	# 观测精度（基于拟合误差）
+	var observation_variance_S = clamp(best_error / times.size(), 0.01, 0.25)
+	var observation_variance_a = clamp(best_error / times.size(), 0.01, 0.25)
 	
 	# 更新S的信念
 	var prior_precision_S = 1.0 / belief.S_var
-	var likelihood_precision_S = 1.0 / 0.05  # 观测噪声方差假设为0.05
+	var likelihood_precision_S = 1.0 / observation_variance_S
 	var posterior_var_S = 1.0 / (prior_precision_S + likelihood_precision_S)
 	var posterior_mean_S = posterior_var_S * (
 		prior_precision_S * belief.S_mean + 
-		likelihood_precision_S * observed_S
+		likelihood_precision_S * best_S
 	)
 	
 	belief.S_mean = clamp(posterior_mean_S, 0.0, 1.0)
@@ -142,11 +159,11 @@ static func _update_beliefs(agent_name: String, room_name: String) -> void:
 	
 	# 更新a的信念
 	var prior_precision_a = 1.0 / belief.a_var
-	var likelihood_precision_a = 1.0 / 0.05
+	var likelihood_precision_a = 1.0 / observation_variance_a
 	var posterior_var_a = 1.0 / (prior_precision_a + likelihood_precision_a)
 	var posterior_mean_a = posterior_var_a * (
 		prior_precision_a * belief.a_mean + 
-		likelihood_precision_a * decay_estimate
+		likelihood_precision_a * best_a
 	)
 	
 	belief.a_mean = clamp(posterior_mean_a, 0.0, 1.0)

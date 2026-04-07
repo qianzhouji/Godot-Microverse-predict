@@ -1226,9 +1226,60 @@ func _add_memory(target_character, content: String):
 	MemoryManager.add_memory(target_character, content, MemoryManager.MemoryType.PERSONAL, MemoryManager.MemoryImportance.NORMAL)
 
 # ============================================
-# MVT决策(保留,后续添加)
+# MVT决策：检查是否应该离开当前情境
 # ============================================
 func _check_mvt_leave_decision(room_name: String, time_in_room: float,
-							   personality: Dictionary, is_depression: bool):
-	# TODO: 从原AIAgent保留此函数
-	pass
+							   personality: Dictionary, is_depression: bool) -> Dictionary:
+	"""
+	使用MVT理论检查是否应该离开当前情境
+	
+	返回:
+		{
+			"should_leave": bool,      # 是否应该离开
+			"optimal_time": float,     # 建议的最优停留时间
+			"current_time": float,     # 当前已停留时间
+			"reason": String           # 决策原因
+		}
+	"""
+	# 获取认知参数
+	var params = UtilitySystem.get_agent_utility_params(personality)
+	var p_base = params.p_base
+	var eta_s = params.eta_s
+	var eta_a = params.eta_a
+	var beta_effort = params.beta_effort
+	var alpha = params.alpha
+	
+	# 获取当前情境的感知参数
+	var perceived_params = PerceptionSystem.get_perceived_params(
+		character.name, room_name, is_depression
+	)
+	var perceived_S = perceived_params.S
+	var perceived_a = perceived_params.a
+	
+	# 获取当前情境的努力成本（从RewardSystem获取）
+	var effort = 0.5  # 默认值
+	if RewardSystem.instance:
+		var room_data = RewardSystem.instance._get_room_objective_params(room_name)
+		effort = room_data.get("E", 0.5)
+	
+	# 使用MVT公式计算最优停留时间
+	var optimal_time = UtilitySystem.calculate_optimal_time(
+		perceived_S, perceived_a, effort, alpha, beta_effort, p_base, eta_s, eta_a
+	)
+	
+	# 决策：如果当前时间 >= 最优时间，建议离开
+	var should_leave = time_in_room >= optimal_time
+	
+	var reason = ""
+	if should_leave:
+		reason = "已停留%.1f秒，达到MVT预测的最优时间(%.1f秒)，继续停留的边际收益将低于背景奖励率" % [time_in_room, optimal_time]
+	else:
+		var remaining = optimal_time - time_in_room
+		reason = "已停留%.1f秒，距离MVT预测的最优时间还有%.1f秒" % [time_in_room, remaining]
+	
+	return {
+		"should_leave": should_leave,
+		"optimal_time": optimal_time,
+		"current_time": time_in_room,
+		"reason": reason
+	}

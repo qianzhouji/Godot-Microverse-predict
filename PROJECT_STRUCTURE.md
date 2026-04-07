@@ -79,13 +79,15 @@ res://
 - **职责**: 贝叶斯感知系统，管理Agent对情境的主观推断
 - **核心功能**:
   - 维护Agent对每个情境的信念状态
-  - 贝叶斯更新后验信念
+  - 贝叶斯更新后验信念（使用非线性最小二乘拟合理论收益函数）
   - 先验信念差异（健康vs抑郁）
 - **关键参数**:
   - `BASE_PERCEPTION_NOISE = 0.02` - 极小的感知噪声（标准差2%）
   - 健康Agent先验: S~Uniform(0.5, 0.25)
   - 抑郁Agent先验: S~Uniform(0.3, 0.15)
-- **理论依据**: 感知层噪声仅表示轻微不确定性，主要噪声在决策层（ε）
+- **理论依据**: 
+  - 感知层噪声仅表示轻微不确定性，主要噪声在决策层（ε）
+  - 信念更新使用非线性拟合: `G(t) = (S/a)[1 - exp(-at)]`
 
 #### UtilitySystem.gd
 - **路径**: `res://script/ai/UtilitySystem.gd`
@@ -93,11 +95,14 @@ res://
 - **职责**: 效用计算系统，实现MVT决策
 - **核心功能**:
   - 计算主观效用: U = G^α - β_effort × E
-  - 计算最优停留时间 T*
-  - 管理个体差异参数
+  - 计算最优停留时间 T*（使用理论解析公式）
+  - 管理个体差异参数（四个MVT核心参数）
+- **关键公式**:
+  - 主观效用: `U(G) = G^α - β_effort × E`
+  - 最优停留时间: `log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε`
 - **关键参数**:
-  - 健康Agent: α=0.8, β_effort=0.4
-  - 抑郁Agent: α=0.55, β_effort=0.8
+  - 健康Agent: α=0.8, β_effort=0.4, ρ_base=0.5, η_s=0.5, η_a=0.5
+  - 抑郁Agent: α=0.55, β_effort=0.8, ρ_base=0.35, η_s=0.4, η_a=0.7
 
 #### AgentRewardReceiver.gd ⭐ 新增
 - **路径**: `res://script/ai/AgentRewardReceiver.gd`
@@ -657,6 +662,23 @@ AIAgent (新决策)
 - **API配置**: APIConfig.gd统一管理
 - **故障回退**: API失败时自动使用默认决策
 
+### 2026-04-07 - MVT公式修正
+
+#### 上午：MVT理论公式实现修正
+- ✅ 修正 UtilitySystem.gd
+  - 重写 `calculate_optimal_time()` 使用理论解析公式：`log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε`
+  - 更新 `get_agent_utility_params()` 返回全部四个MVT核心参数（ρ_base, η_s, η_a, β_effort）
+  - 更新 `get_utility_params_description()` 添加MVT参数描述
+  - 更新 `get_decision_analysis()` 集成MVT建议停留时间
+- ✅ 修正 AIAgent.gd
+  - 实现 `_check_mvt_leave_decision()` 完整MVT离开决策检查
+- ✅ 修正 PerceptionSystem.gd
+  - 重写 `_update_beliefs()` 使用非线性最小二乘拟合理论收益函数 `G(t) = (S/a)[1 - exp(-at)]`
+  - 替代原来的线性近似
+- ✅ 更新项目文档
+  - 更新 README.md 中的MVT公式说明
+  - 更新 PROJECT_STRUCTURE.md 中的实现描述
+
 ---
 
-*本文档由AI助手百舟楫维护，最后更新：2026-04-05*
+*本文档由AI助手百舟楫维护，最后更新：2026-04-07*

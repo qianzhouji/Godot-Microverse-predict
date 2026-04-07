@@ -27,53 +27,74 @@ static func calculate_utility(gain: float, effort: float,
 	return utility
 
 # 计算感知最优停留时间（MVT）
-# 使用感知到的参数而非客观参数
+# 使用理论公式：log(T) = log[ηS · log(S) − log(ρbase) − βeffort · effort] − ηa · log(a) + ε
+# 其中 ε 为随机噪声，用 randfn(0, 0.1) 模拟
 static func calculate_optimal_time(perceived_S: float, perceived_a: float,
 								   effort: float, alpha: float, beta_effort: float,
-								   p_base: float, time_step: float = 1.0) -> float:
-	if perceived_a < 0.01:
-		perceived_a = 0.01
+								   p_base: float, eta_s: float = 0.5, eta_a: float = 0.5,
+								   time_step: float = 1.0) -> float:
+	# 确保参数在有效范围内
+	if perceived_S <= 0.01:
+		perceived_S = 0.01
+	if perceived_a < 0.001:
+		perceived_a = 0.001
+	if p_base <= 0.01:
+		p_base = 0.01
+	if eta_s <= 0.01:
+		eta_s = 0.01
+	if eta_a <= 0.01:
+		eta_a = 0.01
 	
-	var max_time = 60.0  # 最大停留时间（秒）
-	var best_time = 0.0
-	var best_utility_rate = -999999.0
+	# 理论公式：log(T) = log[ηS · log(S)] − log(ρbase) − βeffort · effort − ηa · log(a) + ε
+	# 注意：原公式中的减号，这里分解为各项
 	
-	# 遍历可能的时间点，找到效用速率最大的
-	for t in range(1, int(max_time / time_step) + 1):
-		var time = t * time_step
-		
-		# 预测收益（用感知参数）
-		var predicted_gain = (perceived_S / perceived_a) * (1.0 - exp(-perceived_a * time))
-		
-		# 计算效用
-		var utility = calculate_utility(predicted_gain, effort, alpha, beta_effort)
-		
-		# 效用速率（考虑时间成本）
-		var utility_rate = utility / time
-		
-		# 检查是否优于当前最优
-		if utility_rate > best_utility_rate:
-			best_utility_rate = utility_rate
-			best_time = time
-		
-		# 如果效用开始下降，提前终止
-		if t > 5 and utility_rate < best_utility_rate * 0.8:
-			break
+	# 项1: log[ηS · log(S)]
+	var term1 = log(eta_s * log(perceived_S))
 	
-	return best_time
+	# 项2: − log(ρbase)
+	var term2 = -log(p_base)
+	
+	# 项3: − βeffort · effort
+	var term3 = -beta_effort * effort
+	
+	# 项4: − ηa · log(a)
+	var term4 = -eta_a * log(perceived_a)
+	
+	# 项5: ε (随机噪声，标准差0.1)
+	var epsilon = randfn(0.0, 0.1)
+	
+	# 计算 log(T)
+	var log_T = term1 + term2 + term3 + term4 + epsilon
+	
+	# 计算 T = exp(log_T)
+	var optimal_time = exp(log_T)
+	
+	# 限制在合理范围内 (1-60秒)
+	optimal_time = clamp(optimal_time, 1.0, 60.0)
+	
+	return optimal_time
 
-# 获取Agent的效用参数
+# 获取Agent的效用参数（包含全部四个MVT核心参数）
 static func get_agent_utility_params(personality: Dictionary) -> Dictionary:
 	var is_depression_risk = personality.get("role_type", "") == "depression_risk_student"
 	
 	var alpha = DEFAULT_ALPHA
 	var beta_effort = DEFAULT_BETA_EFFORT
+	var p_base = 0.5      # 离开阈值（环境平均奖赏率估计）
+	var eta_s = 0.5       # 初始奖赏感知权重
+	var eta_a = 0.5       # 衰减率感知权重
 	
 	# 从角色配置中读取（如果有）
 	if personality.has("cognitive_mechanism"):
 		var cm = personality["cognitive_mechanism"]
 		if cm.has("beta_effort"):
 			beta_effort = cm["beta_effort"]
+		if cm.has("p_base"):
+			p_base = cm["p_base"]
+		if cm.has("eta_s"):
+			eta_s = cm["eta_s"]
+		if cm.has("eta_a"):
+			eta_a = cm["eta_a"]
 		# alpha参数可以从配置读取，或使用默认值
 		if cm.has("alpha"):
 			alpha = cm["alpha"]
@@ -84,10 +105,16 @@ static func get_agent_utility_params(personality: Dictionary) -> Dictionary:
 		if is_depression_risk:
 			alpha = DEPRESSION_ALPHA
 			beta_effort = DEPRESSION_BETA_EFFORT
+			p_base = 0.35   # 抑郁Agent：较低的离开阈值
+			eta_s = 0.4     # 抑郁Agent：对初始奖赏较不敏感
+			eta_a = 0.7     # 抑郁Agent：高估衰减速度
 	
 	return {
 		"alpha": alpha,
 		"beta_effort": beta_effort,
+		"p_base": p_base,
+		"eta_s": eta_s,
+		"eta_a": eta_a,
 		"is_depression_risk": is_depression_risk
 	}
 
@@ -96,6 +123,9 @@ static func get_utility_params_description(personality: Dictionary) -> String:
 	var params = get_agent_utility_params(personality)
 	var alpha = params.alpha
 	var beta_effort = params.beta_effort
+	var p_base = params.p_base
+	var eta_s = params.eta_s
+	var eta_a = params.eta_a
 	var is_depression = params.is_depression_risk
 	
 	var desc = "\n\n【你的效用评估方式】"
@@ -121,6 +151,34 @@ static func get_utility_params_description(personality: Dictionary) -> String:
 		desc += "【中等努力敏感】你会考虑努力成本，但不会因此完全回避"
 	else:
 		desc += "【低努力敏感】你不太在意付出的努力成本，愿意为目标付出"
+	
+	# MVT核心参数描述
+	desc += "\n\n【你的停留时间决策方式（MVT模型）】"
+	desc += "\n你会根据以下认知参数决定在一个情境中停留多久："
+	
+	desc += "\n- 离开阈值（ρbase=%.2f）：" % p_base
+	if p_base < 0.4:
+		desc += "你对环境平均奖赏的估计较低，容易满足，倾向于提前离开"
+	elif p_base > 0.6:
+		desc += "你对环境平均奖赏的估计较高，不容易满足，倾向于停留更久"
+	else:
+		desc += "中等水平"
+	
+	desc += "\n- 初始奖赏感知权重（ηS=%.2f）：" % eta_s
+	if eta_s < 0.4:
+		desc += "你对情境初始丰富度不太敏感"
+	elif eta_s > 0.6:
+		desc += "你对情境初始丰富度很敏感，会根据第一印象快速调整"
+	else:
+		desc += "中等水平"
+	
+	desc += "\n- 衰减率感知权重（ηa=%.2f）：" % eta_a
+	if eta_a < 0.4:
+		desc += "你对奖赏消耗速度不太敏感"
+	elif eta_a > 0.6:
+		desc += "你对奖赏消耗速度很敏感，容易觉得'没劲了'而提前离开"
+	else:
+		desc += "中等水平"
 	
 	# 举例说明
 	desc += "\n\n【举例说明】"
@@ -160,6 +218,9 @@ static func get_decision_analysis(current_room_params: Dictionary,
 	var params = get_agent_utility_params(personality)
 	var alpha = params.alpha
 	var beta_effort = params.beta_effort
+	var p_base = params.p_base
+	var eta_s = params.eta_s
+	var eta_a = params.eta_a
 	
 	var desc = "\n\n【当前决策分析】"
 	
@@ -172,11 +233,16 @@ static func get_decision_analysis(current_room_params: Dictionary,
 	var predicted_gain = (current_S / max(current_a, 0.01)) * (1.0 - exp(-current_a * 10))
 	var current_utility = calculate_utility(predicted_gain, current_effort, alpha, beta_effort)
 	
+	# 使用MVT公式计算建议停留时间
+	var optimal_time = calculate_optimal_time(current_S, current_a, current_effort, 
+											  alpha, beta_effort, p_base, eta_s, eta_a)
+	
 	desc += "\n当前情境（停留约10秒的预期）："
 	desc += "\n- 感知初始收益：%.0f%%" % (current_S * 100)
 	desc += "\n- 努力成本：%.0f%%" % (current_effort * 100)
 	desc += "\n- 预期收益：%.2f" % predicted_gain
 	desc += "\n- 主观效用：%.2f" % current_utility
+	desc += "\n- MVT建议停留时间：%.1f秒" % optimal_time
 	
 	if current_utility < 0:
 		desc += "\n→ 效用为负，继续停留会让你感到不值得"
@@ -194,8 +260,14 @@ static func get_decision_analysis(current_room_params: Dictionary,
 			var opt_name = option.get("name", "未知")
 			var opt_utility = calculate_utility(opt_gain, opt_effort, alpha, beta_effort)
 			
-			desc += "\n- %s：预期收益%.2f，努力%.0f%%，效用%.2f" % [
-				opt_name, opt_gain, opt_effort * 100, opt_utility
+			# 计算该选项的建议停留时间
+			var opt_S = option.get("S", 0.5)
+			var opt_a = option.get("a", 0.5)
+			var opt_time = calculate_optimal_time(opt_S, opt_a, opt_effort,
+												  alpha, beta_effort, p_base, eta_s, eta_a)
+			
+			desc += "\n- %s：预期收益%.2f，努力%.0f%%，效用%.2f，建议停留%.1f秒" % [
+				opt_name, opt_gain, opt_effort * 100, opt_utility, opt_time
 			]
 			if opt_utility > current_utility:
 				desc += " 【更优选项】"

@@ -2,7 +2,7 @@
 
 > 本文档用于维护项目的代码实现逻辑，记录各模块的职责、交互方式及与理论框架的对应关系。
 > 
-> **最后更新：** 2026-04-05
+> **最后更新：** 2026-04-07
 
 ---
 
@@ -153,9 +153,11 @@ const DEPRESSION_PRIOR_S_VAR = 0.15
 | `get_perceived_params()` | 输出感知到的情境参数(Ŝ, â) |
 | `predict_gain()` | 基于信念预测未来收益 |
 
-**当前局限：**
-- 贝叶斯更新使用简化线性回归
-- 理论上应拟合 `G(t) = (S/a)[1 - exp(-at)]`
+**实现更新（2026-04-07）**：
+- ✅ 贝叶斯更新已使用非线性最小二乘拟合理论收益函数
+- 拟合公式：`G(t) = (S/a)[1 - exp(-at)]`
+- 通过网格搜索找到最优的 S 和 a 参数
+- 后验 = 先验 × 似然（正态分布共轭先验）
 
 ---
 
@@ -180,13 +182,28 @@ const DEPRESSION_ALPHA = 0.55       # 抑郁Agent（收益贬值）
 const DEPRESSION_BETA_EFFORT = 0.8  # 抑郁Agent（努力放大）
 ```
 
-**最优停留时间计算：**
+**最优停留时间计算（2026-04-07更新）：**
 ```gdscript
 static func calculate_optimal_time(perceived_S, perceived_a, effort, 
-                                   alpha, beta_effort, p_base):
-    # 离散搜索最优时间（当前实现）
-    # 理论上应解析求解：g(T) = R_B(T)
+                                   alpha, beta_effort, p_base, eta_s, eta_a):
+    # 使用理论解析公式：
+    # log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
+    
+    var term1 = log(eta_s * log(perceived_S))      # log[ηS·log(S)]
+    var term2 = -log(p_base)                        # −log(ρbase)
+    var term3 = -beta_effort * effort               # −βeffort·effort
+    var term4 = -eta_a * log(perceived_a)           # −ηa·log(a)
+    var epsilon = randfn(0.0, 0.1)                  # ε (随机噪声)
+    
+    var log_T = term1 + term2 + term3 + term4 + epsilon
+    var optimal_time = exp(log_T)
+    return clamp(optimal_time, 1.0, 60.0)
 ```
+
+**公式说明：**
+- 完全对应理论文档中的MVT停留时间预测公式
+- 包含全部四个核心认知参数：ρ_base, η_s, η_a, β_effort
+- ε 为决策层随机噪声（标准差0.1）
 
 ---
 
@@ -202,18 +219,29 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
 4. 执行行为（移动/对话/任务）
 ```
 
-**与理论框架的差距：**
+**与理论框架的实现（2026-04-07更新）：**
 - ✅ 感知参数已注入Prompt
 - ✅ 效用参数已注入Prompt
-- ❌ **MVT计算结果未直接驱动行为**
-- ❌ `_get_perceived_optimal_time()` 定义但未调用
+- ✅ **MVT计算结果直接驱动行为** - `_check_mvt_leave_decision()` 已实现
+- ✅ 使用理论解析公式计算最优停留时间
 
-**关键待实现：**
+**已实现（2026-04-07）：**
 ```gdscript
-# 应该在决策循环中调用：
-var optimal_time = _get_perceived_optimal_time(room_name)
-if time_in_room >= optimal_time:
-    leave_current_room()  # MVT驱动离开
+# _check_mvt_leave_decision() 已实现完整MVT决策逻辑
+func _check_mvt_leave_decision(room_name, time_in_room, personality, is_depression):
+    var params = UtilitySystem.get_agent_utility_params(personality)
+    var optimal_time = UtilitySystem.calculate_optimal_time(
+        perceived_S, perceived_a, effort, 
+        params.alpha, params.beta_effort, 
+        params.p_base, params.eta_s, params.eta_a
+    )
+    
+    var should_leave = time_in_room >= optimal_time
+    return {
+        "should_leave": should_leave,
+        "optimal_time": optimal_time,
+        "reason": "MVT预测的最优停留时间"
+    }
 ```
 
 ---
@@ -458,13 +486,13 @@ CharacterController执行移动/交互
 | 情境参数(S,a,E) | ✅ | RoomArea.gd | 完整实现 |
 | 客观收益函数G(t) | ✅ | RewardSystem.gd ⭐ | 系统层计算 |
 | **感知层与系统层分离** | ✅ | 多层协作 ⭐ | **2026-04-05完成** |
-| 贝叶斯感知系统 | ⚠️ | PerceptionSystem.gd | 简化实现 |
+| 贝叶斯感知系统 | ✅ | PerceptionSystem.gd ⭐ | 非线性拟合实现 |
 | 先验信念差异 | ✅ | PerceptionSystem.gd | 健康vs抑郁 |
 | 感知噪声 | ✅ | PerceptionSystem.gd ⭐ | σ=2%，极小噪声 |
 | 效用函数U=G^α-βE | ✅ | UtilitySystem.gd | 完整实现 |
 | 参数个体差异 | ✅ | CharacterPersonality.gd | α和β差异 |
-| MVT最优时间计算 | ⚠️ | UtilitySystem.gd | 离散搜索非解析解 |
-| **MVT驱动行为决策** | ✅ | AIAgent.gd ⭐ | **2026-04-05实现** |
+| MVT最优时间计算 | ✅ | UtilitySystem.gd ⭐ | 理论解析公式实现 |
+| **MVT驱动行为决策** | ✅ | AIAgent.gd ⭐ | **2026-04-07实现** |
 | PHQ-9动态追踪 | ⚠️ | DynamicPersonality.gd | 有变量未完整集成 |
 | 记忆系统 | ✅ | MemoryManager.gd | 完整实现 |
 
@@ -505,28 +533,10 @@ CharacterController执行移动/交互
    - 完善抑郁水平的动态更新
    - 与行为反馈（任务成功/失败）关联
 
-2. **贝叶斯更新优化**
-   - 将线性回归改为非线性拟合
-   - 拟合真实的 `G(t) = (S/a)[1 - exp(-at)]`
-
 ### 低优先级
-3. **MVT解析解计算**
-   - 当前离散搜索效率较低
-   - 可改为解析求解最优时间
-
-### 中优先级
-3. **PHQ-9每日自评机制**
-   - 完善抑郁水平的动态更新
-   - 与行为反馈（任务成功/失败）关联
-
-4. **贝叶斯更新优化**
-   - 将线性回归改为非线性拟合
-   - 拟合真实的 `G(t) = (S/a)[1 - exp(-at)]`
-
-### 低优先级
-5. **MVT解析解计算**
-   - 当前离散搜索效率较低
-   - 可改为解析求解最优时间
+2. **性能优化**
+   - API调用批处理
+   - 决策缓存机制
 
 ---
 
@@ -591,9 +601,9 @@ res://
 ### 认知机制参数（CharacterPersonality）
 | 参数 | 健康Agent | 抑郁Agent | 功能 |
 |------|----------|----------|------|
-| p_base | 0.5-0.6 | 0.3-0.4 | 离开阈值 |
-| η_s | 0.5-0.7 | 异常 | 初始奖赏感知权重 |
-| η_a | 0.5 | ↑ | 衰减率感知权重 |
+| ρ_base | 0.5-0.6 | 0.3-0.4 | 离开阈值（环境平均奖赏率估计）|
+| η_s | 0.5 | 0.4 | 初始奖赏感知权重 |
+| η_a | 0.5 | 0.7 | 衰减率感知权重 |
 | α | 0.8 | 0.5-0.6 | 收益敏感性 |
 | β_effort | 0.4 | 0.8 | 努力敏感性（核心差异）|
 
@@ -602,6 +612,24 @@ res://
 ---
 
 ## 八、最近更新记录
+
+### 2026-04-07 MVT公式修正
+
+#### 上午：MVT理论公式实现修正
+- ✅ **修正 UtilitySystem.gd**
+  - 重写 `calculate_optimal_time()` 使用理论解析公式：`log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε`
+  - 更新 `get_agent_utility_params()` 返回全部四个MVT核心参数（ρ_base, η_s, η_a, β_effort）
+  - 更新 `get_utility_params_description()` 添加MVT参数描述
+  - 更新 `get_decision_analysis()` 集成MVT建议停留时间
+- ✅ **修正 AIAgent.gd**
+  - 实现 `_check_mvt_leave_decision()` 完整MVT离开决策检查
+- ✅ **修正 PerceptionSystem.gd**
+  - 重写 `_update_beliefs()` 使用非线性最小二乘拟合理论收益函数 `G(t) = (S/a)[1 - exp(-at)]`
+  - 替代原来的线性近似
+- ✅ **更新项目文档**
+  - 更新 README.md 中的MVT公式说明
+  - 更新 PROJECT_STRUCTURE.md 中的实现描述
+  - 更新 IMPLEMENTATION_LOGIC.md（本文档）
 
 ### 2026-04-05 重大更新日
 
@@ -636,4 +664,47 @@ res://
 
 ---
 
+## 九、MVT公式实现速查（2026-04-07）
+
+### 9.1 客观收益函数（RewardSystem.gd）
+```gdscript
+# G(t) = (S/a)[1 - exp(-at)]
+func _calculate_objective_gain(S: float, a: float, time: float) -> float:
+    var gain = (S / a) * (1.0 - exp(-a * time))
+    return clamp(gain, 0.0, 1.0)
+```
+
+### 9.2 主观效用函数（UtilitySystem.gd）
+```gdscript
+# U(G) = G^α - β_effort × E
+static func calculate_utility(gain: float, effort: float, 
+                              alpha: float, beta_effort: float) -> float:
+    var gain_utility = pow(max(gain, 0.0), alpha)
+    var effort_cost = beta_effort * effort
+    return gain_utility - effort_cost
+```
+
+### 9.3 最优停留时间公式（UtilitySystem.gd）
+```gdscript
+# log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
+static func calculate_optimal_time(perceived_S, perceived_a, effort,
+                                   alpha, beta_effort, p_base, eta_s, eta_a):
+    var term1 = log(eta_s * log(perceived_S))
+    var term2 = -log(p_base)
+    var term3 = -beta_effort * effort
+    var term4 = -eta_a * log(perceived_a)
+    var epsilon = randfn(0.0, 0.1)
+    var log_T = term1 + term2 + term3 + term4 + epsilon
+    return clamp(exp(log_T), 1.0, 60.0)
+```
+
+### 9.4 信念更新（PerceptionSystem.gd）
+```gdscript
+# 使用非线性最小二乘拟合 G(t) = (S/a)[1 - exp(-at)]
+# 网格搜索最优 S 和 a，然后贝叶斯更新
+```
+
+---
+
 *本文档应与PROJECT_OVERVIEW.md（理论基础）同步维护。*
+*最后更新：2026-04-07*
