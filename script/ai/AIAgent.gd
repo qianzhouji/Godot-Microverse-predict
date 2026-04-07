@@ -148,8 +148,8 @@ func _perceive() -> Dictionary:
 	if current_room_area:
 		perception.current_room = current_room_area.room_name
 
-	# 2. 获取同场景其他Agent
-	perception.nearby_agents = _get_agents_in_same_room()
+	# 2. 获取同场景其他Agent（包含活动状态）
+	perception.nearby_agents = _get_agents_in_same_room_with_status()
 
 	# 3. 获取时间轴约束
 	if TimelineState.instance:
@@ -581,6 +581,13 @@ func _execute_start_dialogue(request: ActionRequest):
 		current_state = AgentState.IDLE
 		return
 
+	# 记录对话对象，用于感知系统显示
+	set_meta("dialogue_partner", request.target_id)
+	
+	# 同时设置对方的对话对象
+	if target_agent.has_method("set_meta"):
+		target_agent.set_meta("dialogue_partner", character.name)
+
 	# 向DialogueManager注册新对话
 	# TODO: DialogueManager.start_dialogue(self, target_agent)
 
@@ -599,6 +606,13 @@ func _execute_start_whisper(request: ActionRequest):
 		print("[AIAgent] %s 开始悄悄话失败:目标不存在" % character.name)
 		current_state = AgentState.IDLE
 		return
+
+	# 记录悄悄话对象，用于感知系统显示
+	set_meta("whisper_partner", request.target_id)
+	
+	# 同时设置对方的悄悄话对象
+	if target_agent.has_method("set_meta"):
+		target_agent.set_meta("whisper_partner", character.name)
 
 	# 向DialogueManager注册悄悄话(私密对话)
 	# TODO: DialogueManager.start_whisper(self, target_agent)
@@ -626,6 +640,10 @@ func _execute_exit_dialogue(request: ActionRequest):
 
 	# 计算对话时长
 	var duration = Time.get_unix_time_from_system() - activity_start_time
+
+	# 清除对话对象记录
+	remove_meta("dialogue_partner")
+	remove_meta("whisper_partner")
 
 	# 向DialogueManager通知退出
 	# TODO: DialogueManager.exit_dialogue(self)
@@ -989,6 +1007,34 @@ func _get_current_room():
 		return null
 	return room_manager.get_current_room(room_manager.rooms, character.global_position)
 
+func _get_agents_in_same_room_with_status() -> Array:
+	"""
+	获取同场景其他Agent列表，包含活动状态
+	
+	返回:
+		Array[Dictionary]: 每个元素包含agent信息和活动状态
+	"""
+	var agents = []
+	var current_room = _get_current_room()
+	if not current_room:
+		return agents
+
+	# 遍历所有AIAgent，筛选在同一房间的
+	var all_agents = get_tree().get_nodes_in_group("ai_agents")
+	for agent in all_agents:
+		if agent != self and agent.character:
+			var agent_room = _get_current_room_at_position(agent.character.global_position)
+			if agent_room == current_room:
+				agents.append({
+					"name": agent.character.name,
+					"position": agent.character.global_position,
+					"state": agent.current_state,
+					"activity": agent.current_activity,
+					"activity_status": _get_character_activity_status(agent.character)
+				})
+	
+	return agents
+
 func _get_agents_in_same_room() -> Array:
 	var agents = []
 	var current_room = _get_current_room()
@@ -1059,8 +1105,9 @@ func _get_all_rooms_description() -> String:
 func _get_characters_in_medium_range_description() -> String:
 	"""
 	获取当前场景内所有角色的精确名称,以及中范围关系
+	同时感知每个角色的活动状态
 
-	按中范围分组显示角色,并标注每个角色所在的具体中范围
+	按中范围分组显示角色,并标注每个角色所在的具体中范围和活动状态
 	"""
 	var desc = "\n\n【场景内角色】"
 
@@ -1088,12 +1135,16 @@ func _get_characters_in_medium_range_description() -> String:
 		var char_personality = CharacterPersonality.get_personality(char.name)
 		var position = char_personality.get("position", "未知职位")
 		var distance = my_pos.distance_to(char_pos)
+		
+		# 获取该角色的活动状态
+		var activity_status = _get_character_activity_status(char)
 
 		var char_info = {
 			"name": char.name,
 			"position": position,
 			"distance": distance,
-			"medium_range": char_medium_range
+			"medium_range": char_medium_range,
+			"activity_status": activity_status
 		}
 
 		if not characters_by_range.has(char_medium_range):
@@ -1104,7 +1155,7 @@ func _get_characters_in_medium_range_description() -> String:
 	if characters_by_range.has(my_medium_range):
 		desc += "\n\n【同一中范围内(可普通对话)】"
 		for char_info in characters_by_range[my_medium_range]:
-			desc += "\n- " + char_info.name + "(" + char_info.position + ")"
+			desc += "\n- " + char_info.name + "(" + char_info.position + ")：" + char_info.activity_status
 
 	# 输出其他中范围的角色
 	var other_ranges = []
@@ -1117,9 +1168,94 @@ func _get_characters_in_medium_range_description() -> String:
 		for range_name in other_ranges:
 			desc += "\n" + range_name + ":"
 			for char_info in characters_by_range[range_name]:
-				desc += "\n  - " + char_info.name + "(" + char_info.position + "),距离约" + str(int(char_info.distance)) + "米"
+				desc += "\n  - " + char_info.name + "(" + char_info.position + "),距离约" + str(int(char_info.distance)) + "米：" + char_info.activity_status
 
 	return desc
+
+func _get_character_activity_status(char_node: Node) -> String:
+	"""
+	获取指定角色的活动状态描述
+	
+	返回:
+		"未在进行活动" 或具体活动描述，如：
+		- "正在移动"
+		- "正在与 XXX 对话"
+		- "正在自习"
+		- "正在进行体育活动"
+		- "正在悄悄话"
+	"""
+	# 获取角色的AIAgent组件
+	var agent = char_node.get_node_or_null("AIAgent")
+	if not agent:
+		return "未在进行活动"
+	
+	# 根据当前状态返回活动描述
+	match agent.current_state:
+		AgentState.IDLE:
+			return "未在进行活动"
+		AgentState.PERCEIVING:
+			return "正在观察周围环境"
+		AgentState.EXPERIENCING:
+			return "正在体验当前活动"
+		AgentState.DECIDING:
+			return "正在思考下一步行动"
+		AgentState.WAITING_FOR_CLICK:
+			return "正在等待时机"
+		AgentState.EXECUTING_ACTION:
+			# 根据当前活动类型返回具体描述
+			return _get_activity_description(agent)
+		AgentState.IN_DIALOGUE:
+			return _get_dialogue_description(agent)
+		AgentState.IN_ACTIVITY:
+			return _get_activity_description(agent)
+		_:
+			return "未在进行活动"
+
+func _get_activity_description(agent: Node) -> String:
+	"""
+	根据Agent的当前活动返回描述
+	"""
+	var activity = agent.current_activity
+	
+	match activity:
+		"移动":
+			return "正在移动"
+		"对话":
+			return _get_dialogue_description(agent)
+		"悄悄话":
+			return _get_whisper_description(agent)
+		"体育活动":
+			return "正在进行体育活动"
+		"自习":
+			return "正在自习"
+		"":
+			return "未在进行活动"
+		_:
+			return "正在" + activity
+
+func _get_dialogue_description(agent: Node) -> String:
+	"""
+	获取对话状态的描述，包括对话对象
+	"""
+	# 尝试从agent获取对话对象信息
+	# 这里假设agent有一个属性存储对话对象名称
+	var dialogue_partner = agent.get_meta("dialogue_partner", "")
+	
+	if dialogue_partner.is_empty():
+		return "正在对话"
+	else:
+		return "正在与 " + dialogue_partner + " 对话"
+
+func _get_whisper_description(agent: Node) -> String:
+	"""
+	获取悄悄话状态的描述，包括对话对象
+	"""
+	var whisper_partner = agent.get_meta("whisper_partner", "")
+	
+	if whisper_partner.is_empty():
+		return "正在悄悄话"
+	else:
+		return "正在与 " + whisper_partner + " 悄悄话"
 
 func get_environment_info() -> String:
 	var environment_info = "这是一所初中学校,有教室、食堂、走廊和体育馆。"
