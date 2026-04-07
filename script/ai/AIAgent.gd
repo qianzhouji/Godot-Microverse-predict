@@ -91,7 +91,7 @@ func _connect_to_timing_system() -> void:
 		push_warning("[AIAgent] %s TimingSystem未找到" % character.name)
 
 # ============================================
-# Click触发回调(核心入口)
+# Click触发回调(核心入口) - 新时序逻辑
 # ============================================
 func _on_click_triggered(game_time: float, day: int, click_num: int):
 	if is_player_controlled:
@@ -99,16 +99,59 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 
 	print("\n[AIAgent] %s 收到Click #%d" % [character.name, click_num])
 
-	# 1. 如果有缓存的请求,执行它
-	if is_waiting_execution and cached_request:
+	# 新时序逻辑：
+	# 1. 如果正在活动中 → 体验(累积奖赏) + 决策(继续/停止/更换)
+	# 2. 如果有缓存请求 → 执行
+	# 3. 否则 → 感知 + 决策(开始新活动)
+	
+	if ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
+		# 正在活动中：体验 + 决策
+		_perform_activity_update()
+	elif is_waiting_execution and cached_request:
+		# 有缓存请求：执行
 		_execute_cached_request()
-		return
-
-	# 2. 否则开始新的感知-体验-决策循环
-	_perform_cognitive_cycle()
+	else:
+		# 空闲状态：感知 + 决策
+		_perform_cognitive_cycle()
 
 # ============================================
-# 认知循环:感知 → 体验 → 决策
+# 活动中更新：体验(累积) + 决策(继续/停止/更换)
+# ============================================
+func _perform_activity_update():
+	print("[AIAgent] %s 活动中更新..." % character.name)
+	
+	# 1. 获取当前活动信息
+	var activity_info = ActivityManager.instance.get_activity_info(character.name)
+	if not activity_info.has_activity:
+		# 活动已结束，回到空闲状态
+		_perform_cognitive_cycle()
+		return
+	
+	# 2. 体验阶段：接收累积奖赏（ActivityManager已在Click时触发RewardSystem）
+	current_state = AgentState.EXPERIENCING
+	var experience_result = _experience_current_activity(activity_info)
+	print("[AIAgent] %s 体验完成: 累计时长%.1f分钟, 收益%.3f" % [
+		character.name,
+		activity_info.duration,
+		experience_result.get("cumulative_gain", 0.0)
+	])
+	
+	# 3. 感知阶段（更新环境信息）
+	current_state = AgentState.PERCEIVING
+	var perception = _perceive()
+	# 添加活动信息到感知
+	perception["current_activity"] = activity_info
+	
+	# 4. 决策阶段：继续/停止/更换活动
+	current_state = AgentState.DECIDING
+	var decision = await _make_activity_decision(perception, activity_info, experience_result)
+	print("[AIAgent] %s 活动决策: %s" % [character.name, decision.get("decision_type", "unknown")])
+	
+	# 5. 执行决策
+	_execute_activity_decision(decision, activity_info)
+
+# ============================================
+# 认知循环:感知 → 体验 → 决策（空闲状态）
 # ============================================
 func _perform_cognitive_cycle():
 	# 1. 感知阶段
@@ -195,6 +238,40 @@ func _experience(previous_activity: String) -> float:
 	return perceived_gain
 
 # ============================================
+# 体验当前活动（新时序逻辑）
+# ============================================
+func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
+	# 从奖赏接收器获取最近接收的奖赏（ActivityManager已在Click时触发）
+	if not reward_receiver:
+		return {"cumulative_gain": 0.0, "perceived_gain": 0.0}
+	
+	var last_reward = reward_receiver.get_last_reward()
+	if last_reward.is_empty():
+		return {"cumulative_gain": 0.0, "perceived_gain": 0.0}
+	
+	var objective_gain = last_reward.get("gain", 0.0)
+	var perceived_gain = last_reward.get("perceived_gain", 0.0)
+	var room_name = last_reward.get("room", "")
+	
+	# 贝叶斯更新已在AgentRewardReceiver中自动完成
+	var personality = _get_personality()
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	
+	var perceived_params = PerceptionSystem.get_perceived_params(
+		character.name,
+		room_name,
+		is_depression
+	)
+	
+	return {
+		"cumulative_gain": objective_gain,
+		"perceived_gain": perceived_gain,
+		"room_name": room_name,
+		"perceived_params": perceived_params,
+		"activity_duration": activity_info.get("duration", 0.0)
+	}
+
+# ============================================
 # 决策阶段(新增)
 # ============================================
 func _make_decision(perception: Dictionary) -> ActionRequest:
@@ -214,6 +291,162 @@ func _make_decision(perception: Dictionary) -> ActionRequest:
 
 	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
 	return request
+
+# ============================================
+# 活动决策（继续/停止/更换）- 新时序逻辑
+# ============================================
+func _make_activity_decision(perception: Dictionary, activity_info: Dictionary, experience: Dictionary) -> Dictionary:
+	print("[AIAgent] %s 进行活动决策..." % character.name)
+	
+	var personality = _get_personality()
+	var is_depression = personality.get("role_type", "") == "depression_risk_student"
+	
+	# 获取MVT决策建议
+	var room_name = experience.get("room_name", "")
+	var current_duration = experience.get("activity_duration", 0.0)
+	var perceived_params = experience.get("perceived_params", {})
+	var perceived_S = perceived_params.get("S", 0.5)
+	var perceived_a = perceived_params.get("a", 0.5)
+	
+	# 获取效用参数
+	var utility_params = UtilitySystem.get_agent_utility_params(personality)
+	var p_base = utility_params.p_base
+	var eta_s = utility_params.eta_s
+	var eta_a = utility_params.eta_a
+	var beta_effort = utility_params.beta_effort
+	var alpha = utility_params.alpha
+	
+	# 获取努力成本
+	var effort = 0.5
+	if RewardSystem.instance and not room_name.is_empty():
+		var room_data = RewardSystem.instance._get_room_objective_params(room_name)
+		effort = room_data.get("E", 0.5)
+	
+	# 计算MVT最优停留时间
+	var optimal_time = UtilitySystem.calculate_optimal_time(
+		perceived_S, perceived_a, effort, alpha, beta_effort, p_base, eta_s, eta_a
+	)
+	
+	# 决策逻辑
+	var decision_type = "continue"  # 默认继续
+	var reason = ""
+	
+	if current_duration >= optimal_time:
+		# 已达到最优时间，建议离开
+		decision_type = "stop"
+		reason = "已停留%.1f分钟，达到MVT预测的最优时间(%.1f分钟)" % [current_duration, optimal_time]
+	else:
+		# 检查是否有更好的替代选项
+		var remaining = optimal_time - current_duration
+		var alternative = _check_better_alternative(perception, experience)
+		
+		if alternative.has_alternative and alternative.utility_diff > 0.2:
+			decision_type = "switch"
+			reason = "发现更优选项：%s（效用差%.2f）" % [alternative.name, alternative.utility_diff]
+		else:
+			decision_type = "continue"
+			reason = "已停留%.1f分钟，距离最优时间还有%.1f分钟" % [current_duration, remaining]
+	
+	# 构建决策Prompt让LLM确认
+	var prompt = _build_activity_decision_prompt(perception, activity_info, experience, decision_type, reason)
+	var response = await _call_local_llm(prompt)
+	var llm_decision = _parse_activity_decision_response(response, decision_type)
+	
+	return {
+		"decision_type": llm_decision.decision_type,
+		"reason": llm_decision.reason,
+		"mvt_suggestion": decision_type,
+		"mvt_reason": reason,
+		"optimal_time": optimal_time,
+		"current_duration": current_duration,
+		"target_action": llm_decision.target_action
+	}
+
+# 检查是否有更好的替代选项
+func _check_better_alternative(perception: Dictionary, experience: Dictionary) -> Dictionary:
+	# TODO: 实现替代选项检查
+	return {"has_alternative": false, "utility_diff": 0.0, "name": ""}
+
+# 构建活动决策Prompt
+func _build_activity_decision_prompt(perception: Dictionary, activity_info: Dictionary, 
+									experience: Dictionary, mvt_suggestion: String, mvt_reason: String) -> String:
+	var prompt = "你是" + character.name + "，正在进行" + activity_info.get("activity_name", "活动") + "。\n\n"
+	
+	prompt += "【当前活动状态】\n"
+	prompt += "- 活动类型：" + activity_info.get("activity_name", "未知") + "\n"
+	prompt += "- 已持续时间：%.1f分钟\n" % experience.get("activity_duration", 0.0)
+	prompt += "- 累积收益：%.3f\n" % experience.get("cumulative_gain", 0.0)
+	
+	var params = experience.get("perceived_params", {})
+	prompt += "- 感知情境收益：%.0f%%\n" % (params.get("S", 0.5) * 100)
+	prompt += "- 感知衰减速度：%.0f%%\n" % (params.get("a", 0.5) * 100)
+	
+	prompt += "\n【MVT模型建议】\n"
+	prompt += mvt_reason + "\n"
+	prompt += "建议：" + ("继续当前活动" if mvt_suggestion == "continue" else 
+					("停止活动" if mvt_suggestion == "stop" else "更换活动")) + "\n"
+	
+	prompt += "\n【当前环境】\n"
+	prompt += "- 当前场景：" + perception.get("current_room", "未知") + "\n"
+	prompt += "- 附近角色：" + str(perception.get("nearby_agents", []).size()) + "人\n"
+	
+	prompt += "\n请决定：\n"
+	prompt += "1. CONTINUE - 继续当前活动\n"
+	prompt += "2. STOP - 停止当前活动，转为空闲\n"
+	prompt += "3. SWITCH - 更换为其他活动\n"
+	prompt += "\n请以JSON格式输出：{\"decision\": \"CONTINUE/STOP/SWITCH\", \"reason\": \"...\", \"target_action\": \"...\"}"
+	
+	return prompt
+
+# 解析活动决策响应
+func _parse_activity_decision_response(response: String, default_decision: String) -> Dictionary:
+	var json_text = _extract_json_from_text(response)
+	var json = JSON.new()
+	var parse_result = json.parse(json_text)
+	
+	if parse_result != OK:
+		return {"decision_type": default_decision, "reason": "解析失败，使用默认决策", "target_action": ""}
+	
+	var data = json.get_data()
+	var decision = data.get("decision", default_decision).to_lower()
+	
+	return {
+		"decision_type": decision,
+		"reason": data.get("reason", ""),
+		"target_action": data.get("target_action", "")
+	}
+
+# 执行活动决策
+func _execute_activity_decision(decision: Dictionary, activity_info: Dictionary):
+	var decision_type = decision.get("decision_type", "continue")
+	
+	match decision_type:
+		"continue":
+			# 继续当前活动，无需操作
+			print("[AIAgent] %s 继续当前活动" % character.name)
+			current_state = AgentState.IN_ACTIVITY
+			
+		"stop":
+			# 停止当前活动
+			print("[AIAgent] %s 停止活动" % character.name)
+			if ActivityManager.instance:
+				ActivityManager.instance.end_activity(character.name, "MVT决策：达到最优时间")
+			current_state = AgentState.IDLE
+			last_activity = activity_info.get("activity_name", "")
+			
+			# 停止后需要新的决策周期
+			_perform_cognitive_cycle()
+			
+		"switch":
+			# 更换活动
+			print("[AIAgent] %s 更换活动" % character.name)
+			if ActivityManager.instance:
+				ActivityManager.instance.end_activity(character.name, "更换活动")
+			current_state = AgentState.IDLE
+			last_activity = activity_info.get("activity_name", "")
+			
+			# 更换活动需要新的决策
+			_perform_cognitive_cycle()
 
 # ============================================
 # 调用本地部署的大模型API

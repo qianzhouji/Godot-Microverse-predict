@@ -63,13 +63,16 @@ res://
 - **类型**: Node
 - **职责**: Agent决策中枢，协调感知、效用、记忆系统
 - **核心功能**:
-  - 体验采样定时触发（每5秒）
+  - **新时序逻辑**: 每次Click触发体验(累积) + 决策(继续/停止/更换)
   - MVT驱动行为决策（离开/停留/切换情境）
   - LLM-based对话生成
-  - 任务管理与执行
-- **依赖**: PerceptionSystem, UtilitySystem, RewardSystem, AgentRewardReceiver
+  - 活动生命周期管理
+- **依赖**: PerceptionSystem, UtilitySystem, RewardSystem, AgentRewardReceiver, ActivityManager
 - **关键函数**:
-  - `_on_experience_sample()` - 体验采样
+  - `_on_click_triggered()` - Click触发入口（区分空闲/活动中状态）
+  - `_perform_activity_update()` - 活动中更新：体验 + 决策
+  - `_make_activity_decision()` - 活动决策（继续/停止/更换）
+  - `_experience_current_activity()` - 体验当前活动累积奖赏
   - `_check_mvt_leave_decision()` - MVT决策检查
   - `_select_next_room_by_mvt()` - 基于效用选择下一个房间
 
@@ -237,6 +240,20 @@ res://
   - 抑郁风险学生：高努力情境低优先级（可能回避）
   - 健康学生：正常参与所有活动
   - 教师：按课程表教学
+
+#### ActivityManager.gd ⭐ 2026-04-08新增
+- **路径**: `res://script/system/ActivityManager.gd`
+- **类型**: Node (AutoLoad)
+- **职责**: 活动管理系统，支持新时序逻辑
+- **核心功能**:
+  - `start_activity()` - 开始新活动，记录活动上下文
+  - `end_activity()` - 结束活动，计算最终收益
+  - `_on_click_triggered()` - Click时更新所有活动状态
+  - `_update_activity_on_click()` - 计算累积奖赏，触发RewardSystem
+  - `interrupt_activity()` / `resume_activity()` - 中断/恢复活动
+- **活动类型**: CLASS, STUDY, DIALOGUE, SPORTS, MEAL, WALK, REST
+- **活动状态**: IDLE, ACTIVE, PAUSED, ENDING
+- **新时序逻辑**: 每次Click自动触发体验(累积奖赏) + 决策(继续/停止/更换)
 
 #### TaskManager.gd ⭐ 2026-04-05新增
 - **路径**: `res://script/system/TaskManager.gd`
