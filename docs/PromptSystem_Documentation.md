@@ -1,8 +1,8 @@
 # Prompt系统详细文档
 
 > **系统名称**: PromptBuilder + Prompt模板
-> **版本**: 1.0
-> **最后更新**: 2026-04-07
+> **版本**: 2.0
+> **最后更新**: 2026-04-08
 
 ---
 
@@ -10,11 +10,12 @@
 
 1. [系统概述](#系统概述)
 2. [PromptBuilder详解](#promptbuilder详解)
-3. [决策Prompt模板](#决策prompt模板)
-4. [对话回复Prompt模板](#对话回复prompt模板)
-5. [Prompt片段](#prompt片段)
-6. [变量映射](#变量映射)
-7. [使用示例](#使用示例)
+3. [自然语言决策Prompt模板](#自然语言决策prompt模板)
+4. [决策Prompt模板](#决策prompt模板)
+5. [对话回复Prompt模板](#对话回复prompt模板)
+6. [Prompt片段](#prompt片段)
+7. [变量映射](#变量映射)
+8. [使用示例](#使用示例)
 
 ---
 
@@ -89,6 +90,47 @@ static var template_cache: Dictionary = {}
 ```
 
 ### 核心函数
+
+#### build_natural_decision_prompt()
+
+```gdscript
+static func build_natural_decision_prompt(agent: AIAgent, perception: Dictionary) -> String
+```
+
+**功能**: 构建V2自然语言决策Prompt
+
+**输入**:
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| agent | AIAgent | Agent实例 |
+| perception | Dictionary | 感知结果 |
+
+**返回值**: String - 完整的自然语言决策Prompt
+
+**执行流程**:
+1. 加载自然语言决策模板文件
+2. 获取Agent人设数据
+3. 构建变量映射
+4. 填充模板
+5. 返回完整Prompt
+
+**变量映射**:
+| 变量名 | 来源 | 说明 |
+|--------|------|------|
+| `agent_name` | agent.character.name | Agent名称 |
+| `basic_info` | _build_basic_info() | 基本信息 |
+| `current_time` | TimingSystem | 当前时间 |
+| `current_room` | perception | 当前房间 |
+| `current_period` | TimelineState | 当前时段 |
+| `nearby_agents` | _build_nearby_agents() | 附近角色 |
+| `time_constraints` | _build_behavior_constraints() | 时间约束 |
+
+**输出示例**:
+```
+我想去图书馆准备明天的数学考试
+```
+
+---
 
 #### build_decision_prompt()
 
@@ -221,6 +263,50 @@ static func clear_cache()
 - 模板文件修改后需要重新加载
 - 开发调试时
 - 内存优化
+
+---
+
+## 自然语言决策Prompt模板
+
+### 文件位置
+
+```
+prompts/natural_decision_template.txt
+```
+
+### 模板结构
+
+```
+你是{{agent_name}}，请描述你接下来想要做什么。
+
+## 角色信息
+{{basic_info}}
+
+## 当前状态
+- 当前场景：{{current_room}}
+- 当前时间：{{current_time}}
+- 当前时段：{{current_period}}
+- 附近角色：{{nearby_agents}}
+
+## 时间约束
+{{time_constraints}}
+
+## 决策要求
+请用一句话描述你接下来想要进行的活动。
+
+示例：
+- "我想去图书馆准备明天的数学考试"
+- "我想和小明讨论一下物理问题"
+- "我想去体育馆打篮球"
+- "这节课我想认真听讲"
+- "我有点累了，随便听听课吧"
+
+请直接输出你的决策描述，不需要解释：
+```
+
+### 使用场景
+
+V2活动系统中，Agent生成自然语言决策描述，提交给中央协调器进行活动分配。
 
 ---
 
@@ -567,4 +653,4 @@ print(result)  # 输出: 测试Agent在12:00
 ---
 
 *文档维护者：百舟楫*
-*最后更新：2026-04-07*
+*最后更新：2026-04-08*
