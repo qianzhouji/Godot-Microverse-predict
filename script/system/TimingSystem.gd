@@ -6,7 +6,7 @@ static var instance: TimingSystem
 
 # 时间配置
 const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
-const REAL_SECONDS_PER_GAME_MINUTE: float = 5.0  # 5现实秒 = 1游戏分钟（12倍速）
+const REAL_SECONDS_PER_GAME_MINUTE: float = 60.0  # 60现实秒 = 1游戏分钟（1:1时间流逝）
 
 # 状态
 var is_running: bool = false
@@ -54,8 +54,9 @@ func _process(delta: float):
 	if not is_running:
 		return
 	
-	# 更新游戏时间
-	var game_delta = delta * (60.0 / REAL_SECONDS_PER_GAME_MINUTE)
+	# 更新游戏时间（1:1流逝，delta是现实秒，直接加到游戏时间）
+	# 游戏时间以分钟为单位，所以 delta(秒) / 60 = 游戏分钟
+	var game_delta = delta / 60.0
 	current_game_time += game_delta
 	
 	# 检查是否到达Click时刻
