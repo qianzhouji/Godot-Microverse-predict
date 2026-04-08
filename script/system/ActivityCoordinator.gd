@@ -274,9 +274,14 @@ func _get_builtin_prompt() -> String:
 func _call_llm(prompt: String) -> String:
 	"""调用本地LLM"""
 	print("[ActivityCoordinator] 调用LLM...")
+	print("[ActivityCoordinator] 模型=%s, URL=%s" % [llm_model, llm_api_url])
+	print("[ActivityCoordinator] Prompt长度=%d" % prompt.length())
 	
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
+	
+	# 设置超时
+	http_request.timeout = 60.0
 	
 	var body = {
 		"model": llm_model,
@@ -291,12 +296,15 @@ func _call_llm(prompt: String) -> String:
 	var json_body = JSON.stringify(body)
 	var headers = ["Content-Type: application/json"]
 	
+	print("[ActivityCoordinator] 发送HTTP请求...")
 	var error = http_request.request(llm_api_url, headers, HTTPClient.METHOD_POST, json_body)
 	if error != OK:
 		push_error("[ActivityCoordinator] HTTP请求失败: %d" % error)
+		print("[ActivityCoordinator] HTTP请求错误: %d" % error)
 		http_request.queue_free()
 		return ""
 	
+	print("[ActivityCoordinator] 等待LLM响应...")
 	# 等待响应
 	var result = await http_request.request_completed
 	http_request.queue_free()
@@ -304,8 +312,15 @@ func _call_llm(prompt: String) -> String:
 	var response_code = result[1]
 	var body_text = result[3].get_string_from_utf8()
 	
+	print("[ActivityCoordinator] 收到HTTP响应, code=%d, body长度=%d" % [response_code, body_text.length()])
+	
+	if response_code == 0:
+		print("[ActivityCoordinator] 连接失败(code=0), Ollama可能过载")
+		return ""
+	
 	if response_code != 200:
 		push_error("[ActivityCoordinator] API错误: %d, %s" % [response_code, body_text])
+		print("[ActivityCoordinator] API错误: %s" % body_text)
 		return ""
 	
 	# 解析Ollama响应
@@ -313,12 +328,13 @@ func _call_llm(prompt: String) -> String:
 	var parse_result = json.parse(body_text)
 	if parse_result != OK:
 		push_error("[ActivityCoordinator] JSON解析失败: %s" % body_text)
+		print("[ActivityCoordinator] JSON解析失败")
 		return ""
 	
 	var response_data = json.get_data()
 	var response_text = response_data.get("response", "")
 	
-	print("[ActivityCoordinator] 收到LLM响应")
+	print("[ActivityCoordinator] 收到LLM响应: %s" % response_text.substr(0, 100))
 	return response_text
 
 # ============================================

@@ -96,8 +96,20 @@ func _trigger_click():
 		click_triggered.emit(current_game_time, current_day, click_count)
 		print("[TimingSystem] click_triggered信号已发射")
 		
-		# V2: 延迟执行协调，给Agent时间提交决策
-		await get_tree().create_timer(0.5).timeout
+		# V2: 等待Agent提交决策
+		# 最大等待时间：6秒(延迟) + 30秒(LLM超时) + 缓冲 = 40秒
+		print("[TimingSystem] 等待Agent提交决策...")
+		var max_wait = 40.0  # 最大等待40秒
+		var waited = 0.0
+		while waited < max_wait:
+			await get_tree().create_timer(1.0).timeout
+			waited += 1.0
+			var pending_count = ActivityCoordinator.instance.get_pending_count()
+			print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
+			# 如果所有Agent都提交了，提前结束等待
+			if pending_count >= 12:  # 假设有12个Agent
+				print("[TimingSystem] 所有Agent已提交，提前结束等待")
+				break
 		
 		# V2: 执行协调
 		var game_context = {
@@ -105,6 +117,7 @@ func _trigger_click():
 			"current_location": "学校",
 			"period": _get_current_period()
 		}
+		print("[TimingSystem] 开始执行协调...")
 		var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
 		
 		if not coordination_results.is_empty():
