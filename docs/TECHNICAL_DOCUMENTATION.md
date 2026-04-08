@@ -2,7 +2,7 @@
 
 > **项目**: 抑郁风险学生校园情境模拟系统
 > **仓库**: https://github.com/qianzhouji/Godot-Microverse-predict
-> **最后更新**: 2026-04-07
+> **最后更新**: 2026-04-08
 
 ---
 
@@ -10,13 +10,14 @@
 
 1. [项目概述](#项目概述)
 2. [架构概述](#架构概述)
-3. [中央时序系统](#中央时序系统)
-4. [AIAgent认知循环](#aiagent认知循环)
-5. [MVT理论实现](#mvt理论实现)
-6. [项目进度](#项目进度)
-7. [项目配置](#项目配置)
-8. [文件索引](#文件索引)
-9. [重构历史](#重构历史)
+3. [Activity System V2](#activity-system-v2)
+4. [中央时序系统](#中央时序系统)
+5. [AIAgent认知循环](#aiagent认知循环)
+6. [MVT理论实现](#mvt理论实现)
+7. [项目进度](#项目进度)
+8. [项目配置](#项目配置)
+9. [文件索引](#文件索引)
+10. [重构历史](#重构历史)
 
 ---
 
@@ -36,48 +37,57 @@
 
 ## 架构概述
 
-### 四层系统架构
+### 五层系统架构 (V2)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  第一层：中央时序系统                                          │
 │  - 全局时钟（5分钟/周期）                                      │
 │  - 上升沿触发所有Agent活动                                     │
-│  - 请求缓存与批准执行                                          │
+│  - ActivityCoordinator协调分配                                 │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  第二层：全局状态系统                                          │
-│  - 时间轴状态（课程表：上课/午休/放学）                         │
-│  - 场景状态（各子场景的当前活动）                               │
-│  - 活动管理系统（奖赏计算与发放）                               │
+│  第二层：活动管理系统 (V2新增)                                  │
+│  - ActivityManager：活动生命周期、奖赏计算                      │
+│  - ActivityCoordinator：LLM驱动决策分配                        │
+│  - 专注度系统：30%/65%/100%三档                                │
+│  - 双向奔赴机制：社交意图匹配                                   │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  第三层：Agent认知系统                                         │
 │  - 感知（场景信息获取）                                        │
 │  - 体验（主观体验奖赏）                                        │
-│  - 决策（行动请求生成）                                        │
-│  - 行动请求缓存（最多2步）                                     │
+│  - 自然语言决策（V2）                                          │
+│  - 三步活动缓存（V2）                                          │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│  第四层：对话管理系统                                          │
-│  - 中范围对话（小组讨论）                                      │
-│  - 大范围对话（教师提问）                                      │
-│  - 发言优先级队列                                              │
-│  - 对话生命周期管理                                            │
+│  第四层：感知与记忆系统                                         │
+│  - PerceptionSystem：贝叶斯感知、信念更新                       │
+│  - MemoryManager：经历记忆存储与检索                            │
+│  - DynamicPersonality：动态特质管理                             │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  第五层：系统层（客观现实）                                     │
+│  - RoomArea：定义情境参数(S, a, E)                             │
+│  - RewardSystem：计算客观收益 G(t)                             │
+│  - TimelineState：课程表与行为约束                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 核心设计原则
+### 核心设计原则 (V2)
 
 | 原则 | 说明 |
 |------|------|
 | **Click周期机制** | 5分钟游戏时间一个周期，上升沿触发所有Agent同步活动 |
-| **感知-体验-决策循环** | 每个Click自动执行：感知→体验→决策→缓存请求 |
-| **两步缓存** | Agent可缓存最多2步行动请求，Step1执行后验证Step2有效性 |
-| **对话独立时序** | 对话发言不等待Click，按优先级队列即时处理 |
+| **自然语言决策** | Agent生成自然语言描述，协调器调用LLM分配活动 |
+| **三步缓存** | Agent可缓存最多3步活动序列，支持复杂组合 |
+| **活动中决策** | 每次Click自动触发体验(累积) + 决策(继续/停止/更换) |
+| **专注度系统** | 30%/65%/100%三档，影响努力成本、奖赏收益、信息接收 |
+| **双向奔赴** | 只有双方意图匹配时才协调，否则各自独立行动 |
 | **行为/内容分离** | 对话行为全场景可见，对话内容仅范围内可见 |
 
 ### 三层认知架构与代码映射
@@ -125,6 +135,122 @@
 
 ---
 
+## Activity System V2
+
+### V2核心改进
+
+| 方面 | V1 | V2 |
+|------|-----|-----|
+| 决策方式 | 结构化JSON | 自然语言描述 |
+| 协调方式 | TimingSystem缓存 | ActivityCoordinator LLM协调 |
+| 活动缓存 | 1步 | 3步 |
+| 活动中决策 | 不支持 | 支持（每次Click） |
+| 奖赏计算 | 离散 | 累积 |
+| 专注度 | 无 | 30%/65%/100%三档 |
+| 双向奔赴 | 无 | 有 |
+
+### 基础活动类型
+
+| 活动类型 | 场景限制 | 专注度 | 说明 |
+|----------|----------|--------|------|
+| `MOVE_TO` | 无 | 无 | 移动到目标位置或房间 |
+| `NORMAL_DIALOGUE` | 无 | 无 | 普通对话 |
+| `WHISPER` | 无 | 无 | 悄悄话（需贴身） |
+| `LISTEN` | 教室 | 30/65/100 | 听课 |
+| `QA_TEACHER` | 教室 | 30/65/100 | 课堂问答 |
+| `SELF_STUDY` | 图书馆/自习室 | 30/65/100 | 自习 |
+| `SPORTS` | 体育馆/操场 | 30/65/100 | 体育活动 |
+| `GROUP_DISCUSSION` | 教室/讨论室 | 30/65/100 | 小组讨论 |
+
+### 专注度档位
+
+| 档位 | 值 | 努力成本 | 奖赏收益 | 信息接收 |
+|------|-----|----------|----------|----------|
+| LOW | 30% | ×0.3 | ×0.3 | 30% |
+| MEDIUM | 65% | ×0.65 | ×0.65 | 65% |
+| HIGH | 100% | ×1.0 | ×1.0 | 100% |
+
+### 双向奔赴机制
+
+**原则**: 只有双方意图匹配时才协调，否则各自独立行动。
+
+**示例1：双向奔赴** ✅
+```
+输入:
+- 小明(100,200): "我想和小红讨论数学"
+- 小红(300,400): "我想和小明讨论数学"
+
+LLM处理:
+- 检测到双向奔赴
+- 计算中间点: ((100+300)/2, (200+400)/2) = (200, 300)
+- 分配共同目标
+
+输出:
+- 小明 → MOVE_TO(200±10, 300±10) → NORMAL_DIALOGUE(小红)
+- 小红 → MOVE_TO(200±10, 300±10) → NORMAL_DIALOGUE(小明)
+```
+
+**示例2：单向扑空** ❌
+```
+输入:
+- 小明(100,200): "我想和小红悄悄话"
+- 小红(300,400): "我想去图书馆自习"
+
+LLM处理:
+- 非双向奔赴
+- 各自独立执行
+
+输出:
+- 小明 → MOVE_TO(300,400) → WHISPER(小红)
+- 小红 → MOVE_TO(图书馆)
+
+结果:
+- 小明到达后发现小红不在
+- 下次感知/决策时处理此情况
+```
+
+### V2工作流程
+
+```
+Time  │  TimingSystem  │  ActivityCoordinator  │     AIAgent      │  ActivityManager
+──────┼────────────────┼───────────────────────┼──────────────────┼─────────────────
+  t0  │  _trigger_click│                       │                  │
+      │       ↓        │                       │                  │
+  t1  │  click_triggered.emit()                │                  │
+      │       ↓        │                       │                  │
+  t2  │                │                       │ _on_click_triggered()
+      │                │                       │       ↓          │
+  t3  │                │                       │ _perform_v2_cognitive_cycle()
+      │                │                       │       ↓          │
+  t4  │                │                       │ _make_natural_decision()
+      │                │                       │       ↓          │
+  t5  │                │  submit_decision()    │                  │
+      │       ↓        │                       │                  │
+  t6  │  await 0.5s    │                       │                  │
+      │       ↓        │                       │                  │
+  t7  │                │  execute_coordination()                  │
+      │                │       ↓               │                  │
+  t8  │                │  _call_llm()          │                  │
+      │                │       ↓               │                  │
+  t9  │                │  _parse_coordination_response()          │
+      │                │       ↓               │                  │
+  t10 │                │  _distribute_activities()                │
+      │                │       ↓               │                  │
+  t11 │                │                       │ receive_activity_sequence()
+      │       ↓        │                       │                  │
+  t12 │  Click结束      │                       │                  │
+      │                │                       │                  │
+  t13 │  _trigger_click│                       │                  │
+      │       ↓        │                       │                  │
+  t14 │                │                       │ _execute_next_cached_activity()
+      │                │                       │       ↓          │
+  t15 │                │                       │ _execute_v2_*()  │
+      │                │                       │       ↓          │
+  t16 │                │                       │                  │ start_activity()
+```
+
+---
+
 ## 中央时序系统
 
 ### 时序周期（5分钟游戏时间）
@@ -132,22 +258,18 @@
 ```
 Click N (上升沿触发)
     │
-    ├── 批准Click N-1缓存的所有请求
-    │   ├── Agent A: 开始移动
-    │   ├── Agent B: 结束对话
-    │   └── Agent C: 开始对话
+    ├── ActivityManager._on_click_triggered()
+    │   └── 更新所有活动状态，累积奖赏
     │
-    ├── 执行所有批准的行动
-    │   └── （移动、开始/结束对话等）
+    ├── 发射 click_triggered 信号
+    │       └── 所有Agent开始决策
     │
-    ├── 行动完成后 → 触发体验+感知
-    │   ├── 体验：基于场景参数计算客观奖赏
-    │   └── 感知：获取当前场景信息
+    ├── 等待 0.5秒
     │
-    ├── 感知完成后 → 自动触发决策
-    │   └── 生成行动请求 → 缓存到下一次Click
+    ├── ActivityCoordinator.execute_coordination()
+    │   └── LLM协调分配活动
     │
-    └── 等待下一次Click...
+    └── 下发活动序列给各Agent
 
 Click N+1 (5分钟后)
     └── 重复上述流程
@@ -185,93 +307,36 @@ Click N+1 (5分钟后)
 | 11:45 | 数学课 | 教室（主教学区） | class |
 | 12:40 | 体育活动 | 体育馆 | activity |
 
-### 核心代码
-
-**TimingSystem.gd**:
-```gdscript
-extends Node
-class_name TimingSystem
-
-static var instance: TimingSystem
-const CLICK_INTERVAL_MINUTES: float = 5.0
-
-signal click_triggered(game_time: float, day: int, click_num: int)
-
-func _trigger_click():
-    click_count += 1
-    # 1. 批准并执行所有待处理请求
-    _execute_pending_requests()
-    # 2. 触发所有Agent的感知+体验+决策
-    click_triggered.emit(current_game_time, current_day, click_count)
-```
-
-**ActionRequest.gd**:
-```gdscript
-class_name ActionRequest
-
-enum ActionType {
-    MOVE_TO_RANGE,      # 移动到指定中范围
-    START_DIALOGUE,     # 开始对话
-    JOIN_DIALOGUE,      # 加入对话
-    EXIT_DIALOGUE,      # 退出对话
-    START_SPORTS,       # 开始体育活动
-    END_SPORTS,         # 结束体育活动
-    START_STUDY,        # 开始自习
-    END_STUDY,          # 结束自习
-    WAIT                # 等待
-}
-
-var action_type: ActionType
-var cached_step2: ActionRequest  # 第二步缓存
-```
-
 ---
 
 ## AIAgent认知循环
 
-### 认知循环：感知 → 体验 → 决策
+### V2认知循环
 
 ```
 Click触发
     │
     ▼
-┌─────────────┐
-│   感知阶段   │  ← 获取当前场景信息
-│  (自动执行)  │
-└─────────────┘
+┌─────────────────────────────────────┐
+│  检查活动缓存                        │
+│  ├─ 有缓存 → 执行下一步              │
+│  └─ 无缓存 → 检查当前活动            │
+└─────────────────────────────────────┘
     │
-    ├── 当前子场景
-    ├── 子场景内其他Agent
-    ├── 可见的对话行为
-    ├── 可听到的对话内容
-    └── 时间轴状态（上课/休息）
+    ├── 正在活动中 → _perform_activity_update()
+    │       ├── 体验累积奖赏
+    │       ├── 感知环境
+    │       ├── MVT+LLM决策（继续/停止/更换）
+    │       └── 执行决策
     │
-    ▼
-┌─────────────┐
-│   体验阶段   │  ← 主观体验系统层奖赏
-│  (自动执行)  │
-└─────────────┘
-    │
-    ├── 接收系统层奖赏（客观值）
-    ├── 贝叶斯更新主观感知
-    └── 更新认知参数（p_base, η_s, η_a, β_effort）
-    │
-    ▼
-┌─────────────┐
-│   决策阶段   │  ← 生成行动请求
-│  (自动执行)  │
-└─────────────┘
-    │
-    ├── 结合感知信息
-    ├── 结合认知参数
-    ├── 结合时间轴约束
-    └── 生成行动请求（最多缓存2步）
-    │
-    ▼
-等待下一次Click执行
+    └── 空闲状态 → _perform_v2_cognitive_cycle()
+            ├── 感知
+            ├── 体验（如果有上一活动）
+            ├── 自然语言决策
+            └── 提交协调器
 ```
 
-### Agent状态（8种）
+### Agent状态（9种）
 
 ```gdscript
 enum AgentState {
@@ -282,31 +347,24 @@ enum AgentState {
     WAITING_FOR_CLICK,  # 等待Click执行
     EXECUTING_ACTION,   # 执行行动中
     IN_DIALOGUE,        # 对话中
-    IN_ACTIVITY         # 活动中
+    IN_ACTIVITY,        # 活动中
+    MOVING              # 移动中
 }
 ```
 
-### 两步缓存机制
+### 三步缓存机制
 
 ```
 Agent A想和Agent B对话，但不在同一中范围
 
 决策结果：
 ├─ Step1: 移动路径（进入B所在中范围）
-└─ Step2: 开始对话（缓存，待确认）
+├─ Step2: 开始对话
+└─ Step3: 专注度65%
 
 Click N: 执行Step1（移动）
-    │
-    └── 到达后 → 立即感知（无体验）
-        │
-        └── 检查：
-            ├─ B是否还在？ → 是
-            ├─ B是否已在对话？ → 否
-            └─ 是否上课了？ → 否
-        │
-        └── 全部通过 → 执行Step2（开始对话）
-        
-        任一检查失败 → 重新决策
+Click N+1: 执行Step2（开始对话）
+Click N+2: 执行Step3（专注度设置）
 ```
 
 ### 中范围划分系统
@@ -317,30 +375,6 @@ Click N: 执行Step1（移动）
 | 教室/图书馆/自习室/食堂 | 4象限 | 右上1、左上2、左下3、右下4 |
 | 大走廊 | 左右2区 | 左区、右区 |
 | 小走廊 | 单区域 | 中心区域 |
-
-**象限定义**:
-```
-y↑
- │  第2象限  │  第1象限
- │   (左上)  │  (右上)
-─┼───────────┼──────────→x
- │  第3象限  │  第4象限
- │   (左下)  │  (右下)
-```
-
-### 移动系统
-
-**定位函数** (`_calculate_move_target`):
-- 悄悄话模式 → 贴身位置（±15px）
-- 同一中范围 → 目标身边小范围（±30px）
-- 不同中范围 → 目标中范围中心（±20%）
-
-**移动输出格式**:
-```
-"1 目标名称"
-```
-- `1` - 移动行动编号
-- `目标名称` - 场景精确名称或人物精确全名
 
 ---
 
@@ -380,12 +414,6 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
     return clamp(exp(log_T), 1.0, 60.0)
 ```
 
-#### 4. 信念更新（PerceptionSystem.gd）
-```gdscript
-# 使用非线性最小二乘拟合 G(t) = (S/a)[1 - exp(-at)]
-# 网格搜索最优 S 和 a，然后贝叶斯更新
-```
-
 ### 认知机制参数
 
 | 参数 | 符号 | 健康Agent | 抑郁Agent | 功能 |
@@ -403,104 +431,69 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
 ### 当前进度概览
 
 ```
-[完成度: 75%]
+[完成度: 90%]
 
-中央时序系统     ████████████████████ 100%
-AIAgent核心      ███████████████████░  95%
-Prompt系统       ████████████████████ 100%
-感知体验系统     ████████████████████ 100%
-中范围划分系统   ████████████████████ 100%
-ActivityManager  ░░░░░░░░░░░░░░░░░░░░   0%
-DialogueManager  ░░░░░░░░░░░░░░░░░░░░   0%
-情感关系系统     ░░░░░░░░░░░░░░░░░░░░   0%
-测试调试         ░░░░░░░░░░░░░░░░░░░░   0%
+中央时序系统         ████████████████████ 100%
+Activity System V2   ████████████████████ 100%
+AIAgent核心          ████████████████████ 100%
+Prompt系统           ████████████████████ 100%
+感知体验系统         ████████████████████ 100%
+中范围划分系统       ████████████████████ 100%
+角色状态系统         ████████████████████ 100%
+奖赏系统             ████████████████████ 100%
+集成测试             ████████████░░░░░░░░  60%
+DialogueManager      ░░░░░░░░░░░░░░░░░░░░   0%
+情感关系系统         ░░░░░░░░░░░░░░░░░░░░   0%
 ```
 
-### 已完成工作
+### 系统实现状态
 
-#### 第一阶段：中央时序系统（100%完成）
+| 系统 | 状态 | 文件 | 说明 |
+|------|------|------|------|
+| 中央时序系统 | ✅ 100% | TimingSystem.gd | Click触发与协调 |
+| Activity System V2 | ✅ 100% | ActivityManager.gd, ActivityCoordinator.gd, Activity.gd | 活动生命周期、LLM协调、专注度 |
+| AIAgent核心 | ✅ 100% | AIAgent.gd | 自然语言决策、三步缓存 |
+| Prompt系统 | ✅ 100% | PromptBuilder.gd | V2自然语言决策Prompt |
+| 感知体验系统 | ✅ 100% | PerceptionSystem.gd, RewardSystem.gd | 贝叶斯感知、奖赏发放 |
+| 中范围划分系统 | ✅ 100% | AIAgent.gd | 4象限/左右/单区 |
+| 角色状态系统 | ✅ 100% | CharacterPersonality.gd, DynamicPersonality.gd | 静态人设、动态特质 |
+| 奖赏系统 | ✅ 100% | RewardSystem.gd, AgentRewardReceiver.gd | 三层奖赏架构 |
+| 移动执行器 | ✅ 100% | MovementExecutor.gd | 导航和直线移动 |
+| 信息接收器 | ✅ 100% | InformationReceiver.gd | 专注度过滤 |
+| **DialogueManager** | ⏳ **0%** | - | 对话生命周期管理 |
+| **情感关系系统** | ⏳ **0%** | - | 情感类型、关系网络 |
 
-| 组件 | 文件 | 状态 |
-|------|------|------|
-| 时序系统核心 | `script/system/TimingSystem.gd` | ✅ 完成 |
-| 时间轴状态 | `script/system/TimelineState.gd` | ✅ 完成 |
-| 行动请求 | `script/data/ActionRequest.gd` | ✅ 完成 |
-| 场景集成 | `scene/maps/School.tscn` | ✅ 已添加节点 |
+### 已完成工作 (2026-04-08)
 
-#### 第二阶段：AIAgent核心重构（95%完成）
+#### Activity System V2 完成
+- ✅ 创建 Activity.gd - 活动数据结构，支持专注度
+- ✅ 创建 ActivityCoordinator.gd - 中央协调器，LLM驱动决策分配
+- ✅ 创建 ActivityManager.gd - 活动生命周期管理，累积奖赏计算
+- ✅ 创建 MovementExecutor.gd - 移动执行器
+- ✅ 创建 InformationReceiver.gd - 信息接收器，专注度过滤
+- ✅ 更新 AIAgent.gd - V2自然语言决策，三步缓存
+- ✅ 更新 TimingSystem.gd - 集成ActivityCoordinator
+- ✅ 创建集成测试计划和配置指南
 
-| 组件 | 文件 | 状态 |
-|------|------|------|
-| AIAgent核心 | `script/ai/AIAgent.gd` | ✅ 完成框架 |
-| Prompt构建器 | `script/ai/PromptBuilder.gd` | ✅ 完成 |
-| Prompt模板 | `prompts/*.txt` | ✅ 完成 |
-| 原AIAgent备份 | `script/ai/AIAgent_backup_20250406.gd` | ✅ 已备份 |
-
-**已完成**:
-- 清理旧代码（定时器、旧任务系统、旧对话系统）
-- 新增认知循环（感知→体验→决策→执行）
-- 8个行动执行方法框架
-- 本地LLM API调用（Ollama）
-- 两步缓存验证机制
-- 中范围划分系统
-- MVT理论公式完整实现
-
-#### 第三阶段：Prompt系统（100%完成）
-
-| 组件 | 文件 | 状态 |
-|------|------|------|
-| 决策Prompt模板 | `prompts/decision_prompt_template.txt` | ✅ 完成 |
-| 对话回复模板 | `prompts/dialogue_reply_template.txt` | ✅ 完成 |
-| Prompt构建器 | `script/ai/PromptBuilder.gd` | ✅ 完成 |
-
-#### 第四阶段：感知层分离（100%完成）
-
-| 系统 | 文件 | 说明 |
-|------|------|------|
-| 奖赏系统 | `RewardSystem.gd` | 系统层奖赏发放 |
-| 奖赏接收 | `AgentRewardReceiver.gd` | 感知层接收 |
-| 感知系统 | `PerceptionSystem.gd` | 贝叶斯感知 |
+#### 核心特性实现
+- ✅ 自然语言决策生成
+- ✅ LLM协调活动分配
+- ✅ 三步活动缓存
+- ✅ 专注度系统（30%/65%/100%）
+- ✅ 双向奔赴机制
+- ✅ 活动中持续决策
+- ✅ 累积奖赏计算
 
 ### 待完成工作
 
-#### 高优先级（下一步）
+#### 高优先级
 
 | 优先级 | 任务 | 说明 | 预计时间 |
 |--------|------|------|---------|
-| P0 | ActivityManager | 活动管理与奖赏计算闭环 | 2-3小时 |
+| P0 | 集成测试 | 执行TC01-TC06，验证V2系统 | 2-3小时 |
 | P0 | DialogueManager | 对话生命周期管理 | 3-4小时 |
-| P0 | 集成测试 | 测试Agent认知循环和移动功能 | 2-3小时 |
-
-#### 中优先级
-
-| 优先级 | 任务 | 说明 | 预计时间 |
-|--------|------|------|---------|
-| P1 | 情感关系系统 | 情感类型定义、每日反思集成 | 3-4小时 |
-| P1 | 对话系统完善 | 行为与内容分离、发言优先级队列 | 4-5小时 |
-| P1 | UI和调试工具 | 时序系统状态面板、Agent实时监控 | 2-3小时 |
-
-#### 低优先级
-
-| 优先级 | 任务 | 说明 | 预计时间 |
-|--------|------|------|---------|
-| P2 | 性能优化 | API调用批处理、决策缓存机制 | 2-3小时 |
-| P2 | 文档完善 | API文档、使用手册、架构图更新 | 1-2小时 |
-
-### 下一步计划
-
-**建议执行顺序**:
-
-1. **选项A：实现ActivityManager**（2-3小时）
-   - 创建活动管理系统，计算和发放奖赏
-   - 收益：完成体验闭环
-
-2. **选项B：实现DialogueManager**（3-4小时）
-   - 创建对话管理系统，支持对话生命周期
-   - 收益：可以测试对话功能
-
-3. **选项C：集成测试**（2-3小时）
-   - 启动时序系统，验证Click触发
-   - 测试Agent认知循环、移动功能、对话功能
+| P1 | 情感关系系统 | 情感类型定义、关系网络 | 3-4小时 |
+| P1 | UI和调试工具 | 时序系统状态面板、Agent监控 | 2-3小时 |
 
 ---
 
@@ -510,34 +503,60 @@ DialogueManager  ░░░░░░░░░░░░░░░░░░░░   
 
 在Godot编辑器中：**项目 → 项目设置 → AutoLoad**
 
-| 顺序 | 脚本路径 | 单例名 |
-|------|---------|--------|
-| 1 | `res://script/RoomManager.gd` | RoomManager |
-| 2 | `res://script/system/RewardSystem.gd` | RewardSystem |
-| 3 | `res://script/ai/APIManager.gd` | APIManager |
-| 4 | `res://script/ai/memory/MemoryManager.gd` | MemoryManager |
-| 5 | `res://script/CharacterManager.gd` | CharacterManager |
+| 顺序 | 脚本路径 | 单例名 | 说明 |
+|------|---------|--------|------|
+| 1 | `res://script/RoomManager.gd` | RoomManager | 房间管理 |
+| 2 | `res://script/system/RewardSystem.gd` | RewardSystem | 奖赏系统 |
+| 3 | `res://script/ai/APIManager.gd` | APIManager | API管理 |
+| 4 | `res://script/ai/memory/MemoryManager.gd` | MemoryManager | 记忆系统 |
+| 5 | `res://script/CharacterManager.gd` | CharacterManager | 角色管理 |
+| 6 | `res://script/system/TimingSystem.gd` | TimingSystem | 时序系统 |
+| 7 | `res://script/system/TimelineState.gd` | TimelineState | 时间轴状态 |
+| 8 | `res://script/system/ActivityManager.gd` | ActivityManager | 活动管理（V2） |
+| 9 | `res://script/system/ActivityCoordinator.gd` | ActivityCoordinator | 活动协调（V2） |
 
-**project.godot**:
-```ini
-[autoload]
-RoomManager="*res://script/RoomManager.gd"
-RewardSystem="*res://script/system/RewardSystem.gd"
-APIManager="*res://script/ai/APIManager.gd"
-MemoryManager="*res://script/ai/memory/MemoryManager.gd"
-CharacterManager="*res://script/CharacterManager.gd"
+### 场景节点配置（School.tscn）
+
+需要在场景中添加以下节点：
+
+```
+School (根节点)
+├── RoomManager
+├── RewardSystem
+├── TimingSystem
+├── TimelineState
+├── ActivityManager (V2新增)
+├── ActivityCoordinator (V2新增)
+├── StudentXiaoming
+│   └── AIAgent
+├── StudentXiaohong
+│   └── AIAgent
+└── TeacherWang
+    └── AIAgent
 ```
 
 ### 本地LLM配置
 
 - **API端点**: `http://localhost:11434/api/generate`
-- **默认模型**: `qwen2.5:14b`
-- **温度**: 0.7
-- **最大token**: 500
+- **默认模型**: `qwen2.5:7b` (协调器) / `qwen2.5:14b` (决策)
+- **温度**: 0.3 (协调器) / 0.7 (决策)
+- **最大token**: 2000 (协调器) / 500 (决策)
 
 ---
 
 ## 文件索引
+
+### Activity System V2 文件
+
+| 文件 | 路径 | 说明 |
+|------|------|------|
+| Activity.gd | `script/system/Activity.gd` | 活动数据结构 |
+| ActivityCoordinator.gd | `script/system/ActivityCoordinator.gd` | 中央协调器 |
+| ActivityManager.gd | `script/system/ActivityManager.gd` | 活动管理器 |
+| MovementExecutor.gd | `script/system/MovementExecutor.gd` | 移动执行器 |
+| InformationReceiver.gd | `script/system/InformationReceiver.gd` | 信息接收器 |
+| natural_decision_template.md | `prompts/natural_decision_template.md` | V2决策Prompt |
+| coordinator_prompt.md | `docs/prompts/coordinator_prompt.md` | 协调器Prompt |
 
 ### 核心系统文件
 
@@ -545,15 +564,13 @@ CharacterManager="*res://script/CharacterManager.gd"
 |------|------|------|
 | TimingSystem.gd | `script/system/TimingSystem.gd` | 全局时钟 + Click触发 |
 | TimelineState.gd | `script/system/TimelineState.gd` | 课程表 + 行为约束 |
-| ActionRequest.gd | `script/data/ActionRequest.gd` | 行动请求数据结构 |
 | RewardSystem.gd | `script/system/RewardSystem.gd` | 奖赏系统 |
 
 ### AI核心
 
 | 文件 | 路径 | 说明 |
 |------|------|------|
-| AIAgent.gd | `script/ai/AIAgent.gd` | Agent认知循环 |
-| AIAgent_backup_20250406.gd | `script/ai/AIAgent_backup_20250406.gd` | 原AIAgent备份 |
+| AIAgent.gd | `script/ai/AIAgent.gd` | Agent认知循环（V2） |
 | PromptBuilder.gd | `script/ai/PromptBuilder.gd` | Prompt构建器 |
 | PerceptionSystem.gd | `script/ai/PerceptionSystem.gd` | 贝叶斯感知系统 |
 | AgentRewardReceiver.gd | `script/ai/AgentRewardReceiver.gd` | 奖赏接收器 |
@@ -562,93 +579,79 @@ CharacterManager="*res://script/CharacterManager.gd"
 | DynamicPersonality.gd | `script/ai/DynamicPersonality.gd` | 动态人格 |
 | UtilitySystem.gd | `script/ai/UtilitySystem.gd` | MVT效用计算 |
 
-### 场景文件
+### 文档
 
 | 文件 | 路径 | 说明 |
 |------|------|------|
-| School.tscn | `scene/maps/School.tscn` | 学校主场景 |
-| StudentXiaoming.tscn | `scene/characters/StudentXiaoming.tscn` | 学生小明 |
-| TeacherWang.tscn | `scene/characters/TeacherWang.tscn` | 王老师 |
-
-### Prompt模板
-
-| 文件 | 路径 | 说明 |
-|------|------|------|
-| decision_prompt_template.txt | `prompts/decision_prompt_template.txt` | 决策Prompt模板 |
-| dialogue_reply_template.txt | `prompts/dialogue_reply_template.txt` | 对话回复模板 |
+| Activity_System.md | `docs/Activity_System.md` | Activity System V2 技术文档 |
+| Agent_Cognitive_System.md | `docs/Agent_Cognitive_System.md` | Agent认知系统详细文档 |
+| Character_State_System.md | `docs/Character_State_System.md` | 角色状态系统文档 |
+| Reward_System.md | `docs/Reward_System.md` | 奖赏系统详细文档 |
+| Prompt_System.md | `docs/Prompt_System.md` | Prompt系统详细文档 |
+| Timing_System.md | `docs/Timing_System.md` | 时序系统技术文档 |
+| Integration_Test_Plan.md | `docs/Integration_Test_Plan.md` | 集成测试计划 |
+| Integration_Test_Setup.md | `docs/Integration_Test_Setup.md` | 集成测试配置指南 |
 
 ---
 
 ## 重构历史
 
-### 架构变革
+### 2026-04-08 - Activity System V2 完成
 
-| 方面 | 原架构 | 新架构 |
-|------|--------|--------|
-| 时序管理 | 各Agent独立定时器 | 中央时序系统（5分钟Click周期） |
-| 对话系统 | 1对1直接对话 | 广播式对话（行为/内容分离） |
-| 空间感知 | 距离阈值判断 | 中范围划分（4象限/左右/单区） |
-| 任务生成 | 随机生成 | 课程表驱动 |
-| Prompt管理 | 硬编码在代码中 | 配置文件+模板分离 |
+#### 核心实现
+- ✅ 创建 Activity System V2 完整架构
+- ✅ 实现自然语言决策 + LLM协调分配
+- ✅ 实现三步活动缓存机制
+- ✅ 实现专注度系统（30%/65%/100%）
+- ✅ 实现双向奔赴机制
+- ✅ 实现活动中持续决策
+- ✅ 修复AIAgent和ActivityCoordinator编译错误
 
-### 2026-04-07 MVT公式修正
+#### 关键修复
+- ✅ 添加V1兼容变量 `cached_request` 和 `is_waiting_execution`
+- ✅ 添加 `MOVING` 状态到 `AgentState` 枚举
+- ✅ 修复AIAgent类名冲突（注释备份文件的class_name）
+- ✅ 使用preload避免ActivityCoordinator循环依赖
+- ✅ 统一 `_perform_v2_cognitive_cycle` 函数名
 
-- ✅ **修正 UtilitySystem.gd**
-  - 重写 `calculate_optimal_time()` 使用理论解析公式
-  - 更新 `get_agent_utility_params()` 返回全部四个MVT核心参数
-  - 更新 `get_utility_params_description()` 添加MVT参数描述
-- ✅ **修正 AIAgent.gd**
-  - 实现 `_check_mvt_leave_decision()` 完整MVT离开决策检查
-- ✅ **修正 PerceptionSystem.gd**
-  - 重写 `_update_beliefs()` 使用非线性最小二乘拟合理论收益函数
-- ✅ **更新项目文档**
-  - 更新 README.md、PROJECT_STRUCTURE.md、IMPLEMENTATION_LOGIC.md
+### 2026-04-07 - MVT公式修正
 
-### 2026-04-06 重大更新日
+- ✅ 修正 UtilitySystem.gd - 使用理论解析公式
+- ✅ 修正 AIAgent.gd - 完整MVT离开决策检查
+- ✅ 修正 PerceptionSystem.gd - 非线性最小二乘拟合
+- ✅ 更新项目文档
 
-#### 上午：感知层与系统层分离完成
-- ✅ 创建 RewardSystem.gd（系统层奖赏发放）
-- ✅ 创建 AgentRewardReceiver.gd（感知层接收器）
-- ✅ 修改 AIAgent.gd（移除直接RoomArea访问）
-- ✅ 修改 RoomManager.gd（添加内部接口）
-- ✅ 修改 RoomArea.gd（移除直接暴露参数的接口）
-- ✅ 配置 AutoLoad（RewardSystem设置为单例）
+### 2026-04-06 - 感知层与系统层分离
 
-#### 下午：动态人设系统扩展
-- ✅ 扩展 DynamicPersonality.gd（任务反馈、社交反馈、教师评价）
-- ✅ 新增边界保护机制（偏离基线≤20%）
-
-#### 傍晚：每日反思系统实现
-- ✅ 创建 DailyReflectionSystem.gd
-- ✅ LLM-based反思分析
-- ✅ 四项认知参数动态调整
-- ✅ 完整PHQ-9九项评估
-
-### 完全保留的系统
-
-- **PerceptionSystem** - 贝叶斯感知
-- **AgentRewardReceiver** - 奖赏接收
-- **MemoryManager** - 记忆管理
-- **DailyReflectionSystem** - 每日反思
-- **DynamicPersonality** - 动态人格
-
-### 完全舍弃的系统
-
-- **ConversationManager** - 旧1对1对话
-- **DialogManager** - 旧对话管理
-- **DialogService** - 旧对话服务
-- **TaskManager** - 旧任务系统
+- ✅ 创建 RewardSystem.gd
+- ✅ 创建 AgentRewardReceiver.gd
+- ✅ 修改 AIAgent.gd
+- ✅ 修改 RoomManager.gd
+- ✅ 配置 AutoLoad
 
 ---
 
-*本文档合并了以下历史文档*:
-- PROJECT_STATUS.md
-- Progress_Report.md
-- Refactoring_Summary.md
-- Phase1_TimingSystem_Implementation.md
-- Phase2_AIAgent_Refactor_Plan.md
-- AUTOLOAD_SETUP.md
-- File_Location_Index.md
-- AIAgent_Refactor_Analysis.md
+## 附录：集成测试用例
 
-*维护者：百舟楫*
+### TC01: 基本流程测试
+验证完整V2流程跑通：Agent生成自然语言决策 → 协调器调用LLM → Agent执行活动
+
+### TC02: 双向奔赴测试
+验证双向奔赴机制：双方意图匹配时分配到相同目标位置
+
+### TC03: 单向意图测试
+验证非双向奔赴时各自独立执行
+
+### TC04: 专注度系统测试
+验证专注度影响奖赏计算和信息接收
+
+### TC05: 三步缓存测试
+验证三步活动缓存正确执行
+
+### TC06: 活动中决策测试
+验证活动中可决策继续/停止/更换
+
+---
+
+*本文档维护者：百舟楫*
+*最后更新：2026-04-08*
