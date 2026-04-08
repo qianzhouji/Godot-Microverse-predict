@@ -35,25 +35,19 @@ var activity_start_time: float = 0.0           # 活动开始时间
 var last_activity: String = ""                 # 上一周期活动(用于体验)
 
 # ============================================
-# 决策缓存(V1)
-# ============================================
-var cached_request: ActionRequest = null       # 缓存的行动请求
-var is_waiting_execution: bool = false         # 是否等待执行
-
-# ============================================
-# V2: 三步活动缓存
+# 三步活动缓存
 # ============================================
 var activity_cache: Array[Activity] = []       # 缓存的活动序列（最多3步）
 var current_activity_index: int = 0            # 当前执行的活动索引
 var movement_executor: MovementExecutor = null # 移动执行器
 
 # ============================================
-# V2: 自然语言决策
+# 自然语言决策
 # ============================================
 var last_natural_decision: String = ""         # 上次自然语言决策
 
 # ============================================
-# V2: 信息接收系统
+# 信息接收系统
 # ============================================
 var information_receiver: InformationReceiver = null  # 信息接收器
 
@@ -129,20 +123,16 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 	# V2时序逻辑：
 	# 1. 如果有V2活动缓存 → 执行下一步
 	# 2. 如果正在活动中 → 体验 + 决策
-	# 3. 如果有V1缓存请求 → 执行
-	# 4. 否则 → 感知 + 决策
+	# 3. 否则 → 感知 + 决策
 	
-	# V2: 优先检查活动缓存
+	# 优先检查活动缓存
 	if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
 		_execute_next_cached_activity()
 	elif ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
 		# 正在活动中：体验 + 决策
 		_perform_activity_update()
-	elif is_waiting_execution and cached_request:
-		# 有V1缓存请求：执行
-		_execute_cached_request()
 	else:
-		# V2: 空闲状态 → 感知 + 自然语言决策 + 提交协调器
+		# 空闲状态 → 感知 + 自然语言决策 + 提交协调器
 		_perform_v2_cognitive_cycle()
 
 # ============================================
@@ -209,30 +199,7 @@ func _perform_v2_cognitive_cycle():
 	print("[AIAgent] %s 决策已提交，等待协调器分配..." % character.name)
 
 # ============================================
-# V1兼容: 认知循环(保留用于回退)
-# ============================================
-func _perform_cognitive_cycle():
-	# 1. 感知阶段
-	current_state = AgentState.PERCEIVING
-	var perception = _perceive()
-	print("[AIAgent] %s 感知完成" % character.name)
-
-	# 2. 体验阶段(如果有上一周期活动)
-	current_state = AgentState.EXPERIENCING
-	if not last_activity.is_empty():
-		_experience(last_activity)
-		print("[AIAgent] %s 体验完成" % character.name)
-
-	# 3. 决策阶段
-	current_state = AgentState.DECIDING
-	var request = await _make_decision(perception)
-	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
-
-	# 4. 提交请求到时序系统
-	_submit_request(request)
-
-# ============================================
-# 感知阶段(新增)
+# 感知阶段
 # ============================================
 func _perceive() -> Dictionary:
 	var perception = {

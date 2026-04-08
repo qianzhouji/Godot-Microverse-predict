@@ -287,13 +287,13 @@ signal activity_interrupted(agent_id: String, reason: String)
 
 ---
 
-### 3.4 AIAgent.gd (V2相关部分)
+### 3.4 AIAgent.gd
 
 **路径**: `script/ai/AIAgent.gd`
 
 **功能**: Agent核心，生成自然语言决策，执行活动序列。
 
-#### V2新增属性
+#### 核心属性
 
 ```gdscript
 var activity_cache: Array[Activity]       # 三步活动缓存
@@ -303,7 +303,7 @@ var information_receiver: InformationReceiver  # 信息接收器
 var last_natural_decision: String = ""    # 上次自然语言决策
 ```
 
-#### V2核心方法
+#### 核心方法
 
 ```gdscript
 # 接收协调器分配的活动序列
@@ -311,22 +311,22 @@ var last_natural_decision: String = ""    # 上次自然语言决策
 # 输出: 无
 func receive_activity_sequence(activities: Array[Activity]) -> void
 
-# V2: 生成自然语言决策
+# 生成自然语言决策
 # 输入: perception - 感知数据
 # 输出: String - 自然语言决策描述
 func _make_natural_decision(perception: Dictionary) -> String
 
-# V2: 执行缓存的下一个活动
+# 执行缓存的下一个活动
 # 输入: 无
 # 输出: 无
 func _execute_next_cached_activity() -> void
 
-# V2: 执行具体活动
+# 执行具体活动
 # 输入: activity - Activity对象
 # 输出: 无
 func _execute_v2_activity(activity: Activity) -> void
 
-# V2: 执行各类活动（内部调用）
+# 执行各类活动（内部调用）
 func _execute_v2_move(activity: Activity) -> void
 func _execute_v2_dialogue(activity: Activity) -> void
 func _execute_v2_whisper(activity: Activity) -> void
@@ -423,26 +423,26 @@ func format_missed_important() -> String
 
 ---
 
-### 3.7 TimingSystem.gd (V2相关部分)
+### 3.7 TimingSystem.gd
 
 **路径**: `script/system/TimingSystem.gd`
 
 **功能**: 时序管理，Click触发，协调调度。
 
-#### V2修改
+#### 核心修改
 
 ```gdscript
 # Click触发时执行协调
 func _trigger_click():
     # ... 原有逻辑 ...
     
-    # V2: 触发Agent决策收集
+    # 触发Agent决策收集
     click_triggered.emit(current_game_time, current_day, click_count)
     
-    # V2: 延迟执行协调
+    # 延迟执行协调
     await get_tree().create_timer(0.5).timeout
     
-    # V2: 执行协调
+    # 执行协调
     if ActivityCoordinator.instance:
         var game_context = {
             "current_time": format_time(current_game_time),
@@ -454,16 +454,16 @@ func _trigger_click():
 
 ---
 
-### 3.8 RewardSystem.gd (V2相关部分)
+### 3.8 RewardSystem.gd
 
 **路径**: `script/system/RewardSystem.gd`
 
-**功能**: 奖赏分发（V2支持专注度上下文）。
+**功能**: 奖赏分发（支持专注度上下文）。
 
-#### V2新增方法
+#### 核心方法
 
 ```gdscript
-# V2: 带上下文的奖赏分发（支持专注度）
+# 带上下文的奖赏分发（支持专注度）
 # 输入: agent_name, room_name, time_in_room, context {focus_level, base_effort, adjusted_effort, base_gain, adjusted_gain}
 # 输出: Dictionary {gain, effort, room_name, time, context}
 func distribute_reward_with_context(agent_name: String, room_name: String, time_in_room: float, context: Dictionary) -> Dictionary
@@ -699,11 +699,11 @@ var llm_api_url: String = "http://localhost:11434/api/generate"  # 或更换API
 | ActivityManager.gd | script/system/ | 活动管理器 |
 | MovementExecutor.gd | script/system/ | 移动执行器 |
 | InformationReceiver.gd | script/system/ | 信息接收器 |
-| AIAgent.gd | script/ai/ | Agent核心（V2部分） |
-| TimingSystem.gd | script/system/ | 时序系统（V2部分） |
-| RewardSystem.gd | script/system/ | 奖赏系统（V2部分） |
+| AIAgent.gd | script/ai/ | Agent核心 |
+| TimingSystem.gd | script/system/ | 时序系统 |
+| RewardSystem.gd | script/system/ | 奖赏系统 |
 | coordinator_prompt.md | docs/prompts/ | 协调器Prompt |
-| natural_decision_template.txt | prompts/ | V2自然语言决策Prompt |
+| natural_decision_template.txt | prompts/ | 自然语言决策Prompt |
 | dialogue_reply_template.txt | prompts/ | 对话回复Prompt |
 | basic_info_fragment.txt | prompts/fragments/ | 基础信息片段 |
 
