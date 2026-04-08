@@ -119,6 +119,9 @@ func _create_information_receiver() -> void:
 func _connect_to_timing_system() -> void:
 	# 延迟连接,确保TimingSystem已初始化
 	await get_tree().create_timer(1.0).timeout
+	
+	print("[AIAgent] %s 尝试连接时序系统..." % character.name)
+	print("[AIAgent] %s TimingSystem.instance = %s" % [character.name, TimingSystem.instance])
 
 	if TimingSystem.instance:
 		TimingSystem.instance.click_triggered.connect(_on_click_triggered)
@@ -130,10 +133,16 @@ func _connect_to_timing_system() -> void:
 # Click触发回调(核心入口) - V2时序逻辑
 # ============================================
 func _on_click_triggered(game_time: float, day: int, click_num: int):
+	print("\n[AIAgent] %s _on_click_triggered被调用, click_num=%d" % [character.name, click_num])
 	if is_player_controlled:
+		print("[AIAgent] %s 是玩家控制,跳过" % character.name)
 		return
 
-	print("\n[AIAgent] %s 收到Click #%d" % [character.name, click_num])
+	print("[AIAgent] %s 收到Click #%d" % [character.name, click_num])
+	print("[AIAgent] %s activity_cache.size()=%d, current_activity_index=%d" % [character.name, activity_cache.size(), current_activity_index])
+	print("[AIAgent] %s ActivityManager.instance=%s" % [character.name, ActivityManager.instance])
+	if ActivityManager.instance:
+		print("[AIAgent] %s ActivityManager.instance.has_activity=%s" % [character.name, ActivityManager.instance.has_activity(character.name)])
 
 	# V2时序逻辑：
 	# 1. 如果有V2活动缓存 → 执行下一步
@@ -142,12 +151,15 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 	
 	# 优先检查活动缓存
 	if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
+		print("[AIAgent] %s 执行缓存活动" % character.name)
 		_execute_next_cached_activity()
 	elif ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
 		# 正在活动中：体验 + 决策
+		print("[AIAgent] %s 执行活动中更新" % character.name)
 		_perform_activity_update()
 	else:
 		# 空闲状态 → 感知 + 自然语言决策 + 提交协调器
+		print("[AIAgent] %s 执行V2认知循环" % character.name)
 		_perform_v2_cognitive_cycle()
 
 # ============================================
@@ -190,26 +202,35 @@ func _perform_activity_update():
 # V2: 认知循环 - 感知 → 自然语言决策 → 提交协调器
 # ============================================
 func _perform_v2_cognitive_cycle():
+	print("[AIAgent] %s _perform_v2_cognitive_cycle开始执行" % character.name)
+	
 	# 1. 感知阶段
 	current_state = AgentState.PERCEIVING
+	print("[AIAgent] %s 开始感知..." % character.name)
 	var perception = _perceive()
 	print("[AIAgent] %s 感知完成" % character.name)
 
 	# 2. 体验阶段(如果有上一周期活动)
 	current_state = AgentState.EXPERIENCING
 	if not last_activity.is_empty():
+		print("[AIAgent] %s 开始体验..." % character.name)
 		_experience(last_activity)
 		print("[AIAgent] %s 体验完成" % character.name)
+	else:
+		print("[AIAgent] %s 无上一活动,跳过体验" % character.name)
 
 	# 3. V2: 自然语言决策阶段
 	current_state = AgentState.DECIDING
+	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	var natural_decision = await _make_natural_decision(perception)
 	print("[AIAgent] %s 自然语言决策: %s" % [character.name, natural_decision])
 	
 	# 4. V2: 提交决策到协调器
+	print("[AIAgent] %s 准备提交决策到协调器..." % character.name)
 	_submit_decision_to_coordinator(natural_decision)
 	
 	# V2: 决策已提交，等待协调器下发活动
+	print("[AIAgent] %s 决策已提交,等待协调器下发活动" % character.name)
 	# 实际活动将在下一个Click周期通过 receive_activity_sequence() 接收
 	print("[AIAgent] %s 决策已提交，等待协调器分配..." % character.name)
 
@@ -641,7 +662,10 @@ func _extract_decision_text(response: String) -> String:
 # ============================================
 func _submit_decision_to_coordinator(decision: String) -> void:
 	"""将自然语言决策提交到ActivityCoordinator"""
+	print("[AIAgent] %s _submit_decision_to_coordinator被调用" % character.name)
+	print("[AIAgent] %s ActivityCoordinator.instance = %s" % [character.name, ActivityCoordinator.instance])
 	if ActivityCoordinator.instance:
+		print("[AIAgent] %s 调用ActivityCoordinator.submit_decision..." % character.name)
 		ActivityCoordinator.instance.submit_decision(character.name, decision)
 		print("[AIAgent] %s 已提交决策到协调器: %s" % [character.name, decision])
 	else:

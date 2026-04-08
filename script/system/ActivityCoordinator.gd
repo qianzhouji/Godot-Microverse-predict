@@ -93,6 +93,10 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	返回:
 		协调结果字典
 	"""
+	print("[ActivityCoordinator] execute_coordination被调用")
+	print("[ActivityCoordinator] pending_decisions数量: %d" % pending_decisions.size())
+	print("[ActivityCoordinator] pending_decisions内容: %s" % str(pending_decisions.keys()))
+	
 	if pending_decisions.is_empty():
 		print("[ActivityCoordinator] 没有待协调的决策")
 		return {}

@@ -88,9 +88,12 @@ func _trigger_click():
 	
 	# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
 	# V2: 等待所有Agent提交决策，然后执行协调
+	print("[TimingSystem] ActivityCoordinator.instance = %s" % ActivityCoordinator.instance)
 	if ActivityCoordinator.instance:
+		print("[TimingSystem] 开始触发Agent决策收集...")
 		# 先触发Agent决策收集
 		click_triggered.emit(current_game_time, current_day, click_count)
+		print("[TimingSystem] click_triggered信号已发射")
 		
 		# V2: 延迟执行协调，给Agent时间提交决策
 		await get_tree().create_timer(0.5).timeout
