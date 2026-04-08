@@ -491,72 +491,92 @@ func _execute_activity_decision(decision: Dictionary, activity_info: Dictionary)
 # ============================================
 # 调用本地部署的大模型API
 # ============================================
-func _call_local_llm(prompt: String) -> String:
+func _call_local_llm(prompt: String, max_retries: int = 3) -> String:
 	# 本地部署的大模型API配置
 	# 默认使用Ollama本地服务,可通过修改配置支持其他本地模型
 	var api_url = "http://localhost:11434/api/generate"
 	var model_name = "qwen2.5:7b"  # 统一使用7B模型
 
-	print("[AIAgent] %s _call_local_llm被调用, prompt长度=%d" % [character.name, prompt.length()])
+	print("[AIAgent] %s _call_local_llm被调用, prompt长度=%d, 最大重试=%d" % [character.name, prompt.length(), max_retries])
 	
 	if prompt.is_empty():
 		push_error("[AIAgent] %s Prompt为空!" % character.name)
 		return "{}"
 
-	var http_request = HTTPRequest.new()
-	add_child(http_request)
+	for retry in range(max_retries):
+		if retry > 0:
+			print("[AIAgent] %s 第%d次重试..." % [character.name, retry])
+			await get_tree().create_timer(1.0 * retry).timeout  # 递增延迟
 
-	var body = {
-		"model": model_name,
-		"prompt": prompt,
-		"stream": false,
-		"options": {
-			"temperature": 0.7,
-			"num_predict": 500
+		var http_request = HTTPRequest.new()
+		add_child(http_request)
+		
+		# 设置超时
+		http_request.timeout = 30.0  # 30秒超时
+
+		var body = {
+			"model": model_name,
+			"prompt": prompt,
+			"stream": false,
+			"options": {
+				"temperature": 0.7,
+				"num_predict": 200  # 减少生成长度以加快速度
+			}
 		}
-	}
 
-	var json_body = JSON.stringify(body)
-	var headers = ["Content-Type: application/json"]
+		var json_body = JSON.stringify(body)
+		var headers = ["Content-Type: application/json"]
 
-	print("[AIAgent] %s 调用本地LLM, URL=%s, model=%s" % [character.name, api_url, model_name])
+		print("[AIAgent] %s 调用本地LLM (尝试%d/%d)..." % [character.name, retry + 1, max_retries])
 
-	var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
-	if error != OK:
-		push_error("[AIAgent] HTTP请求失败: %d" % error)
-		print("[AIAgent] %s HTTP请求错误: %d" % [character.name, error])
+		var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
+		if error != OK:
+			push_error("[AIAgent] HTTP请求失败: %d" % error)
+			print("[AIAgent] %s HTTP请求错误: %d" % [character.name, error])
+			http_request.queue_free()
+			continue  # 重试
+
+		print("[AIAgent] %s 等待LLM响应..." % character.name)
+		
+		# 等待响应
+		var result = await http_request.request_completed
 		http_request.queue_free()
-		return "{}"
 
-	print("[AIAgent] %s 等待LLM响应..." % character.name)
-	
-	# 等待响应
-	var result = await http_request.request_completed
-	http_request.queue_free()
+		var response_code = result[1]
+		var body_text = result[3].get_string_from_utf8()
+		
+		print("[AIAgent] %s 收到HTTP响应, code=%d, body长度=%d" % [character.name, response_code, body_text.length()])
 
-	var response_code = result[1]
-	var body_text = result[3].get_string_from_utf8()
-	
-	print("[AIAgent] %s 收到HTTP响应, code=%d, body长度=%d" % [character.name, response_code, body_text.length()])
+		if response_code == 0:
+			print("[AIAgent] %s 连接失败，准备重试..." % character.name)
+			continue  # 重试
 
-	if response_code != 200:
-		push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
-		print("[AIAgent] %s API错误: %s" % [character.name, body_text])
-		return "{}"
+		if response_code != 200:
+			push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
+			print("[AIAgent] %s API错误: %s" % [character.name, body_text])
+			continue  # 重试
 
-	# 解析Ollama响应
-	var json = JSON.new()
-	var parse_result = json.parse(body_text)
-	if parse_result != OK:
-		push_error("[AIAgent] JSON解析失败: %s" % body_text)
-		print("[AIAgent] %s JSON解析失败: %s" % [character.name, body_text])
-		return "{}"
+		# 解析Ollama响应
+		var json = JSON.new()
+		var parse_result = json.parse(body_text)
+		if parse_result != OK:
+			push_error("[AIAgent] JSON解析失败: %s" % body_text)
+			print("[AIAgent] %s JSON解析失败: %s" % [character.name, body_text])
+			continue  # 重试
 
-	var response_data = json.get_data()
-	var response_text = response_data.get("response", "")
+		var response_data = json.get_data()
+		var response_text = response_data.get("response", "")
 
-	print("[AIAgent] %s 收到LLM响应: %s" % [character.name, response_text.substr(0, 100)])
-	return response_text
+		if response_text.is_empty():
+			print("[AIAgent] %s 响应为空，准备重试..." % character.name)
+			continue  # 重试
+
+		print("[AIAgent] %s 成功收到LLM响应: %s" % [character.name, response_text.substr(0, 100)])
+		return response_text
+
+	# 所有重试都失败
+	push_error("[AIAgent] %s 调用LLM失败，已重试%d次" % [character.name, max_retries])
+	return "{}"
 
 # ============================================
 # 解析决策响应为ActionRequest
@@ -644,9 +664,13 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	
 	# 添加随机延迟，避免所有Agent同时调用LLM
-	var delay = randf() * 2.0  # 0-2秒随机延迟
-	print("[AIAgent] %s 等待 %.2f 秒以避免并发..." % [character.name, delay])
-	await get_tree().create_timer(delay).timeout
+	# 使用基于角色名的固定偏移 + 随机延迟，确保分散
+	var name_hash = character.name.hash()
+	var fixed_delay = (abs(name_hash) % 10) * 0.5  # 0-5秒基于名字的固定延迟
+	var random_delay = randf() * 1.0  # 0-1秒随机延迟
+	var total_delay = fixed_delay + random_delay
+	print("[AIAgent] %s 等待 %.2f 秒以避免并发 (固定%.2f + 随机%.2f)..." % [character.name, total_delay, fixed_delay, random_delay])
+	await get_tree().create_timer(total_delay).timeout
 	
 	# V2: 使用PromptBuilder从文件加载模板
 	var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
