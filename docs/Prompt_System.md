@@ -43,8 +43,8 @@ Prompt系统是 Godot-Microverse-predict 项目的AI交互层，负责：
 ┌─────────────────────────────────────────────────────────────┐
 │  Prompt系统                                                   │
 │  ├─ PromptBuilder.gd         - 构建器                        │
-│  ├─ prompts/*.txt            - 模板文件                      │
-│  └─ prompts/fragments/*.txt  - 片段文件                      │
+│  ├─ prompts/*.md             - 模板文件                      │
+│  └─ prompts/fragments/*.md   - 片段文件                      │
 └─────────────────────────────────────────────────────────────┘
                               ↓
                     生成完整Prompt
@@ -315,7 +315,7 @@ V2活动系统中，Agent生成自然语言决策描述，提交给中央协调�
 ### 文件位置
 
 ```
-prompts/decision_prompt_template.txt
+prompts/decision_prompt_template.md
 ```
 
 ### 模板结构
@@ -426,7 +426,7 @@ prompts/decision_prompt_template.txt
 ### 文件位置
 
 ```
-prompts/dialogue_reply_template.txt
+prompts/dialogue_reply_template.md
 ```
 
 ### 模板结构
@@ -484,7 +484,7 @@ prompts/dialogue_reply_template.txt
 
 ```
 prompts/fragments/
-├── basic_info_fragment.txt
+├── basic_info_fragment.md
 ├── big_five_fragment.txt
 └── ...
 ```

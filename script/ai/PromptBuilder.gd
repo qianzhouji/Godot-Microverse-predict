@@ -17,7 +17,7 @@ static var template_cache: Dictionary = {}
 # ============================================
 static func build_natural_decision_prompt(agent: AIAgent, perception: Dictionary) -> String:
     # V2: 加载自然语言决策模板
-    var template = _load_template("natural_decision_template.txt")
+    var template = _load_template("natural_decision_template.md")
     if template.is_empty():
         push_error("[PromptBuilder] 无法加载V2决策模板")
         return ""
@@ -60,7 +60,7 @@ static func _build_nearby_agents(agents: Array) -> String:
 # 构建对话回复Prompt
 # ============================================
 static func build_dialogue_reply_prompt(agent: AIAgent, dialogue_context: Dictionary) -> String:
-    var template = _load_template("dialogue_reply_template.txt")
+    var template = _load_template("dialogue_reply_template.md")
     if template.is_empty():
         return ""
     
