@@ -495,7 +495,7 @@ func _call_local_llm(prompt: String, max_retries: int = 3) -> String:
 	# 本地部署的大模型API配置
 	# 默认使用Ollama本地服务,可通过修改配置支持其他本地模型
 	var api_url = "http://localhost:11434/api/generate"
-	var model_name = "qwen2.5:7b"  # 统一使用7B模型
+	var model_name = "qwen2.5:1.5b"  # 使用1.5B模型以提高并发性能
 
 	print("[AIAgent] %s _call_local_llm被调用, prompt长度=%d, 最大重试=%d" % [character.name, prompt.length(), max_retries])
 	
