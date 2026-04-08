@@ -703,6 +703,9 @@ var llm_api_url: String = "http://localhost:11434/api/generate"  # 或更换API
 | TimingSystem.gd | script/system/ | 时序系统（V2部分） |
 | RewardSystem.gd | script/system/ | 奖赏系统（V2部分） |
 | coordinator_prompt.md | docs/prompts/ | 协调器Prompt |
+| natural_decision_template.txt | prompts/ | V2自然语言决策Prompt |
+| dialogue_reply_template.txt | prompts/ | 对话回复Prompt |
+| basic_info_fragment.txt | prompts/fragments/ | 基础信息片段 |
 
 ### B. 版本历史
 

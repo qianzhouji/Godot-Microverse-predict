@@ -13,13 +13,13 @@ const FRAGMENTS_DIR = "res://prompts/fragments/"
 static var template_cache: Dictionary = {}
 
 # ============================================
-# 主入口：构建决策Prompt
+# V2主入口：构建自然语言决策Prompt
 # ============================================
-static func build_decision_prompt(agent: AIAgent, perception: Dictionary) -> String:
-    # 加载模板
-    var template = _load_template("decision_prompt_template.txt")
+static func build_natural_decision_prompt(agent: AIAgent, perception: Dictionary) -> String:
+    # V2: 加载自然语言决策模板
+    var template = _load_template("natural_decision_template.txt")
     if template.is_empty():
-        push_error("[PromptBuilder] 无法加载决策模板")
+        push_error("[PromptBuilder] 无法加载V2决策模板")
         return ""
     
     # 获取Agent数据
@@ -30,35 +30,31 @@ static func build_decision_prompt(agent: AIAgent, perception: Dictionary) -> Str
     var variables = {}
     
     # 基础信息
-    variables["role_description"] = _get_role_description(personality)
     variables["agent_name"] = agent_name
     variables["basic_info"] = _build_basic_info(personality)
-    variables["big_five_traits"] = _build_big_five_traits(personality)
-    variables["mental_health_status"] = _build_mental_health_status(personality)
-    variables["functioning_level"] = _build_functioning_level(personality)
-    variables["specific_abilities"] = _build_specific_abilities(personality)
-    variables["cognitive_parameters"] = _build_cognitive_parameters(personality)
     
     # 当前状态
     variables["current_time"] = TimingSystem.instance.format_time(TimingSystem.instance.current_game_time)
     variables["current_room"] = perception.get("current_room", "未知")
     variables["current_period"] = TimelineState.instance.current_period
-    variables["behavior_constraints"] = _build_behavior_constraints()
+    variables["nearby_agents"] = _build_nearby_agents(perception.get("nearby_agents", []))
     
-    # 环境信息
-    variables["environment_info"] = agent.get_environment_info()
-    
-    # 感知参数
-    variables["perceived_params"] = _build_perceived_params(agent, perception.get("current_room", ""))
-    
-    # 记忆
-    variables["memories"] = MemoryManager.get_formatted_memories_for_prompt(agent.character, 5)
-    
-    # 活动状态
-    variables["activity_status"] = _build_activity_status(agent)
+    # 时间约束
+    variables["time_constraints"] = _build_behavior_constraints()
     
     # 填充模板
     return _fill_template(template, variables)
+
+# V2: 构建附近角色列表
+static func _build_nearby_agents(agents: Array) -> String:
+    if agents.is_empty():
+        return "无"
+    
+    var names = []
+    for agent in agents:
+        names.append(agent.get("name", "未知"))
+    
+    return "、".join(names)
 
 # ============================================
 # 构建对话回复Prompt

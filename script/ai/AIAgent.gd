@@ -648,8 +648,8 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	"""
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	
-	# 构建V2决策Prompt
-	var prompt = _build_v2_decision_prompt(perception)
+	# V2: 使用PromptBuilder从文件加载模板
+	var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
 	
 	# 调用LLM
 	var response = await _call_local_llm(prompt)
@@ -659,51 +659,6 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	last_natural_decision = decision
 	
 	return decision
-
-func _build_v2_decision_prompt(perception: Dictionary) -> String:
-	"""构建V2自然语言决策Prompt"""
-	var prompt = "你是" + character.name + "，请描述你接下来想要做什么。\n\n"
-	
-	# 基础信息
-	var personality = _get_personality()
-	prompt += "【角色信息】\n"
-	prompt += "- 身份：" + personality.get("position", "学生") + "\n"
-	prompt += "- 性格：" + personality.get("personality", "普通") + "\n"
-	
-	# 当前状态
-	prompt += "\n【当前状态】\n"
-	prompt += "- 当前场景：" + perception.get("current_room", "未知") + "\n"
-	prompt += "- 当前时间：" + TimingSystem.instance.format_time(TimingSystem.instance.current_game_time) + "\n"
-	prompt += "- 当前时段：" + TimelineState.instance.current_period + "\n"
-	
-	# 环境信息
-	var nearby = perception.get("nearby_agents", [])
-	prompt += "- 附近角色："
-	if nearby.size() > 0:
-		var names = []
-		for agent in nearby:
-			names.append(agent.get("name", "未知"))
-		prompt += ", ".join(names) + "\n"
-	else:
-		prompt += "无\n"
-	
-	# 时间约束
-	var constraints = perception.get("time_constraints", {})
-	if constraints.has("description"):
-		prompt += "- 时间约束：" + constraints.description + "\n"
-	
-	# 决策要求
-	prompt += "\n【决策要求】\n"
-	prompt += "请用一句话描述你接下来想要进行的活动。\n"
-	prompt += "例如：\n"
-	prompt += "- \"我想去图书馆准备明天的数学考试\"\n"
-	prompt += "- \"我想和小明讨论一下物理问题\"\n"
-	prompt += "- \"我想去体育馆打篮球\"\n"
-	prompt += "- \"这节课我想认真听讲\"\n"
-	prompt += "- \"我有点累了，随便听听课吧\"\n\n"
-	prompt += "请直接输出你的决策描述，不需要解释：\n"
-	
-	return prompt
 
 func _extract_decision_text(response: String) -> String:
 	"""从LLM响应中提取决策文本"""
