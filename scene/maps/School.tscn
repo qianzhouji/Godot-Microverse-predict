@@ -37,8 +37,9 @@
 [ext_resource type="Script" uid="uid://dwbuqa6u6pc8y" path="res://script/RoomManager.gd" id="31_8h615"]
 [ext_resource type="PackedScene" path="res://scene/characters/PrincipalLi.tscn" id="32_45tuo"]
 [ext_resource type="PackedScene" path="res://scene/characters/StudentXiaogang.tscn" id="33_sepw8"]
-[ext_resource type="Script" path="res://script/system/TimingSystem.gd" id="34_timing"]
-[ext_resource type="Script" path="res://script/system/TimelineState.gd" id="35_timeline"]
+[ext_resource type="Script" uid="uid://csgy7tvwdfwdl" path="res://script/system/TimingSystem.gd" id="34_timing"]
+[ext_resource type="Script" uid="uid://cb5sb6pw1rka7" path="res://script/system/TimelineState.gd" id="35_timeline"]
+[ext_resource type="Script" uid="uid://t5og588r7c7b" path="res://script/system/ActivityManager.gd" id="40_45tuo"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_3he53"]
 
@@ -17088,3 +17089,7 @@ script = ExtResource("34_timing")
 
 [node name="TimelineState" type="Node" parent="TimingSystem" unique_id=990108195]
 script = ExtResource("35_timeline")
+
+[node name="ActivityManager" type="Node" parent="." unique_id=1106217868]
+script = ExtResource("40_45tuo")
+metadata/_custom_type_script = "uid://t5og588r7c7b"

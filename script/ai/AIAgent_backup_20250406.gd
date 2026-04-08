@@ -1,6 +1,7 @@
 extends Node
 
-class_name AIAgent
+# 备份文件 - 不定义class_name以避免冲突
+# class_name AIAgent
 
 # 角色的感知范围
 const PERCEPTION_RADIUS = 200

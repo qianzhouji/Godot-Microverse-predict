@@ -1,6 +1,9 @@
 class_name ActivityCoordinator
 extends Node
 
+# 预加载AIAgent以避免循环依赖问题
+const AIAgentClass = preload("res://script/ai/AIAgent.gd")
+
 # ============================================
 # ActivityCoordinator - 活动协调器
 # ============================================
@@ -485,10 +488,10 @@ func _find_agent_node(agent_id: String) -> Node:
 		if char.name == agent_id:
 			# AIAgent是Character的子节点
 			for child in char.get_children():
-				if child is AIAgent:
+				if child is AIAgentClass:
 					return child
 			# 或者AIAgent就是char本身
-			if char is AIAgent:
+			if char is AIAgentClass:
 				return char
 	
 	return null
@@ -514,11 +517,11 @@ func _get_agent_role(character: CharacterBody2D) -> String:
 
 func _get_agent_state(agent_node: Node) -> String:
 	"""获取Agent当前状态"""
-	if agent_node is AIAgent:
+	if agent_node is AIAgentClass:
 		match agent_node.current_state:
-			AIAgent.AgentState.IDLE: return "idle"
-			AIAgent.AgentState.IN_DIALOGUE: return "in_dialogue"
-			AIAgent.AgentState.IN_ACTIVITY: return "in_activity"
-			AIAgent.AgentState.MOVING: return "moving"
+			AIAgentClass.AgentState.IDLE: return "idle"
+			AIAgentClass.AgentState.IN_DIALOGUE: return "in_dialogue"
+			AIAgentClass.AgentState.IN_ACTIVITY: return "in_activity"
+			AIAgentClass.AgentState.MOVING: return "moving"
 			_: return "idle"
 	return "idle"

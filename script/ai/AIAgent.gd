@@ -12,7 +12,8 @@ enum AgentState {
 	WAITING_FOR_CLICK,       # 等待Click执行
 	EXECUTING_ACTION,        # 执行行动中
 	IN_DIALOGUE,             # 在对话中
-	IN_ACTIVITY              # 在活动中(体育/自习)
+	IN_ACTIVITY,             # 在活动中(体育/自习)
+	MOVING                   # 移动中
 }
 
 # ============================================
@@ -55,6 +56,20 @@ var information_receiver: InformationReceiver = null  # 信息接收器
 # 玩家控制(保留)
 # ============================================
 var is_player_controlled: bool = false
+
+# ============================================
+# V1兼容: 旧版请求缓存系统
+# ============================================
+var cached_request: ActionRequest = null       # 缓存的行动请求(V1)
+var is_waiting_execution: bool = false         # 是否等待执行(V1)
+
+# ============================================
+# 移动相关变量
+# ============================================
+var _is_moving: bool = false                   # 是否正在移动
+var _target_position: Vector2 = Vector2.ZERO   # 目标位置
+var _movement_check_timer: float = 0.0         # 移动检查计时器
+const MOVEMENT_CHECK_INTERVAL: float = 0.5     # 每0.5秒检查一次移动状态
 
 # ============================================
 # 初始化
@@ -145,7 +160,7 @@ func _perform_activity_update():
 	var activity_info = ActivityManager.instance.get_activity_info(character.name)
 	if not activity_info.has_activity:
 		# 活动已结束，回到空闲状态
-		_perform_cognitive_cycle()
+		_perform_v2_cognitive_cycle()
 		return
 	
 	# 2. 体验阶段：接收累积奖赏（ActivityManager已在Click时触发RewardSystem）
@@ -297,27 +312,6 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 	}
 
 # ============================================
-# 决策阶段(新增)
-# ============================================
-func _make_decision(perception: Dictionary) -> ActionRequest:
-	print("[AIAgent] %s 开始决策..." % character.name)
-
-	# 1. 构建决策Prompt
-	var prompt = PromptBuilder.build_decision_prompt(self, perception)
-	if prompt.is_empty():
-		push_error("[AIAgent] %s Prompt构建失败" % character.name)
-		return ActionRequest.new(character.name, ActionRequest.ActionType.WAIT)
-
-	# 2. 调用本地部署的大模型API
-	var response = await _call_local_llm(prompt)
-
-	# 3. 解析响应为ActionRequest
-	var request = _parse_decision_response(response)
-
-	print("[AIAgent] %s 决策完成: %s" % [character.name, request.get_action_name()])
-	return request
-
-# ============================================
 # 活动决策（继续/停止/更换）- 新时序逻辑
 # ============================================
 func _make_activity_decision(perception: Dictionary, activity_info: Dictionary, experience: Dictionary) -> Dictionary:
@@ -460,7 +454,7 @@ func _execute_activity_decision(decision: Dictionary, activity_info: Dictionary)
 			last_activity = activity_info.get("activity_name", "")
 			
 			# 停止后需要新的决策周期
-			_perform_cognitive_cycle()
+			_perform_v2_cognitive_cycle()
 			
 		"switch":
 			# 更换活动
@@ -471,7 +465,7 @@ func _execute_activity_decision(decision: Dictionary, activity_info: Dictionary)
 			last_activity = activity_info.get("activity_name", "")
 			
 			# 更换活动需要新的决策
-			_perform_cognitive_cycle()
+			_perform_v2_cognitive_cycle()
 
 # ============================================
 # 调用本地部署的大模型API
@@ -1253,13 +1247,7 @@ func _execute_wait(request: ActionRequest):
 	current_state = AgentState.IDLE
 	# 无需额外操作
 
-# ============================================
-# 移动相关变量和方法
-# ============================================
-var _is_moving: bool = false
-var _target_position: Vector2 = Vector2.ZERO
-var _movement_check_timer: float = 0.0
-const MOVEMENT_CHECK_INTERVAL: float = 0.5  # 每0.5秒检查一次移动状态
+
 
 func _physics_process(delta: float):
 	# V2: 更新MovementExecutor
@@ -1485,7 +1473,7 @@ func _validate_and_execute_step2():
 		last_activity = _get_activity_name(step2)
 	else:
 		print("[AIAgent] %s Step2无效,重新决策" % character.name)
-		_make_decision(new_perception)
+		_perform_v2_cognitive_cycle()
 
 	# 清空缓存
 	cached_request = null
