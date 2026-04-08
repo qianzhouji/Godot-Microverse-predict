@@ -13,7 +13,7 @@ const CHARACTER_AI_CONFIG_FILE = "user://character_ai_settings.cfg"
 # 当前设置（默认AI设置）
 var current_settings = {
 	"api_type": "Ollama",
-	"model": "qwen2.5:1.5b",
+	"model": "qwen2.5:7b",
 	"api_key": "",
 	"show_ai_model_label": true,
 	# 显示设置

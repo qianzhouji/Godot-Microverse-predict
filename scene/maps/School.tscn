@@ -40,6 +40,7 @@
 [ext_resource type="Script" uid="uid://csgy7tvwdfwdl" path="res://script/system/TimingSystem.gd" id="34_timing"]
 [ext_resource type="Script" uid="uid://cb5sb6pw1rka7" path="res://script/system/TimelineState.gd" id="35_timeline"]
 [ext_resource type="Script" uid="uid://t5og588r7c7b" path="res://script/system/ActivityManager.gd" id="40_45tuo"]
+[ext_resource type="Script" path="res://script/system/ActivityCoordinator.gd" id="41_coordinator"]
 
 [sub_resource type="PhysicsMaterial" id="PhysicsMaterial_3he53"]
 
@@ -17093,3 +17094,6 @@ script = ExtResource("35_timeline")
 [node name="ActivityManager" type="Node" parent="." unique_id=1106217868]
 script = ExtResource("40_45tuo")
 metadata/_custom_type_script = "uid://t5og588r7c7b"
+
+[node name="ActivityCoordinator" type="Node" parent="." unique_id=1106217869]
+script = ExtResource("41_coordinator")
