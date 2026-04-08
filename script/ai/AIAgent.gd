@@ -497,6 +497,12 @@ func _call_local_llm(prompt: String) -> String:
 	var api_url = "http://localhost:11434/api/generate"
 	var model_name = "qwen2.5:7b"  # 统一使用7B模型
 
+	print("[AIAgent] %s _call_local_llm被调用, prompt长度=%d" % [character.name, prompt.length()])
+	
+	if prompt.is_empty():
+		push_error("[AIAgent] %s Prompt为空!" % character.name)
+		return "{}"
+
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 
@@ -513,23 +519,29 @@ func _call_local_llm(prompt: String) -> String:
 	var json_body = JSON.stringify(body)
 	var headers = ["Content-Type: application/json"]
 
-	print("[AIAgent] %s 调用本地LLM..." % character.name)
+	print("[AIAgent] %s 调用本地LLM, URL=%s, model=%s" % [character.name, api_url, model_name])
 
 	var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
 	if error != OK:
 		push_error("[AIAgent] HTTP请求失败: %d" % error)
+		print("[AIAgent] %s HTTP请求错误: %d" % [character.name, error])
 		http_request.queue_free()
 		return "{}"
 
+	print("[AIAgent] %s 等待LLM响应..." % character.name)
+	
 	# 等待响应
 	var result = await http_request.request_completed
 	http_request.queue_free()
 
 	var response_code = result[1]
 	var body_text = result[3].get_string_from_utf8()
+	
+	print("[AIAgent] %s 收到HTTP响应, code=%d, body长度=%d" % [character.name, response_code, body_text.length()])
 
 	if response_code != 200:
 		push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
+		print("[AIAgent] %s API错误: %s" % [character.name, body_text])
 		return "{}"
 
 	# 解析Ollama响应
@@ -537,12 +549,13 @@ func _call_local_llm(prompt: String) -> String:
 	var parse_result = json.parse(body_text)
 	if parse_result != OK:
 		push_error("[AIAgent] JSON解析失败: %s" % body_text)
+		print("[AIAgent] %s JSON解析失败: %s" % [character.name, body_text])
 		return "{}"
 
 	var response_data = json.get_data()
 	var response_text = response_data.get("response", "")
 
-	print("[AIAgent] %s 收到LLM响应" % character.name)
+	print("[AIAgent] %s 收到LLM响应: %s" % [character.name, response_text.substr(0, 100)])
 	return response_text
 
 # ============================================
@@ -632,14 +645,21 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	
 	# V2: 使用PromptBuilder从文件加载模板
 	var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
+	print("[AIAgent] %s Prompt构建完成, 长度=%d" % [character.name, prompt.length()])
+	
+	if prompt.is_empty():
+		push_error("[AIAgent] %s Prompt为空,无法调用LLM" % character.name)
+		return "{}"
 	
 	# 调用LLM
 	var response = await _call_local_llm(prompt)
+	print("[AIAgent] %s LLM响应: %s" % [character.name, response.substr(0, 50)])
 	
 	# 提取决策文本
 	var decision = _extract_decision_text(response)
 	last_natural_decision = decision
 	
+	print("[AIAgent] %s 最终决策: %s" % [character.name, decision])
 	return decision
 
 func _extract_decision_text(response: String) -> String:
