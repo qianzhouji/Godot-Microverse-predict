@@ -29,18 +29,37 @@ static func build_natural_decision_prompt(agent: AIAgent, perception: Dictionary
     # 构建变量映射
     var variables = {}
     
-    # 基础信息
+    # 角色描述
+    variables["role_description"] = _get_role_description(personality)
     variables["agent_name"] = agent_name
+    
+    # 基本信息和人格
     variables["basic_info"] = _build_basic_info(personality)
+    variables["big_five_traits"] = _build_big_five_traits(personality)
+    variables["mental_health_status"] = _build_mental_health_status(personality)
+    variables["functioning_level"] = _build_functioning_level(personality)
+    variables["specific_abilities"] = _build_specific_abilities(personality)
+    
+    # 认知计算参数
+    variables["cognitive_parameters"] = _build_cognitive_parameters(personality)
     
     # 当前状态
     variables["current_time"] = TimingSystem.instance.format_time(TimingSystem.instance.current_game_time)
     variables["current_room"] = perception.get("current_room", "未知")
     variables["current_period"] = TimelineState.instance.current_period
-    variables["nearby_agents"] = _build_nearby_agents(perception.get("nearby_agents", []))
+    variables["behavior_constraints"] = _build_behavior_constraints()
     
-    # 时间约束
-    variables["time_constraints"] = _build_behavior_constraints()
+    # 周围环境信息
+    variables["environment_info"] = _build_environment_info(perception)
+    
+    # 感知到的情境参数
+    variables["perceived_params"] = _build_perceived_params(agent, perception.get("current_room", ""))
+    
+    # 记忆（简化版）
+    variables["memories"] = _build_memories(agent)
+    
+    # 当前活动状态
+    variables["activity_status"] = _build_activity_status(agent)
     
     # 填充模板
     return _fill_template(template, variables)
@@ -217,6 +236,45 @@ static func _build_activity_status(agent: AIAgent) -> String:
             return "正在进行" + agent.current_activity
         _:
             return "其他状态"
+
+static func _build_environment_info(perception: Dictionary) -> String:
+    var info = []
+    
+    # 当前房间
+    var room = perception.get("current_room", "未知")
+    info.append("当前位置：" + room)
+    
+    # 附近角色详情
+    var nearby = perception.get("nearby_agents", [])
+    if nearby.is_empty():
+        info.append("附近角色：无")
+    else:
+        var agents_desc = []
+        for agent in nearby:
+            var name = agent.get("name", "未知")
+            var activity = agent.get("activity", "")
+            if activity.is_empty():
+                agents_desc.append(name)
+            else:
+                agents_desc.append(name + "(" + activity + ")")
+        info.append("附近角色：" + "、".join(agents_desc))
+    
+    # 可见行为
+    var behaviors = perception.get("visible_behaviors", [])
+    if not behaviors.is_empty():
+        info.append("可见行为：" + "、".join(behaviors))
+    
+    # 可听内容
+    var audible = perception.get("audible_contents", [])
+    if not audible.is_empty():
+        info.append("可听内容：" + "、".join(audible))
+    
+    return "\n".join(info)
+
+static func _build_memories(agent: AIAgent) -> String:
+    # TODO: 从记忆系统获取真实记忆
+    # 暂时返回简化版本
+    return "- 近期活动：正常参与学校生活\n- 社交关系：与同学保持正常交往"
 
 static func _build_mood_status(agent: AIAgent) -> String:
     # TODO: 从DynamicPersonality获取当前心情
