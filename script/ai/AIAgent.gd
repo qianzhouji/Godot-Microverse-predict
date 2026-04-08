@@ -643,6 +643,11 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	"""
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	
+	# 添加随机延迟，避免所有Agent同时调用LLM
+	var delay = randf() * 2.0  # 0-2秒随机延迟
+	print("[AIAgent] %s 等待 %.2f 秒以避免并发..." % [character.name, delay])
+	await get_tree().create_timer(delay).timeout
+	
 	# V2: 使用PromptBuilder从文件加载模板
 	var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
 	print("[AIAgent] %s Prompt构建完成, 长度=%d" % [character.name, prompt.length()])
