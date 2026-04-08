@@ -1,0 +1,524 @@
+class_name ActivityCoordinator
+extends Node
+
+# ============================================
+# ActivityCoordinator - 活动协调器
+# ============================================
+# 中央协调系统核心组件
+# 1. 收集所有Agent的自然语言决策
+# 2. 调用LLM进行活动分配
+# 3. 解析并下发活动序列给各Agent
+# ============================================
+
+# 单例
+static var instance: ActivityCoordinator
+
+# LLM配置
+var llm_api_url: String = "http://localhost:11434/api/generate"
+var llm_model: String = "qwen2.5:7b"
+var llm_temperature: float = 0.3  # 协调器需要更确定性的输出
+var llm_max_tokens: int = 2000
+
+# 协调状态
+var is_coordinating: bool = false
+var pending_decisions: Dictionary = {}  # {agent_id: decision_string}
+var coordination_results: Dictionary = {}  # {agent_id: Array[Activity]}
+
+# 信号
+signal coordination_started(agent_count: int)
+signal coordination_completed(results: Dictionary)
+signal coordination_failed(reason: String)
+signal activity_assigned(agent_id: String, activities: Array)
+
+# Prompt模板
+var coordinator_prompt_template: String = ""
+
+func _ready():
+	instance = self
+	print("[ActivityCoordinator] 活动协调器初始化完成")
+	_load_prompt_template()
+
+func _load_prompt_template() -> void:
+	"""加载协调器Prompt模板"""
+	# 从文件加载或直接使用内置模板
+	var prompt_path = "res://docs/prompts/coordinator_prompt.md"
+	if FileAccess.file_exists(prompt_path):
+		var file = FileAccess.open(prompt_path, FileAccess.READ)
+		coordinator_prompt_template = file.get_as_text()
+		file.close()
+		print("[ActivityCoordinator] 已加载Prompt模板")
+	else:
+		# 使用内置简化模板
+		coordinator_prompt_template = _get_builtin_prompt()
+		print("[ActivityCoordinator] 使用内置Prompt模板")
+
+# ============================================
+# 核心协调接口
+# ============================================
+
+func submit_decision(agent_id: String, decision: String) -> void:
+	"""
+	提交Agent决策到协调器
+	
+	参数:
+		agent_id: Agent唯一标识
+		decision: 自然语言决策描述
+	"""
+	pending_decisions[agent_id] = decision
+	print("[ActivityCoordinator] 收到 %s 的决策: %s" % [agent_id, decision])
+
+func clear_decisions() -> void:
+	"""清空所有待处理决策"""
+	pending_decisions.clear()
+	coordination_results.clear()
+
+func get_pending_count() -> int:
+	"""获取待协调的决策数量"""
+	return pending_decisions.size()
+
+# ============================================
+# 协调执行
+# ============================================
+
+func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
+	"""
+	执行协调 - 调用LLM分配活动
+	
+	参数:
+		game_context: 游戏上下文 {current_time, current_location, period}
+	
+	返回:
+		协调结果字典
+	"""
+	if pending_decisions.is_empty():
+		print("[ActivityCoordinator] 没有待协调的决策")
+		return {}
+	
+	if is_coordinating:
+		print("[ActivityCoordinator] 协调正在进行中")
+		return {}
+	
+	is_coordinating = true
+	coordination_started.emit(pending_decisions.size())
+	
+	print("[ActivityCoordinator] 开始协调 %d 个Agent..." % pending_decisions.size())
+	
+	# 构建输入数据
+	var input_data = _build_coordination_input(game_context)
+	
+	# 构建Prompt
+	var prompt = _build_coordination_prompt(input_data)
+	
+	# 调用LLM
+	var response = await _call_llm(prompt)
+	
+	if response.is_empty():
+		coordination_failed.emit("LLM调用失败")
+		is_coordinating = false
+		return {}
+	
+	# 解析响应
+	var results = _parse_coordination_response(response)
+	
+	# 下发活动给各Agent
+	_distribute_activities(results)
+	
+	coordination_results = results
+	coordination_completed.emit(results)
+	
+	is_coordinating = false
+	pending_decisions.clear()
+	
+	return results
+
+# ============================================
+# 输入构建
+# ============================================
+
+func _build_coordination_input(game_context: Dictionary) -> Dictionary:
+	"""构建协调输入数据"""
+	var input = {
+		"game_context": game_context,
+		"agents": [],
+		"available_activities": _get_available_activities(),
+		"scene_constraints": _get_scene_constraints()
+	}
+	
+	# 构建Agent信息
+	for agent_id in pending_decisions.keys():
+		var agent_info = _get_agent_info(agent_id)
+		agent_info["decision"] = pending_decisions[agent_id]
+		input.agents.append(agent_info)
+	
+	return input
+
+func _get_agent_info(agent_id: String) -> Dictionary:
+	"""获取Agent信息"""
+	# 从场景树查找Agent
+	var agent_node = _find_agent_node(agent_id)
+	
+	if agent_node:
+		var character = agent_node.get_parent() as CharacterBody2D
+		if character:
+			var current_room = _get_current_room_name(character)
+			return {
+				"agent_id": agent_id,
+				"role": _get_agent_role(character),
+				"current_scene": current_room,
+				"current_position": {
+					"x": character.global_position.x,
+					"y": character.global_position.y
+				},
+				"current_state": _get_agent_state(agent_node)
+			}
+	
+	# 默认信息
+	return {
+		"agent_id": agent_id,
+		"role": "unknown",
+		"current_scene": "unknown",
+		"current_position": {"x": 0, "y": 0},
+		"current_state": "idle"
+	}
+
+func _get_available_activities() -> Array[String]:
+	"""获取可用活动列表"""
+	return [
+		"MOVE_TO",
+		"NORMAL_DIALOGUE",
+		"WHISPER",
+		"LISTEN",
+		"QA_TEACHER",
+		"SELF_STUDY",
+		"SPORTS",
+		"GROUP_DISCUSSION"
+	]
+
+func _get_scene_constraints() -> Dictionary:
+	"""获取场景约束"""
+	if ActivityManager.instance:
+		return ActivityManager.instance.scene_activity_map
+	return {
+		"classroom": ["LISTEN", "QA_TEACHER", "GROUP_DISCUSSION"],
+		"library": ["SELF_STUDY"],
+		"study_room": ["SELF_STUDY"],
+		"gym": ["SPORTS"],
+		"playground": ["SPORTS"],
+		"discussion_room": ["GROUP_DISCUSSION"]
+	}
+
+# ============================================
+# Prompt构建
+# ============================================
+
+func _build_coordination_prompt(input_data: Dictionary) -> String:
+	"""构建协调Prompt"""
+	var prompt = coordinator_prompt_template + "\n\n"
+	
+	prompt += "## 当前协调任务\n\n"
+	prompt += "请根据以下输入，为每个Agent分配活动序列：\n\n"
+	prompt += "```json\n"
+	prompt += JSON.stringify(input_data, "\t")
+	prompt += "\n```\n\n"
+	
+	prompt += "请输出JSON格式的活动分配方案。"
+	
+	return prompt
+
+func _get_builtin_prompt() -> String:
+	"""获取内置简化Prompt"""
+	return """你是Activity Coordinator（活动协调器）。
+
+你的任务：
+1. 理解每个角色的自然语言决策
+2. 将意图映射为具体活动（MOVE_TO, NORMAL_DIALOGUE, WHISPER, LISTEN, QA_TEACHER, SELF_STUDY, SPORTS, GROUP_DISCUSSION）
+3. 检查场景约束
+4. 为每个角色分配最多3步的活动序列
+
+输出格式必须是JSON：
+{
+  "assignments": [
+    {
+      "agent_id": "角色ID",
+      "steps": [
+        {
+          "step": 1,
+          "activity_type": "活动类型",
+          "parameters": {},
+          "focus_level": 100,
+          "estimated_duration": 10.0,
+          "reason": "原因"
+        }
+      ]
+    }
+  ]
+}
+
+规则：
+- 如果活动需要特定场景但角色不在该场景，先添加MOVE_TO
+- 专注度默认100%，提到"随便""走神"时用30%或65%
+- 最多3步，第1步通常是移动
+"""
+
+# ============================================
+# LLM调用
+# ============================================
+
+func _call_llm(prompt: String) -> String:
+	"""调用本地LLM"""
+	print("[ActivityCoordinator] 调用LLM...")
+	
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	var body = {
+		"model": llm_model,
+		"prompt": prompt,
+		"stream": false,
+		"options": {
+			"temperature": llm_temperature,
+			"num_predict": llm_max_tokens
+		}
+	}
+	
+	var json_body = JSON.stringify(body)
+	var headers = ["Content-Type: application/json"]
+	
+	var error = http_request.request(llm_api_url, headers, HTTPClient.METHOD_POST, json_body)
+	if error != OK:
+		push_error("[ActivityCoordinator] HTTP请求失败: %d" % error)
+		http_request.queue_free()
+		return ""
+	
+	# 等待响应
+	var result = await http_request.request_completed
+	http_request.queue_free()
+	
+	var response_code = result[1]
+	var body_text = result[3].get_string_from_utf8()
+	
+	if response_code != 200:
+		push_error("[ActivityCoordinator] API错误: %d, %s" % [response_code, body_text])
+		return ""
+	
+	# 解析Ollama响应
+	var json = JSON.new()
+	var parse_result = json.parse(body_text)
+	if parse_result != OK:
+		push_error("[ActivityCoordinator] JSON解析失败: %s" % body_text)
+		return ""
+	
+	var response_data = json.get_data()
+	var response_text = response_data.get("response", "")
+	
+	print("[ActivityCoordinator] 收到LLM响应")
+	return response_text
+
+# ============================================
+# 响应解析
+# ============================================
+
+func _parse_coordination_response(response: String) -> Dictionary:
+	"""解析协调响应"""
+	var results = {}
+	
+	# 提取JSON
+	var json_text = _extract_json_from_text(response)
+	
+	var json = JSON.new()
+	var parse_result = json.parse(json_text)
+	
+	if parse_result != OK:
+		push_error("[ActivityCoordinator] 无法解析响应: %s" % response)
+		return results
+	
+	var data = json.get_data()
+	var assignments = data.get("assignments", [])
+	
+	# 解析每个Agent的分配
+	for assignment in assignments:
+		var agent_id = assignment.get("agent_id", "")
+		var steps = assignment.get("steps", [])
+		
+		if agent_id.is_empty():
+			continue
+		
+		var activities: Array[Activity] = []
+		
+		for step_data in steps:
+			var activity = _parse_step_to_activity(step_data, agent_id)
+			if activity:
+				activities.append(activity)
+		
+		results[agent_id] = activities
+		print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
+	
+	return results
+
+func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activity:
+	"""将步骤数据解析为Activity对象"""
+	var activity_type_str = step_data.get("activity_type", "MOVE_TO")
+	var activity_type = _string_to_activity_type(activity_type_str)
+	
+	var parameters = step_data.get("parameters", {})
+	var focus_level = step_data.get("focus_level", 100)
+	
+	var activity: Activity = null
+	
+	match activity_type:
+		Activity.ActivityType.MOVE_TO:
+			var target_location = Vector2(
+				parameters.get("target_location", {}).get("x", 0),
+				parameters.get("target_location", {}).get("y", 0)
+			)
+			var target_room = parameters.get("target_room", "")
+			activity = Activity.create_move_to(target_location, target_room)
+		
+		Activity.ActivityType.NORMAL_DIALOGUE:
+			var target_agent = parameters.get("target_agent", "")
+			var topic = parameters.get("topic", "")
+			activity = Activity.create_normal_dialogue(target_agent, topic)
+		
+		Activity.ActivityType.WHISPER:
+			var whisper_target = parameters.get("target_agent", "")
+			var content = parameters.get("content", "")
+			activity = Activity.create_whisper(whisper_target, content)
+		
+		Activity.ActivityType.LISTEN:
+			var target_teacher = parameters.get("target_teacher", "")
+			var listen_focus = _int_to_focus_level(focus_level)
+			activity = Activity.create_listen(target_teacher, listen_focus)
+		
+		Activity.ActivityType.QA_TEACHER:
+			var question = parameters.get("question", "")
+			var is_answer = parameters.get("is_answer", false)
+			var qa_focus = _int_to_focus_level(focus_level)
+			activity = Activity.create_qa_teacher(question, is_answer, qa_focus)
+		
+		Activity.ActivityType.SELF_STUDY:
+			var subject = parameters.get("subject", "")
+			var study_focus = _int_to_focus_level(focus_level)
+			activity = Activity.create_self_study(subject, study_focus)
+		
+		Activity.ActivityType.SPORTS:
+			var sport_type = parameters.get("sport_type", "")
+			var intensity = parameters.get("intensity", 0.5)
+			var sports_focus = _int_to_focus_level(focus_level)
+			activity = Activity.create_sports(sport_type, intensity, sports_focus)
+		
+		Activity.ActivityType.GROUP_DISCUSSION:
+			var topic = parameters.get("topic", "")
+			var members = parameters.get("members", [])
+			var discussion_focus = _int_to_focus_level(focus_level)
+			activity = Activity.create_group_discussion(topic, members, discussion_focus)
+	
+	if activity:
+		activity.activity_id = "%s_step%d_%d" % [agent_id, step_data.get("step", 1), Time.get_unix_time_from_system()]
+	
+	return activity
+
+func _string_to_activity_type(type_str: String) -> Activity.ActivityType:
+	"""字符串转活动类型"""
+	match type_str.to_upper():
+		"MOVE_TO": return Activity.ActivityType.MOVE_TO
+		"NORMAL_DIALOGUE": return Activity.ActivityType.NORMAL_DIALOGUE
+		"WHISPER": return Activity.ActivityType.WHISPER
+		"LISTEN": return Activity.ActivityType.LISTEN
+		"QA_TEACHER": return Activity.ActivityType.QA_TEACHER
+		"SELF_STUDY": return Activity.ActivityType.SELF_STUDY
+		"SPORTS": return Activity.ActivityType.SPORTS
+		"GROUP_DISCUSSION": return Activity.ActivityType.GROUP_DISCUSSION
+		_: return Activity.ActivityType.MOVE_TO
+
+func _int_to_focus_level(level: int) -> Activity.FocusLevel:
+	"""整数转专注度枚举"""
+	match level:
+		30: return Activity.FocusLevel.LOW
+		65: return Activity.FocusLevel.MEDIUM
+		100: return Activity.FocusLevel.HIGH
+		_: return Activity.FocusLevel.HIGH
+
+func _extract_json_from_text(text: String) -> String:
+	"""从文本中提取JSON"""
+	var json_start = text.find("{")
+	var json_end = text.rfind("}")
+	
+	if json_start >= 0 and json_end > json_start:
+		return text.substr(json_start, json_end - json_start + 1)
+	
+	return text
+
+# ============================================
+# 活动下发
+# ============================================
+
+func _distribute_activities(results: Dictionary) -> void:
+	"""将活动序列下发给各Agent"""
+	for agent_id in results.keys():
+		var activities = results[agent_id]
+		var agent_node = _find_agent_node(agent_id)
+		
+		if agent_node and agent_node.has_method("receive_activity_sequence"):
+			agent_node.receive_activity_sequence(activities)
+			activity_assigned.emit(agent_id, activities)
+			print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
+		else:
+			# 存储在协调结果中，等待Agent获取
+			print("[ActivityCoordinator] %s 的活动已缓存，等待获取" % agent_id)
+
+func get_assigned_activities(agent_id: String) -> Array[Activity]:
+	"""获取分配给指定Agent的活动序列"""
+	return coordination_results.get(agent_id, [])
+
+# ============================================
+# 辅助方法
+# ============================================
+
+func _find_agent_node(agent_id: String) -> Node:
+	"""查找Agent节点"""
+	var tree = get_tree()
+	if not tree:
+		return null
+	
+	var characters = tree.get_nodes_in_group("character")
+	for char in characters:
+		if char.name == agent_id:
+			# AIAgent是Character的子节点
+			for child in char.get_children():
+				if child is AIAgent:
+					return child
+			# 或者AIAgent就是char本身
+			if char is AIAgent:
+				return char
+	
+	return null
+
+func _get_current_room_name(character: CharacterBody2D) -> String:
+	"""获取角色当前房间名称"""
+	if ActivityManager.instance and ActivityManager.instance.room_manager:
+		var room = ActivityManager.instance.room_manager.get_current_room(
+			ActivityManager.instance.room_manager.rooms,
+			character.global_position
+		)
+		if room and room.has("room_name"):
+			return room.room_name
+	return "unknown"
+
+func _get_agent_role(character: CharacterBody2D) -> String:
+	"""获取Agent角色类型"""
+	# 从角色名称或元数据判断
+	var name_lower = character.name.to_lower()
+	if "teacher" in name_lower or "principal" in name_lower or "librarian" in name_lower:
+		return "teacher"
+	return "student"
+
+func _get_agent_state(agent_node: Node) -> String:
+	"""获取Agent当前状态"""
+	if agent_node is AIAgent:
+		match agent_node.current_state:
+			AIAgent.AgentState.IDLE: return "idle"
+			AIAgent.AgentState.IN_DIALOGUE: return "in_dialogue"
+			AIAgent.AgentState.IN_ACTIVITY: return "in_activity"
+			AIAgent.AgentState.MOVING: return "moving"
+			_: return "idle"
+	return "idle"

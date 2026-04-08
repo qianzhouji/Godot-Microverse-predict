@@ -58,6 +58,33 @@ func distribute_reward(agent_name: String, room_name: String, time_in_room: floa
 		"time": time_in_room
 	}
 
+# V2: 带上下文的奖赏分发（支持专注度）
+func distribute_reward_with_context(agent_name: String, room_name: String, time_in_room: float, context: Dictionary) -> Dictionary:
+	"""
+	V2: 带上下文的奖赏分发
+	
+	参数:
+		context: 包含专注度等信息 {focus_level, base_effort, adjusted_effort, base_gain, adjusted_gain}
+	"""
+	var base_result = distribute_reward(agent_name, room_name, time_in_room)
+	
+	# V2: 如果有专注度调整，更新结果
+	if context.has("adjusted_gain"):
+		base_result.gain = context.adjusted_gain
+	if context.has("adjusted_effort"):
+		base_result.effort = context.adjusted_effort
+	
+	# V2: 添加上下文信息
+	base_result["context"] = context
+	
+	print("[RewardSystem] %s 专注度: %.0f%%, 调整后奖赏: %.3f" % [
+		agent_name,
+		context.get("focus_level", 1.0) * 100,
+		base_result.gain
+	])
+	
+	return base_result
+
 # ============================================
 # 内部函数：系统层私有，Agent不可调用
 # ============================================

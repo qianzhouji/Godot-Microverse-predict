@@ -71,6 +71,9 @@ func _process(delta: float):
 	if current_game_time >= 17.5 * 60.0:
 		_force_end_day()
 
+# V2: 协调决策收集完成信号
+signal all_decisions_submitted(click_num: int)
+
 # 触发Click（上升沿）
 func _trigger_click():
 	click_count += 1
@@ -83,12 +86,38 @@ func _trigger_click():
 	# 1. 批准并执行所有待处理请求
 	_execute_pending_requests()
 	
-	# 2. 触发所有Agent的感知+体验+决策
-	click_triggered.emit(current_game_time, current_day, click_count)
+	# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
+	# V2: 等待所有Agent提交决策，然后执行协调
+	if ActivityCoordinator.instance:
+		# 先触发Agent决策收集
+		click_triggered.emit(current_game_time, current_day, click_count)
+		
+		# V2: 延迟执行协调，给Agent时间提交决策
+		await get_tree().create_timer(0.5).timeout
+		
+		# V2: 执行协调
+		var game_context = {
+			"current_time": format_time(current_game_time),
+			"current_location": "学校",
+			"period": _get_current_period()
+		}
+		var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
+		
+		if not coordination_results.is_empty():
+			print("[TimingSystem] 协调完成，%d 个Agent收到活动分配" % coordination_results.size())
+	else:
+		# V1: 直接触发Agent决策
+		click_triggered.emit(current_game_time, current_day, click_count)
 	
 	after_click.emit(current_game_time)
 	
 	print("[TimingSystem] ===== CLICK END =====\n")
+
+# V2: 获取当前时段
+func _get_current_period() -> String:
+	if TimelineState.instance:
+		return TimelineState.instance.current_period
+	return "未知"
 
 # 执行待处理请求
 func _execute_pending_requests():

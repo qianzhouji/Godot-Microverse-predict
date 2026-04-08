@@ -35,10 +35,27 @@ var activity_start_time: float = 0.0           # 活动开始时间
 var last_activity: String = ""                 # 上一周期活动(用于体验)
 
 # ============================================
-# 决策缓存(新增)
+# 决策缓存(V1)
 # ============================================
 var cached_request: ActionRequest = null       # 缓存的行动请求
 var is_waiting_execution: bool = false         # 是否等待执行
+
+# ============================================
+# V2: 三步活动缓存
+# ============================================
+var activity_cache: Array[Activity] = []       # 缓存的活动序列（最多3步）
+var current_activity_index: int = 0            # 当前执行的活动索引
+var movement_executor: MovementExecutor = null # 移动执行器
+
+# ============================================
+# V2: 自然语言决策
+# ============================================
+var last_natural_decision: String = ""         # 上次自然语言决策
+
+# ============================================
+# V2: 信息接收系统
+# ============================================
+var information_receiver: InformationReceiver = null  # 信息接收器
 
 # ============================================
 # 玩家控制(保留)
@@ -62,6 +79,9 @@ func _ready():
 
 	# 创建感知层组件
 	_create_reward_receiver()
+	
+	# V2: 创建信息接收器
+	_create_information_receiver()
 
 	# 连接时序系统信号
 	_connect_to_timing_system()
@@ -78,6 +98,13 @@ func _create_reward_receiver() -> void:
 	print("[AIAgent] %s 奖赏接收器已创建" % character.name)
 
 # ============================================
+# V2: 信息接收器创建
+# ============================================
+func _create_information_receiver() -> void:
+	information_receiver = InformationReceiver.new(character.name)
+	print("[AIAgent] %s 信息接收器已创建" % character.name)
+
+# ============================================
 # 连接时序系统(新增)
 # ============================================
 func _connect_to_timing_system() -> void:
@@ -91,7 +118,7 @@ func _connect_to_timing_system() -> void:
 		push_warning("[AIAgent] %s TimingSystem未找到" % character.name)
 
 # ============================================
-# Click触发回调(核心入口) - 新时序逻辑
+# Click触发回调(核心入口) - V2时序逻辑
 # ============================================
 func _on_click_triggered(game_time: float, day: int, click_num: int):
 	if is_player_controlled:
@@ -99,20 +126,24 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 
 	print("\n[AIAgent] %s 收到Click #%d" % [character.name, click_num])
 
-	# 新时序逻辑：
-	# 1. 如果正在活动中 → 体验(累积奖赏) + 决策(继续/停止/更换)
-	# 2. 如果有缓存请求 → 执行
-	# 3. 否则 → 感知 + 决策(开始新活动)
+	# V2时序逻辑：
+	# 1. 如果有V2活动缓存 → 执行下一步
+	# 2. 如果正在活动中 → 体验 + 决策
+	# 3. 如果有V1缓存请求 → 执行
+	# 4. 否则 → 感知 + 决策
 	
-	if ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
+	# V2: 优先检查活动缓存
+	if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
+		_execute_next_cached_activity()
+	elif ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
 		# 正在活动中：体验 + 决策
 		_perform_activity_update()
 	elif is_waiting_execution and cached_request:
-		# 有缓存请求：执行
+		# 有V1缓存请求：执行
 		_execute_cached_request()
 	else:
-		# 空闲状态：感知 + 决策
-		_perform_cognitive_cycle()
+		# V2: 空闲状态 → 感知 + 自然语言决策 + 提交协调器
+		_perform_v2_cognitive_cycle()
 
 # ============================================
 # 活动中更新：体验(累积) + 决策(继续/停止/更换)
@@ -151,7 +182,34 @@ func _perform_activity_update():
 	_execute_activity_decision(decision, activity_info)
 
 # ============================================
-# 认知循环:感知 → 体验 → 决策（空闲状态）
+# V2: 认知循环 - 感知 → 自然语言决策 → 提交协调器
+# ============================================
+func _perform_v2_cognitive_cycle():
+	# 1. 感知阶段
+	current_state = AgentState.PERCEIVING
+	var perception = _perceive()
+	print("[AIAgent] %s 感知完成" % character.name)
+
+	# 2. 体验阶段(如果有上一周期活动)
+	current_state = AgentState.EXPERIENCING
+	if not last_activity.is_empty():
+		_experience(last_activity)
+		print("[AIAgent] %s 体验完成" % character.name)
+
+	# 3. V2: 自然语言决策阶段
+	current_state = AgentState.DECIDING
+	var natural_decision = await _make_natural_decision(perception)
+	print("[AIAgent] %s 自然语言决策: %s" % [character.name, natural_decision])
+	
+	# 4. V2: 提交决策到协调器
+	_submit_decision_to_coordinator(natural_decision)
+	
+	# V2: 决策已提交，等待协调器下发活动
+	# 实际活动将在下一个Click周期通过 receive_activity_sequence() 接收
+	print("[AIAgent] %s 决策已提交，等待协调器分配..." % character.name)
+
+# ============================================
+# V1兼容: 认知循环(保留用于回退)
 # ============================================
 func _perform_cognitive_cycle():
 	# 1. 感知阶段
@@ -455,7 +513,7 @@ func _call_local_llm(prompt: String) -> String:
 	# 本地部署的大模型API配置
 	# 默认使用Ollama本地服务,可通过修改配置支持其他本地模型
 	var api_url = "http://localhost:11434/api/generate"
-	var model_name = "qwen2.5:14b"  # 或其他本地模型
+	var model_name = "qwen2.5:7b"  # 统一使用7B模型
 
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
@@ -579,7 +637,321 @@ func _string_to_action_type(type_str: String) -> ActionRequest.ActionType:
 			return ActionRequest.ActionType.WAIT
 
 # ============================================
-# 提交请求到时序系统(新增)
+# V2: 自然语言决策
+# ============================================
+func _make_natural_decision(perception: Dictionary) -> String:
+	"""
+	V2: 生成自然语言决策描述
+	
+	返回:
+		自然语言描述的决策意图（如"我想去图书馆自习数学"）
+	"""
+	print("[AIAgent] %s 开始自然语言决策..." % character.name)
+	
+	# 构建V2决策Prompt
+	var prompt = _build_v2_decision_prompt(perception)
+	
+	# 调用LLM
+	var response = await _call_local_llm(prompt)
+	
+	# 提取决策文本
+	var decision = _extract_decision_text(response)
+	last_natural_decision = decision
+	
+	return decision
+
+func _build_v2_decision_prompt(perception: Dictionary) -> String:
+	"""构建V2自然语言决策Prompt"""
+	var prompt = "你是" + character.name + "，请描述你接下来想要做什么。\n\n"
+	
+	# 基础信息
+	var personality = _get_personality()
+	prompt += "【角色信息】\n"
+	prompt += "- 身份：" + personality.get("position", "学生") + "\n"
+	prompt += "- 性格：" + personality.get("personality", "普通") + "\n"
+	
+	# 当前状态
+	prompt += "\n【当前状态】\n"
+	prompt += "- 当前场景：" + perception.get("current_room", "未知") + "\n"
+	prompt += "- 当前时间：" + TimingSystem.instance.format_time(TimingSystem.instance.current_game_time) + "\n"
+	prompt += "- 当前时段：" + TimelineState.instance.current_period + "\n"
+	
+	# 环境信息
+	var nearby = perception.get("nearby_agents", [])
+	prompt += "- 附近角色："
+	if nearby.size() > 0:
+		var names = []
+		for agent in nearby:
+			names.append(agent.get("name", "未知"))
+		prompt += ", ".join(names) + "\n"
+	else:
+		prompt += "无\n"
+	
+	# 时间约束
+	var constraints = perception.get("time_constraints", {})
+	if constraints.has("description"):
+		prompt += "- 时间约束：" + constraints.description + "\n"
+	
+	# 决策要求
+	prompt += "\n【决策要求】\n"
+	prompt += "请用一句话描述你接下来想要进行的活动。\n"
+	prompt += "例如：\n"
+	prompt += "- \"我想去图书馆准备明天的数学考试\"\n"
+	prompt += "- \"我想和小明讨论一下物理问题\"\n"
+	prompt += "- \"我想去体育馆打篮球\"\n"
+	prompt += "- \"这节课我想认真听讲\"\n"
+	prompt += "- \"我有点累了，随便听听课吧\"\n\n"
+	prompt += "请直接输出你的决策描述，不需要解释：\n"
+	
+	return prompt
+
+func _extract_decision_text(response: String) -> String:
+	"""从LLM响应中提取决策文本"""
+	# 清理响应文本
+	var text = response.strip_edges()
+	
+	# 移除可能的引号
+	if text.begins_with("\"") and text.ends_with("\""):
+		text = text.substr(1, text.length() - 2)
+	
+	# 限制长度
+	if text.length() > 200:
+		text = text.substr(0, 200)
+	
+	return text.strip_edges()
+
+# ============================================
+# V2: 提交决策到协调器
+# ============================================
+func _submit_decision_to_coordinator(decision: String) -> void:
+	"""将自然语言决策提交到ActivityCoordinator"""
+	if ActivityCoordinator.instance:
+		ActivityCoordinator.instance.submit_decision(character.name, decision)
+		print("[AIAgent] %s 已提交决策到协调器: %s" % [character.name, decision])
+	else:
+		push_warning("[AIAgent] %s ActivityCoordinator未找到，无法提交决策" % character.name)
+
+# ============================================
+# V2: 接收活动序列（由协调器调用）
+# ============================================
+func receive_activity_sequence(activities: Array[Activity]) -> void:
+	"""
+	V2: 接收协调器分配的活动序列
+	
+	参数:
+		activities: 最多3个Activity组成的序列
+	"""
+	activity_cache = activities
+	current_activity_index = 0
+	
+	print("[AIAgent] %s 收到 %d 个活动" % [character.name, activities.size()])
+	for i in range(activities.size()):
+		print("  [%d] %s" % [i + 1, activities[i].activity_name])
+
+# ============================================
+# V2: 执行缓存的下一个活动
+# ============================================
+func _execute_next_cached_activity() -> void:
+	"""执行活动缓存中的下一个活动"""
+	if current_activity_index >= activity_cache.size():
+		# 所有活动执行完毕
+		activity_cache.clear()
+		current_activity_index = 0
+		print("[AIAgent] %s 所有缓存活动已执行完毕" % character.name)
+		return
+	
+	var activity = activity_cache[current_activity_index]
+	print("[AIAgent] %s 执行活动 [%d/%d]: %s" % [
+		character.name, 
+		current_activity_index + 1, 
+		activity_cache.size(),
+		activity.activity_name
+	])
+	
+	# 执行活动
+	_execute_v2_activity(activity)
+	
+	# 移动到下一步
+	current_activity_index += 1
+
+# ============================================
+# V2: 执行具体活动
+# ============================================
+func _execute_v2_activity(activity: Activity) -> void:
+	"""执行V2 Activity"""
+	match activity.activity_type:
+		Activity.ActivityType.MOVE_TO:
+			_execute_v2_move(activity)
+		Activity.ActivityType.NORMAL_DIALOGUE:
+			_execute_v2_dialogue(activity)
+		Activity.ActivityType.WHISPER:
+			_execute_v2_whisper(activity)
+		Activity.ActivityType.LISTEN:
+			_execute_v2_listen(activity)
+		Activity.ActivityType.QA_TEACHER:
+			_execute_v2_qa(activity)
+		Activity.ActivityType.SELF_STUDY:
+			_execute_v2_study(activity)
+		Activity.ActivityType.SPORTS:
+			_execute_v2_sports(activity)
+		Activity.ActivityType.GROUP_DISCUSSION:
+			_execute_v2_discussion(activity)
+		_:
+			print("[AIAgent] %s 未知活动类型: %s" % [character.name, activity.activity_type])
+
+func _execute_v2_move(activity: Activity) -> void:
+	"""执行移动活动"""
+	# 初始化移动执行器
+	if not movement_executor:
+		var nav_agent = character.get_node_or_null("NavigationAgent2D")
+		movement_executor = MovementExecutor.new(character, nav_agent)
+	
+	# 执行移动
+	var result = movement_executor.execute_move_activity(activity)
+	
+	if result.success:
+		current_state = AgentState.EXECUTING_ACTION
+		print("[AIAgent] %s 开始移动，预计%.1f分钟" % [character.name, result.estimated_duration])
+	else:
+		print("[AIAgent] %s 移动失败: %s" % [character.name, result.reason])
+
+func _execute_v2_dialogue(activity: Activity) -> void:
+	"""执行普通对话"""
+	var target_agent = activity.parameters.get("target_agent", "")
+	var topic = activity.parameters.get("topic", "")
+	var focus = activity.focus_level
+	
+	# 创建对话请求
+	var request = ActionRequest.new(character.name, ActionRequest.ActionType.START_DIALOGUE)
+	request.target_id = target_agent
+	
+	# 执行
+	_execute_start_dialogue(request)
+	
+	# V2: 记录信息接收（专注度影响）
+	if information_receiver:
+		# 模拟接收到的对话内容（实际应从DialogueManager获取）
+		var simulated_content = "关于%s的讨论内容..." % topic
+		information_receiver.receive_dialogue(target_agent, simulated_content, float(focus) / 100.0, topic)
+	
+	print("[AIAgent] %s 开始与 %s 对话，话题: %s，专注度: %d%%" % [character.name, target_agent, topic, focus])
+
+func _execute_v2_whisper(activity: Activity) -> void:
+	"""执行悄悄话"""
+	var target_agent = activity.parameters.get("target_agent", "")
+	var content = activity.parameters.get("content", "")
+	var focus = activity.focus_level
+	
+	var request = ActionRequest.new(character.name, ActionRequest.ActionType.START_DIALOGUE)
+	request.target_id = target_agent
+	
+	_execute_start_whisper(request)
+	
+	# V2: 记录悄悄话信息接收
+	if information_receiver:
+		information_receiver.receive_dialogue(target_agent, content, float(focus) / 100.0, "悄悄话")
+	
+	print("[AIAgent] %s 开始向 %s 悄悄话，专注度: %d%%" % [character.name, target_agent, focus])
+
+func _execute_v2_listen(activity: Activity) -> void:
+	"""执行聆听（上课）"""
+	var focus = activity.focus_level
+	var teacher = activity.parameters.get("target_teacher", "老师")
+	
+	# 开始上课活动
+	if ActivityManager.instance:
+		var context = {
+			"room_name": _get_current_room_name(),
+			"focus_level": float(focus) / 100.0,
+			"activity_name": "听课"
+		}
+		ActivityManager.instance.start_activity(character.name, ActivityManager.ActivityType.CLASS, context)
+	
+	# V2: 记录课堂信息接收
+	if information_receiver:
+		# 模拟课堂内容（实际应从课程系统获取）
+		var lecture_content = "今天的课程要点..."
+		information_receiver.receive_lecture(teacher, lecture_content, float(focus) / 100.0, "课程")
+	
+	current_state = AgentState.IN_ACTIVITY
+	current_activity = "听课(%d%%专注)" % focus
+	print("[AIAgent] %s 开始听课，专注度: %d%%" % [character.name, focus])
+
+func _execute_v2_qa(activity: Activity) -> void:
+	"""执行课堂问答"""
+	var question = activity.parameters.get("question", "")
+	var is_answer = activity.parameters.get("is_answer", false)
+	var focus = activity.focus_level
+	
+	print("[AIAgent] %s %s，专注度: %d%%" % [
+		character.name,
+		"回答问题" if is_answer else "提问: " + question,
+		focus
+	])
+
+func _execute_v2_study(activity: Activity) -> void:
+	"""执行自习"""
+	var subject = activity.parameters.get("subject", "")
+	var focus = activity.focus_level
+	
+	if ActivityManager.instance:
+		var context = {
+			"room_name": _get_current_room_name(),
+			"focus_level": float(focus) / 100.0,
+			"subject": subject,
+			"activity_name": "自习" + subject
+		}
+		ActivityManager.instance.start_activity(character.name, ActivityManager.ActivityType.STUDY, context)
+	
+	current_state = AgentState.IN_ACTIVITY
+	current_activity = "自习%s(%d%%专注)" % [subject, focus]
+	print("[AIAgent] %s 开始自习%s，专注度: %d%%" % [character.name, subject, focus])
+
+func _execute_v2_sports(activity: Activity) -> void:
+	"""执行体育活动"""
+	var sport_type = activity.parameters.get("sport_type", "")
+	var intensity = activity.parameters.get("intensity", 0.5)
+	var focus = activity.focus_level
+	
+	if ActivityManager.instance:
+		var context = {
+			"room_name": _get_current_room_name(),
+			"focus_level": float(focus) / 100.0,
+			"sport_type": sport_type,
+			"intensity": intensity,
+			"activity_name": "体育" + sport_type
+		}
+		ActivityManager.instance.start_activity(character.name, ActivityManager.ActivityType.SPORTS, context)
+	
+	current_state = AgentState.IN_ACTIVITY
+	current_activity = "体育%s(%d%%专注)" % [sport_type, focus]
+	print("[AIAgent] %s 开始%s，专注度: %d%%" % [character.name, sport_type, focus])
+
+func _execute_v2_discussion(activity: Activity) -> void:
+	"""执行小组讨论"""
+	var topic = activity.parameters.get("topic", "")
+	var members = activity.parameters.get("members", [])
+	var focus = activity.focus_level
+	
+	# V2: 记录讨论信息接收
+	if information_receiver:
+		# 模拟讨论内容
+		var discussion_content = "关于%s的讨论..." % topic
+		information_receiver.receive_discussion(members, discussion_content, float(focus) / 100.0, topic)
+	
+	print("[AIAgent] %s 开始小组讨论，话题: %s，成员: %s，专注度: %d%%" % [
+		character.name, topic, ", ".join(members), focus
+	])
+
+func _get_current_room_name() -> String:
+	"""获取当前房间名称"""
+	var room = _get_current_room()
+	if room and room.has("room_name"):
+		return room.room_name
+	return "unknown"
+
+# ============================================
+# V1兼容: 提交请求到时序系统
 # ============================================
 func _submit_request(request: ActionRequest):
 	cached_request = request
@@ -594,7 +966,7 @@ func _submit_request(request: ActionRequest):
 			print("[AIAgent] %s 请求提交失败" % character.name)
 
 # ============================================
-# 执行缓存的请求(新增)
+# V1兼容: 执行缓存的请求
 # ============================================
 func _execute_cached_request():
 	if not cached_request:
@@ -968,6 +1340,10 @@ var _movement_check_timer: float = 0.0
 const MOVEMENT_CHECK_INTERVAL: float = 0.5  # 每0.5秒检查一次移动状态
 
 func _physics_process(delta: float):
+	# V2: 更新MovementExecutor
+	if movement_executor and movement_executor.is_moving():
+		movement_executor.update(delta)
+	
 	# 处理移动检查
 	if _is_moving and character:
 		_movement_check_timer += delta

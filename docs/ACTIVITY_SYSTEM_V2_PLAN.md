@@ -69,49 +69,61 @@ TimingSystem → 所有Agent同步执行缓存的Step1
 
 ## 实施阶段
 
-### 阶段一：基础活动系统 ⏳
+### 阶段一：基础活动系统 🔄
 
 | 任务 | 状态 | 文件 | 备注 |
 |------|------|------|------|
-| 定义活动数据结构 | ⏳ 待开始 | `script/system/Activity.gd` | 活动基类/结构体 |
-| 重构基础活动实现 | ⏳ 待开始 | 多个文件 | 封装现有功能 |
-| 更新ActivityManager | ⏳ 待开始 | `script/system/ActivityManager.gd` | 维护活动注册表 |
+| 定义活动数据结构 | ✅ 已完成 | `script/system/Activity.gd` | Activity类，8种活动类型，专注度机制 |
+| 重构基础活动实现 | ✅ 已完成 | `script/system/MovementExecutor.gd` | 移动功能封装为Activity |
+| 更新ActivityManager | ✅ 已完成 | `script/system/ActivityManager.gd` | 活动注册表+移动创建接口 |
+| 更新AIAgent模型配置 | ✅ 已完成 | `script/ai/AIAgent.gd` | qwen2.5:14b → qwen2.5:7b |
 
 **预计耗时**: 1-2天
 
 ---
 
-### 阶段二：中央协调LLM ⏳
+### 阶段二：中央协调LLM ✅
 
 | 任务 | 状态 | 文件 | 备注 |
 |------|------|------|------|
-| 设计协调Prompt | ⏳ 待开始 | `docs/prompts/coordinator_prompt.md` | 输入输出格式定义 |
-| 实现协调器 | ⏳ 待开始 | `script/system/ActivityCoordinator.gd` | LLM调用与解析 |
-| 本地LLM接入 | ⏳ 待开始 | - | Ollama/API配置 |
+| 设计协调Prompt | ✅ 已完成 | `docs/prompts/coordinator_prompt.md` | 完整Prompt模板，含示例和规则 |
+| 实现协调器 | ✅ 已完成 | `script/system/ActivityCoordinator.gd` | LLM调用、解析、活动下发 |
+| 本地LLM接入 | ✅ 已完成 | `ActivityCoordinator.gd` | Ollama配置，qwen2.5:7b |
 
 **预计耗时**: 2-3天
 
 ---
 
-### 阶段三：Agent改造 ⏳
+### 阶段三：Agent改造 ✅
 
 | 任务 | 状态 | 文件 | 备注 |
 |------|------|------|------|
-| 修改决策Prompt | ⏳ 待开始 | `script/ai/PromptBuilder.gd` | 自由表达意图 |
-| 三步缓存系统 | ⏳ 待开始 | `script/ai/AIAgent.gd` | 扩展缓存容量 |
+| 修改决策逻辑 | ✅ 已完成 | `script/ai/AIAgent.gd` | 自然语言决策，提交协调器 |
+| 三步缓存系统 | ✅ 已完成 | `script/ai/AIAgent.gd` | activity_cache数组，最多3步 |
+| 活动执行接口 | ✅ 已完成 | `script/ai/AIAgent.gd` | 8种活动执行方法 |
+| V1兼容保留 | ✅ 已完成 | `script/ai/AIAgent.gd` | 原逻辑保留用于回退 |
 
 **预计耗时**: 1-2天
 
 ---
 
-### 阶段四：专注度与信息机制 ⏳
+### 阶段四：专注度与信息机制 ✅
 
 | 任务 | 状态 | 文件 | 备注 |
 |------|------|------|------|
-| 专注度系统 | ⏳ 待开始 | `script/system/ActivityManager.gd` | 参数传递与计算 |
-| 信息接收机制 | ⏳ 待开始 | `script/ai/AIAgent.gd` | 对话内容过滤 |
+| 专注度系统 | ✅ 已完成 | `script/system/ActivityManager.gd` | 奖赏计算应用专注度比例 |
+| 信息接收机制 | ✅ 已完成 | `script/system/InformationReceiver.gd` | 专注度过滤对话内容 |
+| Agent集成 | ✅ 已完成 | `script/ai/AIAgent.gd` | 信息接收器创建，对话方法集成 |
 
 **预计耗时**: 1-2天
+
+---
+
+## 当前完成状态总结
+
+**总体进度**: 80%  
+**已完成阶段**: 一、二、三、四  
+**待完成**: 阶段五（集成测试）
 
 ---
 
@@ -129,17 +141,53 @@ TimingSystem → 所有Agent同步执行缓存的Step1
 
 ## 当前进度
 
-**总体进度**: 0%  
-**当前阶段**: 阶段一 - 基础活动系统  
+**总体进度**: 60%  
+**当前阶段**: 阶段四 - 专注度与信息机制  
 **最后更新**: 2026-04-08
 
 ---
 
-## 技术待确认
+## 已完成脚本清单
 
-- [ ] 本地LLM配置（Ollama/LM Studio/其他）
-- [ ] 模型版本和API端点
-- [ ] 协调器LLM与Agent决策LLM是否使用同一模型
+### 核心数据结构
+| 文件 | 功能 | 关键类/函数 |
+|------|------|-------------|
+| `script/system/Activity.gd` | 活动数据结构 | `Activity`类, 8种活动类型枚举, 专注度机制, 工厂方法 |
+
+### 执行器
+| 文件 | 功能 | 关键类/函数 |
+|------|------|-------------|
+| `script/system/MovementExecutor.gd` | 移动执行 | `MovementExecutor`类, `execute_move_activity()`, 导航/直线移动 |
+
+### 管理器
+| 文件 | 功能 | 关键类/函数 |
+|------|------|-------------|
+| `script/system/ActivityManager.gd` | 活动管理 | 活动注册表, 场景约束, 专注度奖赏计算, 生命周期管理 |
+| `script/system/ActivityCoordinator.gd` | 中央协调 | `submit_decision()`, `execute_coordination()`, LLM调用, 活动下发 |
+
+### 信息接收
+| 文件 | 功能 | 关键类/函数 |
+|------|------|-------------|
+| `script/system/InformationReceiver.gd` | 信息过滤 | `InformationReceiver`类, `receive_dialogue()`, `receive_lecture()`, 专注度过滤 |
+
+### Agent
+| 文件 | 功能 | 关键类/函数 |
+|------|------|-------------|
+| `script/ai/AIAgent.gd` | Agent核心 | `activity_cache`(3步), `information_receiver`, `_make_natural_decision()`, `receive_activity_sequence()`, 8种`_execute_v2_*()`方法 |
+
+### 配置
+| 文件 | 功能 | 内容 |
+|------|------|------|
+| `docs/prompts/coordinator_prompt.md` | 协调器Prompt | 输入/输出格式, 决策规则, 示例 |
+
+---
+
+## 技术配置
+
+- ✅ 本地LLM: Ollama
+- ✅ 模型: qwen2.5:7b
+- ✅ API端点: http://localhost:11434
+- ✅ 统一模型: Agent决策和协调器使用同一模型
 
 ---
 
@@ -147,7 +195,19 @@ TimingSystem → 所有Agent同步执行缓存的Step1
 
 | 日期 | 变更 |
 |------|------|
-| 2026-04-08 | 创建本文档，定义整体架构和实施计划 |
+| 2026-04-08 | 创建本文档，完成阶段一、二、三 |
+
+---
+
+## 问题修复记录
+
+### 2026-04-08 逻辑检查与修复
+
+| 问题 | 描述 | 修复方案 |
+|------|------|----------|
+| **协调器触发缺失** | Agent提交决策后无人调用execute_coordination() | TimingSystem._trigger_click()中添加协调触发逻辑 |
+| **MovementExecutor未更新** | 移动执行器需要每帧更新 | AIAgent._physics_process()中添加movement_executor.update(delta) |
+| **RewardSystem缺少V2接口** | 需要distribute_reward_with_context支持专注度 | RewardSystem中添加新方法 |
 
 ---
 
