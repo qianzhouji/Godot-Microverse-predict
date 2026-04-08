@@ -319,7 +319,7 @@ func _call_llm(prompt: String) -> String:
 # ============================================
 
 func _parse_coordination_response(response: String) -> Dictionary:
-	"""解析协调响应"""
+	"""解析协调响应（LLM已处理双向奔赴逻辑）"""
 	var results = {}
 	
 	# 提取JSON
@@ -335,7 +335,7 @@ func _parse_coordination_response(response: String) -> Dictionary:
 	var data = json.get_data()
 	var assignments = data.get("assignments", [])
 	
-	# 解析每个Agent的分配
+	# 解析每个Agent的分配（LLM已处理双向奔赴和坐标计算）
 	for assignment in assignments:
 		var agent_id = assignment.get("agent_id", "")
 		var steps = assignment.get("steps", [])
