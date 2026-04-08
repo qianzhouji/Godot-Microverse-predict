@@ -5,8 +5,8 @@ class_name TimingSystem
 static var instance: TimingSystem
 
 # 时间配置
-const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟
-const REAL_SECONDS_PER_GAME_MINUTE: float = 1.0  # 1现实秒 = 1游戏分钟
+const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
+const REAL_SECONDS_PER_GAME_MINUTE: float = 5.0  # 5现实秒 = 1游戏分钟（12倍速）
 
 # 状态
 var is_running: bool = false
