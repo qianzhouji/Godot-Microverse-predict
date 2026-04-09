@@ -435,11 +435,15 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 	
 	match activity_type:
 		Activity.ActivityType.MOVE_TO:
+			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: parameters=%s" % str(parameters))
+			var target_location_dict = parameters.get("target_location", {})
+			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location_dict=%s" % str(target_location_dict))
 			var target_location = Vector2(
-				parameters.get("target_location", {}).get("x", 0),
-				parameters.get("target_location", {}).get("y", 0)
+				target_location_dict.get("x", 0),
+				target_location_dict.get("y", 0)
 			)
 			var target_room = parameters.get("target_room", "")
+			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location=%s, target_room=%s" % [str(target_location), target_room])
 			activity = Activity.create_move_to(target_location, target_room)
 		
 		Activity.ActivityType.NORMAL_DIALOGUE:
