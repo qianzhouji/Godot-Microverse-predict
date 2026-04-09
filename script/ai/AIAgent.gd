@@ -149,7 +149,13 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 	# 2. 如果正在活动中 → 体验 + 决策
 	# 3. 否则 → 感知 + 决策
 	
-	# 优先检查活动缓存
+	# 优先检查活动缓存（如果为空，尝试从协调器获取）
+	if activity_cache.size() == 0 and ActivityCoordinator.instance:
+		var assigned_activities = ActivityCoordinator.instance.get_assigned_activities(character.name)
+		if assigned_activities.size() > 0:
+			print("[AIAgent] %s 从协调器获取到 %d 个分配活动" % [character.name, assigned_activities.size()])
+			receive_activity_sequence(assigned_activities)
+	
 	if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
 		print("[AIAgent] %s 执行缓存活动" % character.name)
 		_execute_next_cached_activity()

@@ -481,13 +481,18 @@ func _distribute_activities(results: Dictionary) -> void:
 		var activities = results[agent_id]
 		var agent_node = _find_agent_node(agent_id)
 		
+		print("[ActivityCoordinator] _distribute_activities: agent_id=%s, agent_node=%s" % [agent_id, agent_node])
+		
 		if agent_node and agent_node.has_method("receive_activity_sequence"):
 			agent_node.receive_activity_sequence(activities)
 			activity_assigned.emit(agent_id, activities)
 			print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
 		else:
 			# 存储在协调结果中，等待Agent获取
-			print("[ActivityCoordinator] %s 的活动已缓存，等待获取" % agent_id)
+			if not agent_node:
+				print("[ActivityCoordinator] %s 的活动已缓存（找不到Agent节点），等待获取" % agent_id)
+			else:
+				print("[ActivityCoordinator] %s 的活动已缓存（Agent无receive_activity_sequence方法），等待获取" % agent_id)
 
 func get_assigned_activities(agent_id: String) -> Array[Activity]:
 	"""获取分配给指定Agent的活动序列"""
@@ -501,19 +506,29 @@ func _find_agent_node(agent_id: String) -> Node:
 	"""查找Agent节点"""
 	var tree = get_tree()
 	if not tree:
+		print("[ActivityCoordinator] _find_agent_node: tree is null")
 		return null
 	
 	var characters = tree.get_nodes_in_group("character")
+	print("[ActivityCoordinator] _find_agent_node: 找到 %d 个character节点" % characters.size())
+	
 	for char in characters:
+		print("[ActivityCoordinator] _find_agent_node: 检查 character=%s, 目标=%s" % [char.name, agent_id])
 		if char.name == agent_id:
+			print("[ActivityCoordinator] _find_agent_node: 找到匹配的character %s" % agent_id)
 			# AIAgent是Character的子节点
 			for child in char.get_children():
+				print("[ActivityCoordinator] _find_agent_node: 检查子节点 %s, type=%s" % [child.name, child.get_class()])
 				if child is AIAgentClass:
+					print("[ActivityCoordinator] _find_agent_node: 找到AIAgent子节点")
 					return child
 			# 或者AIAgent就是char本身
 			if char is AIAgentClass:
+				print("[ActivityCoordinator] _find_agent_node: character本身就是AIAgent")
 				return char
+			print("[ActivityCoordinator] _find_agent_node: character %s 没有AIAgent子节点" % agent_id)
 	
+	print("[ActivityCoordinator] _find_agent_node: 未找到 %s" % agent_id)
 	return null
 
 func _get_current_room_name(character: CharacterBody2D) -> String:
