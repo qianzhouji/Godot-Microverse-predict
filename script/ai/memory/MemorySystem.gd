@@ -45,6 +45,7 @@ func _init():
 func _ready():
 	print("[MemorySystem] 记忆系统初始化完成")
 	_load_all_saved_memories()
+	_connect_to_timing_system()
 
 # ============================================
 # 向后兼容接口（必须保持与旧 MemoryManager 一致）
@@ -243,6 +244,49 @@ func get_attitude_description(agent_id: String, target: String) -> String:
 	_ensure_agent_loaded(agent_id)
 	return emotion_memory.get_attitude_description(agent_id, target)
 
+# 便捷方法：记录Agent的活动事件（供AIAgent调用）
+func record_agent_activity(agent_id: String, activity_type: String, 
+						   game_time: float, location: String,
+						   details: Dictionary = {},
+						   importance: int = 3) -> void:
+	"""
+	记录Agent的活动事件
+	供AIAgent在活动执行后调用
+	"""
+	_ensure_agent_loaded(agent_id)
+	
+	# 根据活动类型设置情感价值
+	var emotional_valence = 0.0
+	match activity_type:
+		"DIALOGUE", "WHISPER":
+			emotional_valence = 0.1  # 社交活动通常是正面的
+		"SPORTS":
+			emotional_valence = 0.2  # 运动带来愉悦
+		"SELF_STUDY":
+			emotional_valence = 0.05  # 学习略有满足感
+		"CLASS":
+			emotional_valence = 0.0  # 上课中性
+	
+	record_event(agent_id, activity_type, game_time, location, 
+				 details, importance, emotional_valence)
+
+# 便捷方法：记录Agent之间的互动（供ActivityCoordinator调用）
+func record_agents_interaction(agent_ids: Array[String], interaction_type: String,
+							   game_time: float, location: String,
+							   topic: String = "") -> void:
+	"""
+	记录多个Agent之间的互动
+	供ActivityCoordinator在分配共同活动时调用
+	"""
+	if agent_ids.size() < 2:
+		return
+	
+	# 两两记录互动
+	for i in range(agent_ids.size()):
+		for j in range(i + 1, agent_ids.size()):
+			record_interaction(agent_ids[i], agent_ids[j], interaction_type,
+							   game_time, location, topic, 5.0, 0.05)
+
 # ============================================
 # 数据持久化
 # ============================================
@@ -324,6 +368,45 @@ func _emotion_memory_from_text(agent_id: String, text: String, game_time: float)
 						update_emotion(agent_id, target, "AGENT", dimension, delta, game_time, "", text)
 					break
 			break
+
+# ============================================
+# TimingSystem 集成
+# ============================================
+
+func _connect_to_timing_system() -> void:
+	# 等待一帧确保 TimingSystem 已初始化
+	await get_tree().process_frame
+	
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system:
+		# 监听 Click 触发信号
+		timing_system.click_triggered.connect(_on_click_triggered)
+		timing_system.day_started.connect(_on_day_started)
+		timing_system.day_ended.connect(_on_day_ended)
+		print("[MemorySystem] 已连接到 TimingSystem")
+	else:
+		push_warning("[MemorySystem] 未找到 TimingSystem")
+
+func _on_click_triggered(game_time: float, day: int, click_num: int) -> void:
+	# 每个 Click 结束时可以执行的操作
+	# 例如：自动保存记忆、应用情感衰减等
+	
+	# 每5个Click保存一次（约10现实分钟）
+	if click_num % 5 == 0:
+		save_all()
+	
+	# 每10个Click应用一次情感衰减
+	if click_num % 10 == 0:
+		apply_emotion_decay_to_all(0.98)
+
+func _on_day_started(day: int, start_time: float) -> void:
+	print("[MemorySystem] 第%d天开始，加载所有Agent记忆" % day)
+	_load_all_saved_memories()
+
+func _on_day_ended(day: int, end_time: float) -> void:
+	print("[MemorySystem] 第%d天结束，保存所有记忆" % day)
+	save_all()
+	cleanup_all_memories(100, 20)  # 清理旧记忆
 
 # ============================================
 # 清理和优化
