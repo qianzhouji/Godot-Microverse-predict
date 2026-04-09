@@ -562,13 +562,21 @@ func _find_agent_node(agent_id: String) -> Node:
 
 func _get_current_room_name(character: CharacterBody2D) -> String:
 	"""获取角色当前房间名称"""
-	if ActivityManager.instance and ActivityManager.instance.room_manager:
-		var room = ActivityManager.instance.room_manager.get_current_room(
-			ActivityManager.instance.room_manager.rooms,
-			character.global_position
-		)
-		if room and room.has("room_name"):
-			return room.room_name
+	# 从场景树查找 RoomManager
+	var tree = get_tree()
+	if not tree:
+		return "unknown"
+	
+	var room_managers = tree.get_nodes_in_group("room_manager")
+	if room_managers.size() > 0:
+		var room_manager = room_managers[0]
+		if room_manager.has_method("get_current_room"):
+			var room = room_manager.get_current_room(
+				room_manager.rooms,
+				character.global_position
+			)
+			if room and room.has("room_name"):
+				return room.room_name
 	return "unknown"
 
 func _get_agent_role(character: CharacterBody2D) -> String:
