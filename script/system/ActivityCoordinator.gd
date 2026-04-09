@@ -518,7 +518,14 @@ func _distribute_activities(results: Dictionary) -> void:
 
 func get_assigned_activities(agent_id: String) -> Array[Activity]:
 	"""获取分配给指定Agent的活动序列"""
-	return coordination_results.get(agent_id, [])
+	var result = coordination_results.get(agent_id, [])
+	# 确保返回类型是 Array[Activity]
+	var typed_result: Array[Activity] = []
+	if result is Array:
+		for item in result:
+			if item is Activity:
+				typed_result.append(item)
+	return typed_result
 
 # ============================================
 # 辅助方法
