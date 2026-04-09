@@ -110,6 +110,17 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	
 	print("[ActivityCoordinator] 开始协调 %d 个Agent..." % pending_decisions.size())
 	
+	# 打印所有Agent的决策内容
+	print("[ActivityCoordinator] ===== 所有Agent决策内容 =====")
+	for agent_id in pending_decisions.keys():
+		var decision = pending_decisions[agent_id]
+		# 截断过长的决策文本
+		var display_decision = decision
+		if display_decision.length() > 200:
+			display_decision = display_decision.substr(0, 200) + "..."
+		print("[ActivityCoordinator]   %s: %s" % [agent_id, display_decision.replace("\n", " ")])
+	print("[ActivityCoordinator] ===== 决策内容结束 =====")
+	
 	# 构建输入数据
 	var input_data = _build_coordination_input(game_context)
 	
@@ -126,6 +137,17 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	
 	# 解析响应
 	var results = _parse_coordination_response(response)
+	
+	# 打印协调结果调试信息
+	print("[ActivityCoordinator] ===== 协调结果摘要 =====")
+	print("[ActivityCoordinator] 共 %d 个Agent分配结果" % results.size())
+	for agent_id in results.keys():
+		var activities = results[agent_id]
+		print("[ActivityCoordinator]   %s: %d 个活动" % [agent_id, activities.size()])
+		for i in range(activities.size()):
+			var act = activities[i]
+			print("[ActivityCoordinator]     [%d] %s (类型:%s)" % [i+1, act.activity_name, str(act.activity_type)])
+	print("[ActivityCoordinator] ===== 协调结果结束 =====")
 	
 	# 下发活动给各Agent
 	_distribute_activities(results)
