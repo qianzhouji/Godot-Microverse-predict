@@ -390,8 +390,13 @@ func _parse_coordination_response(response: String) -> Dictionary:
 		print("[ActivityCoordinator] _parse_coordination_response: 数据不是Dictionary, 是=%s" % typeof(data))
 		return results
 	
+	# 支持两种格式：assignments 或 agents
 	var assignments = data.get("assignments", [])
-	print("[ActivityCoordinator] _parse_coordination_response: assignments数量=%d" % assignments.size())
+	if assignments.is_empty():
+		assignments = data.get("agents", [])
+		print("[ActivityCoordinator] _parse_coordination_response: 使用'agents'字段, 数量=%d" % assignments.size())
+	else:
+		print("[ActivityCoordinator] _parse_coordination_response: 使用'assignments'字段, 数量=%d" % assignments.size())
 	
 	# 解析每个Agent的分配（LLM已处理双向奔赴和坐标计算）
 	for assignment in assignments:
