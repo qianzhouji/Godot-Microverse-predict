@@ -367,25 +367,41 @@ func _parse_coordination_response(response: String) -> Dictionary:
 	"""解析协调响应（LLM已处理双向奔赴逻辑）"""
 	var results = {}
 	
+	print("[ActivityCoordinator] _parse_coordination_response: 开始解析, response长度=%d" % response.length())
+	print("[ActivityCoordinator] _parse_coordination_response: 响应前200字符=%s" % response.substr(0, 200))
+	
 	# 提取JSON
 	var json_text = _extract_json_from_text(response)
+	print("[ActivityCoordinator] _parse_coordination_response: 提取的JSON长度=%d" % json_text.length())
+	print("[ActivityCoordinator] _parse_coordination_response: 提取的JSON前200字符=%s" % json_text.substr(0, 200))
 	
 	var json = JSON.new()
 	var parse_result = json.parse(json_text)
 	
 	if parse_result != OK:
 		push_error("[ActivityCoordinator] 无法解析响应: %s" % response)
+		print("[ActivityCoordinator] _parse_coordination_response: JSON解析失败, error=%d" % parse_result)
 		return results
 	
 	var data = json.get_data()
+	print("[ActivityCoordinator] _parse_coordination_response: 解析后的数据类型=%s" % typeof(data))
+	
+	if not data is Dictionary:
+		print("[ActivityCoordinator] _parse_coordination_response: 数据不是Dictionary, 是=%s" % typeof(data))
+		return results
+	
 	var assignments = data.get("assignments", [])
+	print("[ActivityCoordinator] _parse_coordination_response: assignments数量=%d" % assignments.size())
 	
 	# 解析每个Agent的分配（LLM已处理双向奔赴和坐标计算）
 	for assignment in assignments:
 		var agent_id = assignment.get("agent_id", "")
 		var steps = assignment.get("steps", [])
 		
+		print("[ActivityCoordinator] _parse_coordination_response: 处理assignment, agent_id=%s, steps数量=%d" % [agent_id, steps.size()])
+		
 		if agent_id.is_empty():
+			print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
 			continue
 		
 		var activities: Array[Activity] = []
@@ -394,6 +410,8 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			var activity = _parse_step_to_activity(step_data, agent_id)
 			if activity:
 				activities.append(activity)
+			else:
+				print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
 		
 		results[agent_id] = activities
 		print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
@@ -484,7 +502,24 @@ func _int_to_focus_level(level: int) -> Activity.FocusLevel:
 		_: return Activity.FocusLevel.HIGH
 
 func _extract_json_from_text(text: String) -> String:
-	"""从文本中提取JSON"""
+	"""从文本中提取JSON（支持markdown代码块）"""
+	# 首先尝试查找 ```json 或 ``` 标记的代码块
+	var code_block_start = text.find("```json")
+	if code_block_start >= 0:
+		code_block_start += 7  # 跳过 ```json
+		var code_block_end = text.find("```", code_block_start)
+		if code_block_end >= 0:
+			return text.substr(code_block_start, code_block_end - code_block_start).strip_edges()
+	
+	# 尝试普通代码块
+	code_block_start = text.find("```")
+	if code_block_start >= 0:
+		code_block_start += 3  # 跳过 ```
+		var code_block_end = text.find("```", code_block_start)
+		if code_block_end >= 0:
+			return text.substr(code_block_start, code_block_end - code_block_start).strip_edges()
+	
+	# 回退到查找第一个 { 和最后一个 }
 	var json_start = text.find("{")
 	var json_end = text.rfind("}")
 	
