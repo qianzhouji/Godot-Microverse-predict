@@ -134,7 +134,8 @@ static func create_self_study(subject: String, focus: FocusLevel = FocusLevel.HI
 	var activity = Activity.new(ActivityType.SELF_STUDY)
 	activity.requires_focus = true
 	activity.focus_level = focus
-	activity.allowed_scenes = ["library", "study_room"]
+	var scenes: Array[String] = ["library", "study_room"]
+	activity.allowed_scenes = scenes
 	activity.parameters = {
 		"subject": subject
 	}
@@ -147,7 +148,8 @@ static func create_sports(sport_type: String, intensity: float = 0.5,
 	var activity = Activity.new(ActivityType.SPORTS)
 	activity.requires_focus = true
 	activity.focus_level = focus
-	activity.allowed_scenes = ["gym", "playground"]
+	var scenes_sports: Array[String] = ["gym", "playground"]
+	activity.allowed_scenes = scenes_sports
 	activity.parameters = {
 		"sport_type": sport_type,
 		"intensity": intensity
@@ -161,7 +163,8 @@ static func create_group_discussion(topic: String, members: Array[String],
 	var activity = Activity.new(ActivityType.GROUP_DISCUSSION)
 	activity.requires_focus = true
 	activity.focus_level = focus
-	activity.allowed_scenes = ["classroom", "discussion_room"]
+	var scenes_discussion: Array[String] = ["classroom", "discussion_room"]
+	activity.allowed_scenes = scenes_discussion
 	activity.parameters = {
 		"topic": topic,
 		"members": members
@@ -289,21 +292,26 @@ func _setup_default_constraints() -> void:
 	match activity_type:
 		ActivityType.LISTEN:
 			requires_focus = true
-			allowed_scenes = ["classroom"]
+			var scenes_listen: Array[String] = ["classroom"]
+			allowed_scenes = scenes_listen
 			required_state = "in_class"
 		ActivityType.QA_TEACHER:
 			requires_focus = true
-			allowed_scenes = ["classroom"]
+			var scenes_qa: Array[String] = ["classroom"]
+			allowed_scenes = scenes_qa
 			required_state = "in_class"
 		ActivityType.SELF_STUDY:
 			requires_focus = true
-			allowed_scenes = ["library", "study_room"]
+			var scenes_study: Array[String] = ["library", "study_room"]
+			allowed_scenes = scenes_study
 		ActivityType.SPORTS:
 			requires_focus = true
-			allowed_scenes = ["gym", "playground"]
+			var scenes_sports_def: Array[String] = ["gym", "playground"]
+			allowed_scenes = scenes_sports_def
 		ActivityType.GROUP_DISCUSSION:
 			requires_focus = true
-			allowed_scenes = ["classroom", "discussion_room"]
+			var scenes_discussion_def: Array[String] = ["classroom", "discussion_room"]
+			allowed_scenes = scenes_discussion_def
 
 # 获取活动类型字符串（用于显示）
 func get_type_string() -> String:
