@@ -1,5 +1,4 @@
 extends Node
-class_name MemorySystem
 
 # ============================================
 # MemorySystem - 记忆系统主控
