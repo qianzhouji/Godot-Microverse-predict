@@ -443,6 +443,12 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 				target_location_dict.get("y", 0)
 			)
 			var target_room = parameters.get("target_room", "")
+			
+			# 如果LLM没有返回坐标，根据房间名自动分配
+			if target_location == Vector2.ZERO and not target_room.is_empty():
+				target_location = _get_room_default_position(target_room)
+				print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: 使用房间默认坐标 %s" % str(target_location))
+			
 			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location=%s, target_room=%s" % [str(target_location), target_room])
 			activity = Activity.create_move_to(target_location, target_room)
 		
@@ -509,6 +515,31 @@ func _int_to_focus_level(level: int) -> Activity.FocusLevel:
 		65: return Activity.FocusLevel.MEDIUM
 		100: return Activity.FocusLevel.HIGH
 		_: return Activity.FocusLevel.HIGH
+
+func _get_room_default_position(room_name: String) -> Vector2:
+	"""根据房间名返回默认坐标（硬编码，基于School场景布局）"""
+	# 教室区域（主教学区）- 场景中央
+	if "教室" in room_name or "classroom" in room_name.to_lower():
+		return Vector2(1000 + randf_range(-50, 50), 400 + randf_range(-50, 50))
+	# 图书馆
+	elif "图书馆" in room_name or "library" in room_name.to_lower():
+		return Vector2(600 + randf_range(-50, 50), 300 + randf_range(-50, 50))
+	# 体育馆
+	elif "体育馆" in room_name or "gym" in room_name.to_lower():
+		return Vector2(1400 + randf_range(-50, 50), 600 + randf_range(-50, 50))
+	# 食堂
+	elif "食堂" in room_name or "cafeteria" in room_name.to_lower():
+		return Vector2(800 + randf_range(-50, 50), 700 + randf_range(-50, 50))
+	# 操场
+	elif "操场" in room_name or "playground" in room_name.to_lower():
+		return Vector2(1200 + randf_range(-100, 100), 800 + randf_range(-100, 100))
+	# 走廊
+	elif "走廊" in room_name or "corridor" in room_name.to_lower():
+		return Vector2(1000 + randf_range(-100, 100), 200 + randf_range(-50, 50))
+	# 默认：教室中央
+	else:
+		print("[ActivityCoordinator] 未知房间 '%s'，使用默认坐标" % room_name)
+		return Vector2(1000 + randf_range(-50, 50), 400 + randf_range(-50, 50))
 
 func _extract_json_from_text(text: String) -> String:
 	"""从文本中提取JSON（支持markdown代码块）"""
