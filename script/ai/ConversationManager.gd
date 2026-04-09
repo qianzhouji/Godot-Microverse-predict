@@ -12,7 +12,6 @@ var dialog_bubble_scene = preload("res://scene/UI/DialogBubble.tscn")
 var chat_history_scene = preload("res://scene/ChatHistory.tscn")
 
 # AI相关脚本引用
-var MemoryManager = preload("res://script/ai/memory/MemoryManager.gd")
 var BackgroundStoryManager = preload("res://script/ai/background_story/BackgroundStoryManager.gd")
 var DynamicPersonality = preload("res://script/ai/DynamicPersonality.gd")
 
@@ -333,8 +332,7 @@ func get_character_status_info(character: CharacterBody2D) -> String:
 	
 	# 使用MemoryManager获取格式化的记忆信息
 	status_info += "\n\n【记忆信息】"
-	var memory_manager = MemoryManager.new()
-	var memory_text = memory_manager.get_formatted_memories_for_prompt(character)
+	var memory_text = MemoryManager.get_formatted_memories_for_prompt(character)
 	# 移除开头的换行符，因为你们已经添加了标题
 	if memory_text.begins_with("\n\n记忆信息："):
 		memory_text = memory_text.substr(8)  # 移除"\n\n记忆信息："

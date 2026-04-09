@@ -93,7 +93,7 @@ static func _collect_daily_memories(character: Node) -> Array:
     """
     收集角色当日的所有记忆
     """
-    var all_memories = MemoryManager.get_memories(character)
+    var all_memories = MemoryManager.get_character_memories(character)
     var daily_memories = []
     
     var current_time = Time.get_unix_time_from_system()
