@@ -31,10 +31,7 @@ DialogManager="*res://script/ai/DialogManager.gd"
 CharacterManager="*res://script/CharacterManager.gd"
 GameSaveManager="*res://script/GameSaveManager.gd"
 SaveLoadUIManager="*res://scene/ui/SaveLoadUIManager.tscn"
-DayNightSystem="*res://script/system/DayNightSystem.gd"
-ScheduleSystem="*res://script/system/ScheduleSystem.gd"
 Logger="*res://script/system/Logger.gd"
-TaskManager="*res://script/system/TaskManager.gd"
 
 [display]
 
