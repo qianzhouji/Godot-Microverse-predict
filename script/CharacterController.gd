@@ -28,6 +28,7 @@ var direction_stability_timer = 0.0  # 方向稳定计时器
 
 func _ready():
 	add_to_group("controllable_characters")
+	add_to_group("character")  # 用于ActivityCoordinator查找
 	
 	# 创建ChatHistory节点
 	if not has_node("ChatHistory"):
