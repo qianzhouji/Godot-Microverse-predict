@@ -18,7 +18,7 @@ static var instance: ActivityCoordinator
 
 # LLM配置
 var llm_api_url: String = "http://localhost:11434/api/generate"
-var llm_model: String = "qwen2.5:1.5b"
+var llm_model: String = "qwen2.5:7b"
 var llm_temperature: float = 0.3  # 协调器需要更确定性的输出
 var llm_max_tokens: int = 2000
 
