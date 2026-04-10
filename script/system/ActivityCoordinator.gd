@@ -303,9 +303,10 @@ func _get_builtin_prompt() -> String:
   ]
 }
 
-【关键字段名】
+【关键字段名 - 必须严格遵守】
 - 顶层字段必须是 "agents" (数组)
 - 每个agent必须有 "agent_id" 和 "steps" (数组)
+- 必须使用 "steps" 字段，不要使用 "activity_sequence" 或其他名称
 - steps数组中的每个元素必须有: step, activity_type, parameters, focus_level, estimated_duration, reason
 
 规则：
@@ -458,12 +459,13 @@ func _parse_coordination_response(response: String) -> Dictionary:
 		for agent_data in agents:
 			var agent_id = agent_data.get("agent_id", "")
 			
-			# 尝试获取steps、assignments或activities
+			# 尝试获取steps、assignments、activities或activity_sequence
 			var steps = agent_data.get("steps", [])
 			var agent_assignments = agent_data.get("assignments", [])
 			var agent_activities = agent_data.get("activities", [])
+			var activity_sequence = agent_data.get("activity_sequence", [])
 			
-			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps=%d, assignments=%d, activities=%d" % [agent_id, steps.size(), agent_assignments.size(), agent_activities.size()])
+			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps=%d, assignments=%d, activities=%d, activity_sequence=%d" % [agent_id, steps.size(), agent_assignments.size(), agent_activities.size(), activity_sequence.size()])
 			
 			if agent_id.is_empty():
 				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
@@ -471,12 +473,14 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			
 			var parsed_activities: Array[Activity] = []
 			
-			# 优先使用steps，如果没有则使用assignments或activities
+			# 优先使用steps，如果没有则使用其他字段
 			var activity_list = steps
 			if activity_list.is_empty():
 				activity_list = agent_assignments
 			if activity_list.is_empty():
 				activity_list = agent_activities
+			if activity_list.is_empty():
+				activity_list = activity_sequence
 			
 			for step_data in activity_list:
 				var activity = _parse_step_to_activity(step_data, agent_id)
