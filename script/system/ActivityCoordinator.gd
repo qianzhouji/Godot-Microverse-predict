@@ -461,32 +461,32 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			# 尝试获取steps、assignments或activities
 			var steps = agent_data.get("steps", [])
 			var agent_assignments = agent_data.get("assignments", [])
-			var activities = agent_data.get("activities", [])
+			var agent_activities = agent_data.get("activities", [])
 			
-			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps=%d, assignments=%d, activities=%d" % [agent_id, steps.size(), agent_assignments.size(), activities.size()])
+			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps=%d, assignments=%d, activities=%d" % [agent_id, steps.size(), agent_assignments.size(), agent_activities.size()])
 			
 			if agent_id.is_empty():
 				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
 				continue
 			
-			var activities: Array[Activity] = []
+			var parsed_activities: Array[Activity] = []
 			
 			# 优先使用steps，如果没有则使用assignments或activities
 			var activity_list = steps
 			if activity_list.is_empty():
 				activity_list = agent_assignments
 			if activity_list.is_empty():
-				activity_list = activities
+				activity_list = agent_activities
 			
 			for step_data in activity_list:
 				var activity = _parse_step_to_activity(step_data, agent_id)
 				if activity:
-					activities.append(activity)
+					parsed_activities.append(activity)
 				else:
 					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
 			
-			results[agent_id] = activities
-			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
+			results[agent_id] = parsed_activities
+			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 	
 	return results
 
