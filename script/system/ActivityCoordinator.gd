@@ -135,6 +135,16 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 		is_coordinating = false
 		return {}
 	
+	# 打印完整LLM响应用于调试
+	print("[ActivityCoordinator] ===== LLM完整响应 =====")
+	print("[ActivityCoordinator] 响应长度: %d" % response.length())
+	if response.length() > 500:
+		print("[ActivityCoordinator] 响应前500字符:\n%s" % response.substr(0, 500))
+		print("[ActivityCoordinator] ... (截断)")
+	else:
+		print("[ActivityCoordinator] 完整响应:\n%s" % response)
+	print("[ActivityCoordinator] ===== 响应结束 =====")
+	
 	# 解析响应
 	var results = _parse_coordination_response(response)
 	
@@ -264,7 +274,9 @@ func _get_builtin_prompt() -> String:
 3. 检查场景约束
 4. 为每个角色分配最多3步的活动序列
 
-输出格式必须是JSON：
+【重要】你必须只输出JSON，不要输出任何其他文字、解释或markdown标记。
+
+输出格式必须是纯JSON：
 {
   "assignments": [
     {
@@ -272,11 +284,11 @@ func _get_builtin_prompt() -> String:
       "steps": [
         {
           "step": 1,
-          "activity_type": "活动类型",
-          "parameters": {},
+          "activity_type": "MOVE_TO",
+          "parameters": {"target_location": {"x": 100, "y": 200}, "target_room": "教室"},
           "focus_level": 100,
-          "estimated_duration": 10.0,
-          "reason": "原因"
+          "estimated_duration": 5.0,
+          "reason": "移动到目标场景"
         }
       ]
     }
@@ -287,7 +299,9 @@ func _get_builtin_prompt() -> String:
 - 如果活动需要特定场景但角色不在该场景，先添加MOVE_TO
 - 专注度默认100%，提到"随便""走神"时用30%或65%
 - 最多3步，第1步通常是移动
-"""
+- MOVE_TO必须包含target_location（x,y坐标）和target_room（房间名）
+
+【注意】只输出JSON，不要添加```json标记或其他任何文字。"""
 
 # ============================================
 # LLM调用
