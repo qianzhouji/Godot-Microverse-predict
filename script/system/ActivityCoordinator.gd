@@ -278,7 +278,7 @@ func _get_builtin_prompt() -> String:
 
 输出格式必须是纯JSON：
 {
-  "assignments": [
+  "agents": [
     {
       "agent_id": "角色ID",
       "steps": [
@@ -300,6 +300,7 @@ func _get_builtin_prompt() -> String:
 - 专注度默认100%，提到"随便""走神"时用30%或65%
 - 最多3步，第1步通常是移动
 - MOVE_TO必须包含target_location（x,y坐标）和target_room（房间名）
+- 使用"steps"字段而不是"assignments"字段
 
 【注意】只输出JSON，不要添加```json标记或其他任何文字。"""
 
@@ -404,36 +405,71 @@ func _parse_coordination_response(response: String) -> Dictionary:
 		print("[ActivityCoordinator] _parse_coordination_response: 数据不是Dictionary, 是=%s" % typeof(data))
 		return results
 	
-	# 支持两种格式：assignments 或 agents
-	var assignments = data.get("assignments", [])
-	if assignments.is_empty():
-		assignments = data.get("agents", [])
-		print("[ActivityCoordinator] _parse_coordination_response: 使用'agents'字段, 数量=%d" % assignments.size())
-	else:
-		print("[ActivityCoordinator] _parse_coordination_response: 使用'assignments'字段, 数量=%d" % assignments.size())
+	# 支持多种格式：
+	# 格式1: { "assignments": [{ "agent_id": "...", "steps": [...] }] }
+	# 格式2: { "agents": [{ "agent_id": "...", "steps": [...] }] }
+	# 格式3: { "agents": [{ "agent_id": "...", "assignments": [...] }] } (LLM实际输出)
 	
-	# 解析每个Agent的分配（LLM已处理双向奔赴和坐标计算）
-	for assignment in assignments:
-		var agent_id = assignment.get("agent_id", "")
-		var steps = assignment.get("steps", [])
-		
-		print("[ActivityCoordinator] _parse_coordination_response: 处理assignment, agent_id=%s, steps数量=%d" % [agent_id, steps.size()])
-		
-		if agent_id.is_empty():
-			print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
-			continue
-		
-		var activities: Array[Activity] = []
-		
-		for step_data in steps:
-			var activity = _parse_step_to_activity(step_data, agent_id)
-			if activity:
-				activities.append(activity)
-			else:
-				print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
-		
-		results[agent_id] = activities
-		print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
+	var assignments = data.get("assignments", [])
+	var agents = data.get("agents", [])
+	
+	print("[ActivityCoordinator] _parse_coordination_response: assignments字段数量=%d, agents字段数量=%d" % [assignments.size(), agents.size()])
+	
+	# 解析每个Agent的分配
+	if not assignments.is_empty():
+		# 格式1: 使用assignments字段
+		print("[ActivityCoordinator] _parse_coordination_response: 使用'assignments'字段")
+		for assignment in assignments:
+			var agent_id = assignment.get("agent_id", "")
+			var steps = assignment.get("steps", [])
+			
+			print("[ActivityCoordinator] _parse_coordination_response: 处理assignment, agent_id=%s, steps数量=%d" % [agent_id, steps.size()])
+			
+			if agent_id.is_empty():
+				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
+				continue
+			
+			var activities: Array[Activity] = []
+			for step_data in steps:
+				var activity = _parse_step_to_activity(step_data, agent_id)
+				if activity:
+					activities.append(activity)
+				else:
+					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
+			
+			results[agent_id] = activities
+			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
+	
+	elif not agents.is_empty():
+		# 格式2或3: 使用agents字段
+		print("[ActivityCoordinator] _parse_coordination_response: 使用'agents'字段")
+		for agent_data in agents:
+			var agent_id = agent_data.get("agent_id", "")
+			
+			# 尝试获取steps或assignments
+			var steps = agent_data.get("steps", [])
+			var agent_assignments = agent_data.get("assignments", [])
+			
+			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps数量=%d, assignments数量=%d" % [agent_id, steps.size(), agent_assignments.size()])
+			
+			if agent_id.is_empty():
+				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
+				continue
+			
+			var activities: Array[Activity] = []
+			
+			# 优先使用steps，如果没有则使用assignments
+			var activity_list = steps if not steps.is_empty() else agent_assignments
+			
+			for step_data in activity_list:
+				var activity = _parse_step_to_activity(step_data, agent_id)
+				if activity:
+					activities.append(activity)
+				else:
+					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
+			
+			results[agent_id] = activities
+			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
 	
 	return results
 
