@@ -1666,9 +1666,26 @@ func _get_activity_name(request: ActionRequest) -> String:
 			return ""
 
 func _get_room_manager():
-	var root = get_tree().current_scene
+	# 尝试多种方式获取RoomManager
+	var tree = get_tree()
+	if not tree:
+		return null
+	
+	# 方式1: 从当前场景获取
+	var root = tree.current_scene
 	if root and root.has_node("RoomManager"):
 		return root.get_node("RoomManager")
+	
+	# 方式2: 从场景树中查找（通过group）
+	var room_managers = tree.get_nodes_in_group("room_manager")
+	if room_managers.size() > 0:
+		return room_managers[0]
+	
+	# 方式3: 全局查找
+	var room_manager = tree.root.get_node_or_null("School/RoomManager")
+	if room_manager:
+		return room_manager
+	
 	return null
 
 func _get_current_room():
