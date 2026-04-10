@@ -72,6 +72,11 @@ var _movement_check_timer: float = 0.0         # 移动检查计时器
 const MOVEMENT_CHECK_INTERVAL: float = 0.5     # 每0.5秒检查一次移动状态
 
 # ============================================
+# V2: 日志系统引用
+# ============================================
+var logger: Node = null                        # Logger节点引用
+
+# ============================================
 # 初始化
 # ============================================
 func _ready():
@@ -94,6 +99,11 @@ func _ready():
 
 	# 连接时序系统信号
 	_connect_to_timing_system()
+	
+	# V2: 获取日志系统引用
+	logger = get_node_or_null("/root/Logger")
+	if logger:
+		print("[AIAgent] %s 已连接到日志系统" % character.name)
 
 	print("[AIAgent] %s 初始化完成" % character.name)
 
@@ -215,13 +225,23 @@ func _perform_v2_cognitive_cycle():
 	print("[AIAgent] %s 开始感知..." % character.name)
 	var perception = _perceive()
 	print("[AIAgent] %s 感知完成" % character.name)
+	
+	# V2: 记录感知日志
+	if logger:
+		var room_name = perception.get("current_room", "未知")
+		var nearby_count = perception.get("nearby_agents", []).size()
+		logger.log_activity(character.name, "感知环境", room_name)
 
 	# 2. 体验阶段(如果有上一周期活动)
 	current_state = AgentState.EXPERIENCING
 	if not last_activity.is_empty():
 		print("[AIAgent] %s 开始体验..." % character.name)
-		_experience(last_activity)
+		var exp_gain = _experience(last_activity)
 		print("[AIAgent] %s 体验完成" % character.name)
+		
+		# V2: 记录体验日志
+		if logger:
+			logger.log_activity(character.name, "体验上一活动: %s (收益%.2f)" % [last_activity, exp_gain])
 	else:
 		print("[AIAgent] %s 无上一活动,跳过体验" % character.name)
 
@@ -230,6 +250,10 @@ func _perform_v2_cognitive_cycle():
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	var natural_decision = await _make_natural_decision(perception)
 	print("[AIAgent] %s 自然语言决策: %s" % [character.name, natural_decision])
+	
+	# V2: 记录决策日志
+	if logger:
+		logger.log_monologue(character.name, "Click周期决策", natural_decision)
 	
 	# 4. V2: 提交决策到协调器
 	print("[AIAgent] %s 准备提交决策到协调器..." % character.name)
@@ -742,6 +766,14 @@ func receive_activity_sequence(activities: Array[Activity]) -> void:
 	print("[AIAgent] %s 收到 %d 个活动" % [character.name, activities.size()])
 	for i in range(activities.size()):
 		print("  [%d] %s" % [i + 1, activities[i].activity_name])
+	
+	# V2: 记录接收到的活动序列日志
+	if logger:
+		var activity_list = []
+		for act in activities:
+			activity_list.append(act.activity_name)
+		var activities_str = " -> ".join(activity_list)
+		logger.log_activity(character.name, "接收活动序列: %s" % activities_str)
 
 # ============================================
 # V2: 执行缓存的下一个活动
@@ -806,9 +838,17 @@ func _execute_v2_move(activity: Activity) -> void:
 	
 	if result.success:
 		current_state = AgentState.EXECUTING_ACTION
+		var target_room = activity.parameters.get("target_room", "未知位置")
 		print("[AIAgent] %s 开始移动，预计%.1f分钟" % [character.name, result.estimated_duration])
+		
+		# V2: 记录移动日志
+		if logger:
+			var current_room = _get_current_room_name()
+			logger.log_movement(character.name, current_room, target_room)
 	else:
 		print("[AIAgent] %s 移动失败: %s" % [character.name, result.reason])
+		if logger:
+			logger.log_activity(character.name, "移动失败: %s" % result.reason)
 
 func _execute_v2_dialogue(activity: Activity) -> void:
 	"""执行普通对话"""
@@ -830,6 +870,11 @@ func _execute_v2_dialogue(activity: Activity) -> void:
 		information_receiver.receive_dialogue(target_agent, simulated_content, float(focus) / 100.0, topic)
 	
 	print("[AIAgent] %s 开始与 %s 对话，话题: %s，专注度: %d%%" % [character.name, target_agent, topic, focus])
+	
+	# V2: 记录对话日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_conversation_start(character.name, target_agent, room_name)
 
 func _execute_v2_whisper(activity: Activity) -> void:
 	"""执行悄悄话"""
@@ -847,6 +892,11 @@ func _execute_v2_whisper(activity: Activity) -> void:
 		information_receiver.receive_dialogue(target_agent, content, float(focus) / 100.0, "悄悄话")
 	
 	print("[AIAgent] %s 开始向 %s 悄悄话，专注度: %d%%" % [character.name, target_agent, focus])
+	
+	# V2: 记录悄悄话日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_dialogue(character.name, target_agent, "[悄悄话] %s" % content, room_name)
 
 func _execute_v2_listen(activity: Activity) -> void:
 	"""执行聆听（上课）"""
@@ -871,6 +921,11 @@ func _execute_v2_listen(activity: Activity) -> void:
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "听课(%d%%专注)" % focus
 	print("[AIAgent] %s 开始听课，专注度: %d%%" % [character.name, focus])
+	
+	# V2: 记录活动日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "开始听课 (%d%%专注)" % focus, room_name)
 
 func _execute_v2_qa(activity: Activity) -> void:
 	"""执行课堂问答"""
@@ -901,6 +956,11 @@ func _execute_v2_study(activity: Activity) -> void:
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "自习%s(%d%%专注)" % [subject, focus]
 	print("[AIAgent] %s 开始自习%s，专注度: %d%%" % [character.name, subject, focus])
+	
+	# V2: 记录活动日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "开始自习%s (%d%%专注)" % [subject, focus], room_name)
 
 func _execute_v2_sports(activity: Activity) -> void:
 	"""执行体育活动"""
@@ -921,6 +981,11 @@ func _execute_v2_sports(activity: Activity) -> void:
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "体育%s(%d%%专注)" % [sport_type, focus]
 	print("[AIAgent] %s 开始%s，专注度: %d%%" % [character.name, sport_type, focus])
+	
+	# V2: 记录活动日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "开始体育活动%s (强度%.0f%%, 专注%d%%)" % [sport_type, intensity * 100, focus], room_name)
 
 func _execute_v2_discussion(activity: Activity) -> void:
 	"""执行小组讨论"""
@@ -937,6 +1002,12 @@ func _execute_v2_discussion(activity: Activity) -> void:
 	print("[AIAgent] %s 开始小组讨论，话题: %s，成员: %s，专注度: %d%%" % [
 		character.name, topic, ", ".join(members), focus
 	])
+	
+	# V2: 记录讨论日志
+	if logger:
+		var room_name = _get_current_room_name()
+		var members_str = ", ".join(members)
+		logger.log_activity(character.name, "参与小组讨论: %s (成员: %s, 专注%d%%)" % [topic, members_str, focus], room_name)
 
 func _get_current_room_name() -> String:
 	"""获取当前房间名称"""
