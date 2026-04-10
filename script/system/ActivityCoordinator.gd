@@ -553,7 +553,12 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 		
 		Activity.ActivityType.GROUP_DISCUSSION:
 			var topic = parameters.get("topic", "")
-			var members = parameters.get("members", [])
+			var members_raw = parameters.get("members", [])
+			# 转换为Array[String]
+			var members: Array[String] = []
+			for m in members_raw:
+				if m is String:
+					members.append(m)
 			var discussion_focus = _int_to_focus_level(focus_level)
 			activity = Activity.create_group_discussion(topic, members, discussion_focus)
 	
