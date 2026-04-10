@@ -280,7 +280,7 @@ func _get_builtin_prompt() -> String:
 {
   "agents": [
     {
-      "agent_id": "角色ID",
+      "agent_id": "StudentXiaoming",
       "steps": [
         {
           "step": 1,
@@ -289,18 +289,30 @@ func _get_builtin_prompt() -> String:
           "focus_level": 100,
           "estimated_duration": 5.0,
           "reason": "移动到目标场景"
+        },
+        {
+          "step": 2,
+          "activity_type": "SELF_STUDY",
+          "parameters": {"subject": "数学"},
+          "focus_level": 100,
+          "estimated_duration": 45.0,
+          "reason": "自习数学"
         }
       ]
     }
   ]
 }
 
+【关键字段名】
+- 顶层字段必须是 "agents" (数组)
+- 每个agent必须有 "agent_id" 和 "steps" (数组)
+- steps数组中的每个元素必须有: step, activity_type, parameters, focus_level, estimated_duration, reason
+
 规则：
 - 如果活动需要特定场景但角色不在该场景，先添加MOVE_TO
 - 专注度默认100%，提到"随便""走神"时用30%或65%
 - 最多3步，第1步通常是移动
 - MOVE_TO必须包含target_location（x,y坐标）和target_room（房间名）
-- 使用"steps"字段而不是"assignments"字段
 
 【注意】只输出JSON，不要添加```json标记或其他任何文字。"""
 
@@ -446,11 +458,12 @@ func _parse_coordination_response(response: String) -> Dictionary:
 		for agent_data in agents:
 			var agent_id = agent_data.get("agent_id", "")
 			
-			# 尝试获取steps或assignments
+			# 尝试获取steps、assignments或activities
 			var steps = agent_data.get("steps", [])
 			var agent_assignments = agent_data.get("assignments", [])
+			var activities = agent_data.get("activities", [])
 			
-			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps数量=%d, assignments数量=%d" % [agent_id, steps.size(), agent_assignments.size()])
+			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps=%d, assignments=%d, activities=%d" % [agent_id, steps.size(), agent_assignments.size(), activities.size()])
 			
 			if agent_id.is_empty():
 				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
@@ -458,8 +471,12 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			
 			var activities: Array[Activity] = []
 			
-			# 优先使用steps，如果没有则使用assignments
-			var activity_list = steps if not steps.is_empty() else agent_assignments
+			# 优先使用steps，如果没有则使用assignments或activities
+			var activity_list = steps
+			if activity_list.is_empty():
+				activity_list = agent_assignments
+			if activity_list.is_empty():
+				activity_list = activities
 			
 			for step_data in activity_list:
 				var activity = _parse_step_to_activity(step_data, agent_id)
