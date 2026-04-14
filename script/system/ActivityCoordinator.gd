@@ -27,8 +27,8 @@ var is_coordinating: bool = false
 var pending_decisions: Dictionary = {}  # {agent_id: decision_string}
 var coordination_results: Dictionary = {}  # {agent_id: Array[Activity]}
 
-# 对话管理器引用
-var dialogue_manager: DialogueManager = null
+# 对话管理器引用（使用Node类型避免循环依赖）
+var dialogue_manager: Node = null
 
 # 信号
 signal coordination_started(agent_count: int)
@@ -44,7 +44,8 @@ func _ready():
 	print("[ActivityCoordinator] 活动协调器初始化完成")
 	_load_prompt_template()
 	
-	# 获取对话管理器引用
+	# 获取对话管理器引用（延迟获取避免加载顺序问题）
+	await get_tree().process_frame
 	dialogue_manager = get_node_or_null("/root/DialogueManager")
 	if dialogue_manager:
 		print("[ActivityCoordinator] 对话管理器已连接")
@@ -743,7 +744,7 @@ func _process_dialogue_activity(agent_id: String, activity: Activity) -> bool:
 
 func _handle_initiate_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
 	"""处理发起对话活动"""
-	var range_type = activity.parameters.get("range_type", DialogueManager.RangeType.NORMAL)
+	var range_type = activity.parameters.get("range_type", 1)  # 1 = NORMAL
 	var initial_message = activity.parameters.get("initial_message", "")
 	var topic = activity.parameters.get("topic", "")
 	
