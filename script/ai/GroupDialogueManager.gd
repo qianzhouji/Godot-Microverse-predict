@@ -5,18 +5,25 @@ class_name GroupDialogueManager
 # GroupDialogueManager - 群组对话管理器
 # ============================================
 # 管理所有对话（2人及以上），替代原有的1v1对话系统
-# 支持大/中/小三种范围：
-#   - 大范围: 300px (公开讨论，任何人可加入)
-#   - 中范围: 150px (普通对话，附近人可听到)
-#   - 小范围: 30px  (悄悄话，只有贴身者能听到)
-# 范围由对话发起人决定
+# 使用中范围划分系统（与AIAgent感知系统一致）：
+#   - 4象限: 教室、图书馆、自习室、食堂
+#   - 左右分区: 大走廊
+#   - 单区域: 小走廊
+# 范围由对话发起人所在的中范围决定
 # ============================================
 
-# 对话范围枚举
+# 对话范围枚举（与AIAgent的中范围划分一致）
 enum DialogueRange {
-	SMALL,    # 小范围 - 悄悄话 (30px)
-	MEDIUM,   # 中范围 - 普通对话 (150px)
-	LARGE     # 大范围 - 公开讨论 (300px)
+	WHISPER,      # 悄悄话 - 贴身范围（约30px，同一象限内）
+	NORMAL,       # 普通对话 - 中范围（同一象限/分区）
+	BROADCAST     # 广播 - 全房间（跨象限）
+}
+
+# 中范围类型（与AIAgent一致）
+enum MediumRangeType {
+	FOUR_QUADRANT,    # 4象限(教室、图书馆、自习室、食堂)
+	LEFT_RIGHT,       # 左右分区(大走廊)
+	SINGLE            # 单区域(小走廊)
 }
 
 # 群组对话数据类
@@ -31,8 +38,13 @@ class GroupDialogueData:
 	var max_participants: int = 7  # 最大参与者数（中/大范围7人，小范围3人）
 	
 	# 对话范围（由发起人决定）
-	var dialogue_range: int = DialogueRange.MEDIUM  # 默认中范围
-	var range_distance: float = 150.0  # 当前范围对应的距离
+	var dialogue_range: int = DialogueRange.NORMAL  # 默认普通对话
+	var range_distance: float = NORMAL_DISTANCE
+	
+	# 中范围信息（与场景划分对接）
+	var medium_range_type: int = -1  # 中范围类型
+	var medium_range_id: String = ""  # 中范围标识（如"Q1", "LEFT", "CENTER"）
+	var room_name: String = ""  # 所在房间
 	
 	# 发起人和主要目标（用于2人对话）
 	var initiator: CharacterBody2D = null
@@ -41,21 +53,24 @@ class GroupDialogueData:
 	# 发言队列管理器
 	var speaker_queue_manager: SpeakerQueueManager = null
 	
-	func _init(p_id: String, p_participants: Array[CharacterBody2D], p_range: int = DialogueRange.MEDIUM, p_initiator: CharacterBody2D = null, p_target: CharacterBody2D = null):
+	func _init(p_id: String, p_participants: Array[CharacterBody2D], p_range: int = DialogueRange.NORMAL, p_initiator: CharacterBody2D = null, p_target: CharacterBody2D = null, p_room: String = "", p_medium_type: int = -1, p_medium_id: String = ""):
 		dialogue_id = p_id
 		participants = p_participants.duplicate()
 		dialogue_range = p_range
 		initiator = p_initiator
 		primary_target = p_target
+		room_name = p_room
+		medium_range_type = p_medium_type
+		medium_range_id = p_medium_id
 		
 		# 根据范围设置距离
 		match dialogue_range:
-			DialogueRange.SMALL:
-				range_distance = 30.0   # 悄悄话
-			DialogueRange.MEDIUM:
-				range_distance = 150.0  # 普通对话
-			DialogueRange.LARGE:
-				range_distance = 300.0  # 公开讨论
+			DialogueRange.WHISPER:
+				range_distance = WHISPER_DISTANCE   # 悄悄话
+			DialogueRange.NORMAL:
+				range_distance = NORMAL_DISTANCE    # 普通对话
+			DialogueRange.BROADCAST:
+				range_distance = 99999.0            # 广播（全房间）
 		
 		state = 0  # INITIATING
 		start_time = Time.get_unix_time_from_system()
@@ -68,21 +83,21 @@ class GroupDialogueData:
 	func get_range_name() -> String:
 		"""获取范围名称"""
 		match dialogue_range:
-			DialogueRange.SMALL:
+			DialogueRange.WHISPER:
 				return "悄悄话"
-			DialogueRange.MEDIUM:
+			DialogueRange.NORMAL:
 				return "普通对话"
-			DialogueRange.LARGE:
-				return "公开讨论"
+			DialogueRange.BROADCAST:
+				return "广播"
 			_:
 				return "未知"
 	
 	func is_whisper() -> bool:
-		"""是否是悄悄话（小范围）"""
-		return dialogue_range == DialogueRange.SMALL
+		"""是否是悄悄话"""
+		return dialogue_range == DialogueRange.WHISPER
 	
 	func is_in_range(character: CharacterBody2D) -> bool:
-		"""检查角色是否在当前对话范围内"""
+		"""检查角色是否在当前对话范围内（距离检查）"""
 		if participants.is_empty():
 			return false
 		
@@ -94,6 +109,22 @@ class GroupDialogueData:
 				if participant.global_position.distance_to(character.global_position) <= range_distance:
 					return true
 		return false
+	
+	func is_in_same_medium_range(character: CharacterBody2D) -> bool:
+		"""检查角色是否与发起人在同一中范围"""
+		if not is_instance_valid(character):
+			return false
+		
+		# 获取角色的中范围信息（从元数据）
+		var char_room = character.get_meta("current_room", "")
+		var char_medium_id = character.get_meta("medium_range_id", "")
+		
+		# 广播范围不需要检查中范围
+		if dialogue_range == DialogueRange.BROADCAST:
+			return char_room == room_name  # 只要在同一房间即可
+		
+		# 普通对话和悄悄话需要同一中范围
+		return char_room == room_name and char_medium_id == medium_range_id
 	
 	func get_next_speaker() -> CharacterBody2D:
 		"""获取下一位发言者（使用优先级队列）"""
@@ -179,12 +210,16 @@ var active_group_dialogues: Dictionary = {}
 
 # 配置参数
 # 注意：不同范围有不同的参与人数限制
-# - 小范围(悄悄话): 最多3人
-# - 中范围(普通对话): 2-7人
-# - 大范围(公开讨论): 2-7人
+# - 悄悄话: 最多3人，必须在同一中范围内且贴身
+# - 普通对话: 2-7人，必须在同一中范围内
+# - 广播: 2-7人，可以跨中范围
 const GROUP_MIN_PARTICIPANTS: int = 2      # 最小人数
-const GROUP_MAX_PARTICIPANTS: int = 7      # 最大人数（中/大范围）
+const GROUP_MAX_PARTICIPANTS: int = 7      # 最大人数（普通/广播）
 const WHISPER_MAX_PARTICIPANTS: int = 3    # 悄悄话最大人数
+
+# 距离配置
+const WHISPER_DISTANCE: float = 50.0       # 悄悄话距离（贴身）
+const NORMAL_DISTANCE: float = 200.0       # 普通对话距离（中范围）
 
 # 范围配置（由发起人决定）
 const RANGE_SMALL: float = 30.0            # 小范围 - 悄悄话
@@ -208,43 +243,58 @@ func _ready():
 func try_start_group_dialogue(initiator: CharacterBody2D,
 							  initial_participants: Array[CharacterBody2D],
 							  topic: String = "",
-							  dialogue_range: int = DialogueRange.MEDIUM,
+							  dialogue_range: int = DialogueRange.NORMAL,
 							  primary_target: CharacterBody2D = null) -> bool:
 	"""
-	尝试开始群组对话（支持2人及以上，范围由发起人决定）
+	尝试开始群组对话（支持2人及以上，使用中范围划分系统）
 
 	参数:
 		initiator: 发起者
 		initial_participants: 初始参与者列表（包含发起者）
 		topic: 讨论主题
-		dialogue_range: 对话范围 (SMALL=悄悄话30px, MEDIUM=普通对话150px, LARGE=公开讨论300px)
+		dialogue_range: 对话范围 (WHISPER=悄悄话, NORMAL=普通对话, BROADCAST=广播)
 		primary_target: 主要对话对象（可选，用于2人对话）
 	"""
 	if initial_participants.size() < GROUP_MIN_PARTICIPANTS:
 		print("[GroupDialogueManager] 参与者不足，需要至少%d人" % GROUP_MIN_PARTICIPANTS)
 		return false
 
-	# 获取范围距离
-	var range_distance = RANGE_MEDIUM
-	match dialogue_range:
-		DialogueRange.SMALL:
-			range_distance = RANGE_SMALL
-		DialogueRange.MEDIUM:
-			range_distance = RANGE_MEDIUM
-		DialogueRange.LARGE:
-			range_distance = RANGE_LARGE
+	# 获取发起人的中范围信息
+	var initiator_info = _get_character_medium_range_info(initiator)
+	if initiator_info.room_name.is_empty():
+		print("[GroupDialogueManager] 无法获取发起人的中范围信息")
+		return false
 
-	# 检查所有参与者是否都在范围内
+	# 检查所有参与者是否满足范围条件
 	for participant in initial_participants:
-		if not _is_in_range_by_distance(initiator, participant, range_distance):
-			print("[GroupDialogueManager] %s 超出范围" % participant.name)
+		if participant == initiator:
+			continue
+		
+		# 检查距离
+		if not _is_in_range_by_distance(initiator, participant, WHISPER_DISTANCE if dialogue_range == DialogueRange.WHISPER else NORMAL_DISTANCE):
+			print("[GroupDialogueManager] %s 距离太远" % participant.name)
 			return false
+		
+		# 非广播范围需要检查中范围
+		if dialogue_range != DialogueRange.BROADCAST:
+			if not _is_in_same_medium_range(initiator, participant):
+				print("[GroupDialogueManager] %s 不在同一中范围" % participant.name)
+				return false
 
 	# 生成对话ID
 	var dialogue_id = _generate_group_dialogue_id(initiator, initial_participants)
 
-	# 创建群组对话数据（传入范围和发起人信息）
-	var group_data = GroupDialogueData.new(dialogue_id, initial_participants, dialogue_range, initiator, primary_target)
+	# 创建群组对话数据（传入中范围信息）
+	var group_data = GroupDialogueData.new(
+		dialogue_id, 
+		initial_participants, 
+		dialogue_range, 
+		initiator, 
+		primary_target,
+		initiator_info.room_name,
+		initiator_info.medium_range_type,
+		initiator_info.medium_range_id
+	)
 	group_data.topic = topic
 	group_data.state = 1  # ACTIVE
 
@@ -256,10 +306,13 @@ func try_start_group_dialogue(initiator: CharacterBody2D,
 			participant.set_meta("group_dialogue_id", dialogue_id)
 			participant.set_meta("in_group_dialogue", true)
 			participant.set_meta("dialogue_range", dialogue_range)
+			participant.set_meta("dialogue_medium_range_id", initiator_info.medium_range_id)
 
 	var participant_names = _get_participant_names(initial_participants)
 	var range_name = group_data.get_range_name()
-	print("[GroupDialogueManager] %s开始：%s (范围:%s, 参与者:%s)" % [range_name, dialogue_id, range_name, ", ".join(participant_names)])
+	print("[GroupDialogueManager] %s开始：%s (范围:%s, 中范围:%s, 参与者:%s)" % [
+		range_name, dialogue_id, range_name, initiator_info.medium_range_id, ", ".join(participant_names)
+	])
 	group_dialogue_started.emit(dialogue_id, participant_names)
 
 	# 开始第一轮对话
@@ -274,10 +327,13 @@ func try_join_group_dialogue(character: CharacterBody2D, dialogue_id: String) ->
 
 	var group_data = active_group_dialogues[dialogue_id]
 
+	# 悄悄话不允许其他人加入
+	if group_data.dialogue_range == DialogueRange.WHISPER:
+		print("[GroupDialogueManager] %s 是悄悄话，无法加入" % dialogue_id)
+		return false
+
 	# 根据范围检查人数限制
 	var max_count = GROUP_MAX_PARTICIPANTS  # 默认7人
-	if group_data.dialogue_range == DialogueRange.SMALL:
-		max_count = WHISPER_MAX_PARTICIPANTS  # 悄悄话最多3人
 
 	# 检查是否已满
 	if group_data.participants.size() >= max_count:
@@ -285,6 +341,12 @@ func try_join_group_dialogue(character: CharacterBody2D, dialogue_id: String) ->
 			dialogue_id, group_data.participants.size(), max_count
 		])
 		return false
+	
+	# 检查中范围（非广播范围需要同一中范围）
+	if group_data.dialogue_range == DialogueRange.NORMAL:
+		if not group_data.is_in_same_medium_range(character):
+			print("[GroupDialogueManager] %s 不在同一中范围，无法加入" % character.name)
+			return false
 
 	# 检查是否已经在群组中
 	if group_data.participants.has(character):
@@ -560,6 +622,66 @@ func _is_in_group_range(char1: CharacterBody2D, char2: CharacterBody2D) -> bool:
 	if not is_instance_valid(char1) or not is_instance_valid(char2):
 		return false
 	return char1.global_position.distance_to(char2.global_position) <= RANGE_MEDIUM
+
+# ============================================
+# 中范围接口（与AIAgent感知系统对接）
+# ============================================
+
+func _get_character_medium_range_info(character: CharacterBody2D) -> Dictionary:
+	"""获取角色的中范围信息（从AIAgent或元数据）"""
+	var info = {
+		"room_name": "",
+		"medium_range_type": -1,
+		"medium_range_id": ""
+	}
+	
+	if not is_instance_valid(character):
+		return info
+	
+	# 尝试从元数据获取
+	info.room_name = character.get_meta("current_room", "")
+	info.medium_range_id = character.get_meta("medium_range_id", "")
+	
+	# 如果元数据中没有，尝试通过AIAgent获取
+	var ai_agent = _get_ai_agent(character)
+	if ai_agent:
+		var current_room = ai_agent._get_current_room()
+		if current_room:
+			info.room_name = current_room.get("room_name", "")
+			# 获取中范围类型和ID
+			var pos = character.global_position
+			info.medium_range_type = ai_agent._get_room_medium_range_type(info.room_name)
+			info.medium_range_id = ai_agent._get_medium_range_description(current_room, pos)
+	
+	return info
+
+func _get_ai_agent(character: CharacterBody2D) -> Node:
+	"""获取角色的AIAgent组件"""
+	if not is_instance_valid(character):
+		return null
+	
+	# 尝试直接获取AIAgent子节点
+	if character.has_node("AIAgent"):
+		return character.get_node("AIAgent")
+	
+	# 或者通过其他方式查找
+	for child in character.get_children():
+		if child is AIAgent:
+			return child
+	
+	return null
+
+func _is_in_same_medium_range(char1: CharacterBody2D, char2: CharacterBody2D) -> bool:
+	"""检查两个角色是否在同一个中范围"""
+	var info1 = _get_character_medium_range_info(char1)
+	var info2 = _get_character_medium_range_info(char2)
+	
+	# 必须在同一房间
+	if info1.room_name != info2.room_name:
+		return false
+	
+	# 必须在同一中范围
+	return info1.medium_range_id == info2.medium_range_id
 
 func _is_in_range_by_distance(char1: CharacterBody2D, char2: CharacterBody2D, distance: float) -> bool:
 	"""检查是否在指定距离内"""

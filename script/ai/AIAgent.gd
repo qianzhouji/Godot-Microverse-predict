@@ -1349,7 +1349,7 @@ func _execute_start_dialogue(request: ActionRequest):
 	# 使用MultiAgentDialogueIntegration启动群组对话（中范围）
 	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
 	if integration:
-		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.MEDIUM)
+		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.NORMAL)
 		if success:
 			print("[AIAgent] %s 成功向 %s 发起对话（中范围）" % [character.name, request.target_id])
 		else:
@@ -1387,7 +1387,7 @@ func _execute_start_whisper(request: ActionRequest):
 	# 使用MultiAgentDialogueIntegration启动悄悄话（小范围）
 	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
 	if integration:
-		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.SMALL)
+		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.WHISPER)
 		if success:
 			print("[AIAgent] %s 成功向 %s 发起悄悄话（小范围）" % [character.name, request.target_id])
 		else:

@@ -79,7 +79,7 @@ func _connect_signals():
 
 func start_dialogue(initiator: CharacterBody2D,
 					target: CharacterBody2D,
-					dialogue_range: int = GroupDialogueManager.DialogueRange.MEDIUM,
+					dialogue_range: int = GroupDialogueManager.DialogueRange.NORMAL,
 					topic: String = "") -> bool:
 	"""
 	统一对话开始接口（全部使用群组对话，范围由发起人决定）
@@ -87,7 +87,7 @@ func start_dialogue(initiator: CharacterBody2D,
 	参数:
 		initiator: 发起者
 		target: 目标（可以是单个角色或角色数组）
-		dialogue_range: 对话范围 (SMALL=悄悄话30px, MEDIUM=普通对话150px, LARGE=公开讨论300px)
+		dialogue_range: 对话范围 (WHISPER=悄悄话, NORMAL=普通对话, BROADCAST=广播)
 		topic: 讨论主题
 
 	返回:
@@ -107,9 +107,9 @@ func start_dialogue(initiator: CharacterBody2D,
 func start_group_dialogue(initiator: CharacterBody2D,
 						  participants: Array[CharacterBody2D],
 						  topic: String = "",
-						  dialogue_range: int = GroupDialogueManager.DialogueRange.MEDIUM,
+						  dialogue_range: int = GroupDialogueManager.DialogueRange.NORMAL,
 						  primary_target: CharacterBody2D = null) -> bool:
-	"""开始群组对话（支持2人及以上）"""
+	"""开始群组对话（支持2人及以上，使用中范围划分系统）"""
 
 	if not group_dialogue_manager:
 		push_error("[MultiAgentDialogueIntegration] GroupDialogueManager未初始化")
@@ -125,12 +125,12 @@ func start_group_dialogue(initiator: CharacterBody2D,
 
 		var range_name = "对话"
 		match dialogue_range:
-			GroupDialogueManager.DialogueRange.SMALL:
+			GroupDialogueManager.DialogueRange.WHISPER:
 				range_name = "悄悄话"
-			GroupDialogueManager.DialogueRange.MEDIUM:
+			GroupDialogueManager.DialogueRange.NORMAL:
 				range_name = "普通对话"
-			GroupDialogueManager.DialogueRange.LARGE:
-				range_name = "公开讨论"
+			GroupDialogueManager.DialogueRange.BROADCAST:
+				range_name = "广播"
 
 		print("[MultiAgentDialogueIntegration] %s开始：%s (参与者: %s)" % [
 			range_name, dialogue_id, ", ".join(participant_names)
