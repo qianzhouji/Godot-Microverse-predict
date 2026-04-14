@@ -460,7 +460,7 @@ func _generate_dialogue_async(api_manager: Node, prompt: String, dialogue_id: St
 	add_child(http_request)
 	
 	var body = {
-		"model": "qwen2.5:3b",
+		"model": "qwen2.5:1.5b",
 		"prompt": prompt,
 		"stream": false,
 		"options": {
