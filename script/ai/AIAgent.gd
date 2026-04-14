@@ -2238,3 +2238,134 @@ func _check_mvt_leave_decision(room_name: String, time_in_room: float,
 		"current_time": time_in_room,
 		"reason": reason
 	}
+
+# ============================================
+# 对话内容生成
+# ============================================
+
+func generate_dialogue_message(dialogue_history: String, topic: String, 
+							   other_participants: Array[String], 
+							   range_type_name: String) -> String:
+	"""
+	生成对话内容
+	
+	参数:
+		dialogue_history: 对话历史（格式化字符串）
+		topic: 讨论主题
+		other_participants: 其他参与者名称列表
+		range_type_name: 对话范围类型名称（悄悄话/普通对话/广播）
+	
+	返回:
+		生成的对话内容
+	"""
+	# 构建Prompt
+	var prompt = _build_dialogue_prompt(dialogue_history, topic, other_participants, range_type_name)
+	
+	# 调用LLM生成内容
+	var content = await _call_llm_for_dialogue(prompt)
+	
+	return content
+
+func _build_dialogue_prompt(dialogue_history: String, topic: String,
+							other_participants: Array[String], 
+							range_type_name: String) -> String:
+	"""构建对话生成Prompt"""
+	
+	var personality = CharacterPersonality.get_personality(character.name)
+	
+	var prompt = "你正在参与一场%s。\n\n" % range_type_name
+	prompt += "你的名字：%s\n" % character.name
+	prompt += "你的身份：%s\n" % personality.get("position", "学生")
+	prompt += "你的性格：%s\n" % personality.get("personality", "普通")
+	prompt += "你的说话风格：%s\n" % personality.get("speaking_style", "自然")
+	
+	if not topic.is_empty():
+		prompt += "讨论主题：%s\n" % topic
+	
+	if not other_participants.is_empty():
+		prompt += "其他参与者：%s\n" % ", ".join(other_participants)
+	
+	if not dialogue_history.is_empty():
+		prompt += "\n对话历史：\n%s\n" % dialogue_history
+	
+	prompt += "\n请根据你的性格和当前对话情境，发表你的观点。"
+	prompt += "\n要求："
+	prompt += "\n- 保持自然，像真人一样说话"
+	prompt += "\n- 可以回应其他人的观点"
+	prompt += "\n- 对话长度控制在1-3句话，50字以内"
+	prompt += "\n- 只返回你要说的话，不要加任何前缀或解释"
+	prompt += "\n- 不要重复之前说过的话"
+	
+	return prompt
+
+func _call_llm_for_dialogue(prompt: String) -> String:
+	"""调用LLM生成对话内容"""
+	
+	var api_manager = get_node_or_null("/root/APIManager")
+	if not api_manager:
+		push_error("[AIAgent] APIManager未找到")
+		return ""
+	
+	# 构建请求
+	var request_data = {
+		"model": APIConfig.get_model_for_agent(character.name),
+		"prompt": prompt,
+		"stream": false,
+		"options": {
+			"temperature": 0.7,
+			"num_predict": 100
+		}
+	}
+	
+	# 创建HTTP请求
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	var error = http_request.request(
+		APIConfig.ollama_url,
+		["Content-Type: application/json"],
+		HTTPClient.METHOD_POST,
+		JSON.stringify(request_data)
+	)
+	
+	if error != OK:
+		http_request.queue_free()
+		return ""
+	
+	# 等待响应
+	var result = await http_request.request_completed
+	http_request.queue_free()
+	
+	if result[1] != 200:
+		return ""
+	
+	# 解析响应
+	var json = JSON.new()
+	if json.parse(result[3].get_string_from_utf8()) != OK:
+		return ""
+	
+	var response_data = json.get_data()
+	var content = response_data.get("response", "").strip_edges()
+	
+	# 清理内容
+	content = _clean_dialogue_content(content)
+	
+	return content
+
+func _clean_dialogue_content(content: String) -> String:
+	"""清理生成的对话内容"""
+	# 移除常见的引号
+	content = content.replace("\"", "")
+	content = content.replace("'", "")
+	
+	# 移除前缀如"我说："、"小明："等
+	var prefixes = [character.name + "：", character.name + ":", "我说：", "我说:"]
+	for prefix in prefixes:
+		if content.begins_with(prefix):
+			content = content.substr(prefix.length()).strip_edges()
+	
+	# 限制长度
+	if content.length() > 100:
+		content = content.substr(0, 100) + "..."
+	
+	return content
