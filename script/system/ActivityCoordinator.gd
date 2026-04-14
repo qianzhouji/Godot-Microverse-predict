@@ -27,6 +27,9 @@ var is_coordinating: bool = false
 var pending_decisions: Dictionary = {}  # {agent_id: decision_string}
 var coordination_results: Dictionary = {}  # {agent_id: Array[Activity]}
 
+# 对话管理器引用
+var dialogue_manager: DialogueManager = null
+
 # 信号
 signal coordination_started(agent_count: int)
 signal coordination_completed(results: Dictionary)
@@ -40,6 +43,13 @@ func _ready():
 	instance = self
 	print("[ActivityCoordinator] 活动协调器初始化完成")
 	_load_prompt_template()
+	
+	# 获取对话管理器引用
+	dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		print("[ActivityCoordinator] 对话管理器已连接")
+	else:
+		push_warning("[ActivityCoordinator] 对话管理器未找到")
 
 func _load_prompt_template() -> void:
 	"""加载协调器Prompt模板"""
@@ -224,8 +234,9 @@ func _get_available_activities() -> Array[String]:
 	"""获取可用活动列表"""
 	return [
 		"MOVE_TO",
-		"NORMAL_DIALOGUE",
-		"WHISPER",
+		"INITIATE_DIALOGUE",
+		"JOIN_DIALOGUE",
+		"LEAVE_DIALOGUE",
 		"LISTEN",
 		"QA_TEACHER",
 		"SELF_STUDY",
@@ -575,13 +586,16 @@ func _string_to_activity_type(type_str: String) -> Activity.ActivityType:
 	"""字符串转活动类型"""
 	match type_str.to_upper():
 		"MOVE_TO": return Activity.ActivityType.MOVE_TO
-		"NORMAL_DIALOGUE": return Activity.ActivityType.NORMAL_DIALOGUE
-		"WHISPER": return Activity.ActivityType.WHISPER
+		"INITIATE_DIALOGUE": return Activity.ActivityType.INITIATE_DIALOGUE
+		"JOIN_DIALOGUE": return Activity.ActivityType.JOIN_DIALOGUE
+		"LEAVE_DIALOGUE": return Activity.ActivityType.LEAVE_DIALOGUE
 		"LISTEN": return Activity.ActivityType.LISTEN
 		"QA_TEACHER": return Activity.ActivityType.QA_TEACHER
 		"SELF_STUDY": return Activity.ActivityType.SELF_STUDY
 		"SPORTS": return Activity.ActivityType.SPORTS
 		"GROUP_DISCUSSION": return Activity.ActivityType.GROUP_DISCUSSION
+		"NORMAL_DIALOGUE": return Activity.ActivityType.NORMAL_DIALOGUE
+		"WHISPER": return Activity.ActivityType.WHISPER
 		_: return Activity.ActivityType.MOVE_TO
 
 func _int_to_focus_level(level: int) -> Activity.FocusLevel:
@@ -652,20 +666,167 @@ func _distribute_activities(results: Dictionary) -> void:
 	"""将活动序列下发给各Agent"""
 	for agent_id in results.keys():
 		var activities = results[agent_id]
-		var agent_node = _find_agent_node(agent_id)
 		
-		print("[ActivityCoordinator] _distribute_activities: agent_id=%s, agent_node=%s" % [agent_id, agent_node])
+		# 分离对话活动和非对话活动
+		var dialogue_activities: Array[Activity] = []
+		var normal_activities: Array[Activity] = []
 		
-		if agent_node and agent_node.has_method("receive_activity_sequence"):
-			agent_node.receive_activity_sequence(activities)
-			activity_assigned.emit(agent_id, activities)
-			print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
-		else:
-			# 存储在协调结果中，等待Agent获取
-			if not agent_node:
-				print("[ActivityCoordinator] %s 的活动已缓存（找不到Agent节点），等待获取" % agent_id)
+		for activity in activities:
+			if _is_dialogue_activity(activity):
+				dialogue_activities.append(activity)
 			else:
-				print("[ActivityCoordinator] %s 的活动已缓存（Agent无receive_activity_sequence方法），等待获取" % agent_id)
+				normal_activities.append(activity)
+		
+		# 处理对话活动
+		for activity in dialogue_activities:
+			_process_dialogue_activity(agent_id, activity)
+		
+		# 下发非对话活动给Agent
+		if normal_activities.size() > 0:
+			_distribute_to_agent(agent_id, normal_activities)
+
+func _distribute_to_agent(agent_id: String, activities: Array[Activity]) -> void:
+	"""将活动下发给指定Agent"""
+	var agent_node = _find_agent_node(agent_id)
+	
+	print("[ActivityCoordinator] _distribute_to_agent: agent_id=%s, agent_node=%s" % [agent_id, agent_node])
+	
+	if agent_node and agent_node.has_method("receive_activity_sequence"):
+		agent_node.receive_activity_sequence(activities)
+		activity_assigned.emit(agent_id, activities)
+		print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
+	else:
+		# 存储在协调结果中，等待Agent获取
+		if not agent_node:
+			print("[ActivityCoordinator] %s 的活动已缓存（找不到Agent节点），等待获取" % agent_id)
+		else:
+			print("[ActivityCoordinator] %s 的活动已缓存（Agent无receive_activity_sequence方法），等待获取" % agent_id)
+
+func _is_dialogue_activity(activity: Activity) -> bool:
+	"""检查是否为对话相关活动"""
+	return activity.activity_type in [
+		Activity.ActivityType.INITIATE_DIALOGUE,
+		Activity.ActivityType.JOIN_DIALOGUE,
+		Activity.ActivityType.LEAVE_DIALOGUE
+	]
+
+func _process_dialogue_activity(agent_id: String, activity: Activity) -> bool:
+	"""
+	处理对话相关活动
+	
+	返回:
+		是否成功处理
+	"""
+	if not dialogue_manager:
+		push_error("[ActivityCoordinator] 对话管理器未初始化")
+		return false
+	
+	var agent_node = _find_agent_node(agent_id)
+	if not agent_node:
+		push_error("[ActivityCoordinator] 找不到Agent节点: %s" % agent_id)
+		return false
+	
+	var character = agent_node.get_parent() as CharacterBody2D
+	if not character:
+		push_error("[ActivityCoordinator] Agent父节点不是CharacterBody2D")
+		return false
+	
+	match activity.activity_type:
+		Activity.ActivityType.INITIATE_DIALOGUE:
+			return _handle_initiate_dialogue(character, activity)
+		Activity.ActivityType.JOIN_DIALOGUE:
+			return _handle_join_dialogue(character, activity)
+		Activity.ActivityType.LEAVE_DIALOGUE:
+			return _handle_leave_dialogue(character, activity)
+	
+	return false
+
+func _handle_initiate_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
+	"""处理发起对话活动"""
+	var range_type = activity.parameters.get("range_type", DialogueManager.RangeType.NORMAL)
+	var initial_message = activity.parameters.get("initial_message", "")
+	var topic = activity.parameters.get("topic", "")
+	
+	# 获取当前游戏时间（从TimingSystem）
+	var current_click = _get_current_click()
+	var current_time = _get_current_game_time()
+	
+	# 调用DialogueManager发起对话
+	var dialogue_id = dialogue_manager.start_dialogue(
+		character,
+		range_type,
+		topic,
+		"",  # room_name 自动获取
+		"",  # medium_range_id 自动获取
+		current_click,
+		current_time
+	)
+	
+	if dialogue_id.is_empty():
+		print("[ActivityCoordinator] %s 发起对话失败" % character.name)
+		return false
+	
+	print("[ActivityCoordinator] %s 成功发起对话: %s" % [character.name, dialogue_id])
+	
+	# 如果有初始消息，立即添加
+	if not initial_message.is_empty():
+		dialogue_manager.add_message(dialogue_id, character, initial_message, current_click)
+	
+	return true
+
+func _handle_join_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
+	"""处理加入对话活动"""
+	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	
+	if dialogue_id.is_empty():
+		print("[ActivityCoordinator] %s 加入对话失败：未指定对话ID" % character.name)
+		return false
+	
+	var current_click = _get_current_click()
+	
+	var success = dialogue_manager.join_dialogue(character, dialogue_id, current_click)
+	
+	if success:
+		print("[ActivityCoordinator] %s 成功加入对话: %s" % [character.name, dialogue_id])
+	else:
+		print("[ActivityCoordinator] %s 加入对话失败: %s" % [character.name, dialogue_id])
+	
+	return success
+
+func _handle_leave_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
+	"""处理离开对话活动"""
+	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	
+	if dialogue_id.is_empty():
+		# 如果没有指定ID，使用角色当前的对话
+		dialogue_id = dialogue_manager.get_character_dialogue(character)
+	
+	if dialogue_id.is_empty():
+		print("[ActivityCoordinator] %s 不在任何对话中" % character.name)
+		return false
+	
+	var success = dialogue_manager.leave_dialogue(character, dialogue_id)
+	
+	if success:
+		print("[ActivityCoordinator] %s 成功离开对话: %s" % [character.name, dialogue_id])
+	else:
+		print("[ActivityCoordinator] %s 离开对话失败: %s" % [character.name, dialogue_id])
+	
+	return success
+
+func _get_current_click() -> int:
+	"""获取当前Click索引（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_current_click"):
+		return timing_system.get_current_click()
+	return 0
+
+func _get_current_game_time() -> float:
+	"""获取当前游戏时间（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_game_time"):
+		return timing_system.get_game_time()
+	return 0.0
 
 func get_assigned_activities(agent_id: String) -> Array[Activity]:
 	"""获取分配给指定Agent的活动序列"""
