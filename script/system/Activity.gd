@@ -12,8 +12,11 @@ extends RefCounted
 enum ActivityType {
 	# 基础移动与交互
 	MOVE_TO,              # 移动到目标位置
-	NORMAL_DIALOGUE,      # 普通对话
-	WHISPER,              # 悄悄话
+	
+	# 对话系统（新）
+	INITIATE_DIALOGUE,    # 发起对话
+	JOIN_DIALOGUE,        # 加入对话
+	LEAVE_DIALOGUE,       # 离开对话
 	
 	# 场景限定活动（专注度相关）
 	LISTEN,               # 聆听（仅限上课）
@@ -21,6 +24,10 @@ enum ActivityType {
 	SELF_STUDY,           # 自习（图书馆/自习室）
 	SPORTS,               # 体育活动（体育馆）
 	GROUP_DISCUSSION      # 小组讨论（教室/讨论室）
+	
+	# 兼容旧版本
+	NORMAL_DIALOGUE,      # 普通对话（旧，兼容）
+	WHISPER               # 悄悄话（旧，兼容）
 }
 
 # 专注度档位
@@ -174,6 +181,60 @@ static func create_group_discussion(topic: String, members: Array[String],
 	return activity
 
 # ============================================
+# 对话系统工厂方法（新）
+# ============================================
+
+static func create_initiate_dialogue(range_type: int, initial_message: String = "", 
+									 topic: String = "") -> Activity:
+	"""
+	创建发起对话活动
+	
+	参数:
+		range_type: 对话范围 (0=WHISPER悄悄话, 1=NORMAL普通对话, 2=BROADCAST广播)
+		initial_message: 初始消息内容（可选）
+		topic: 讨论主题（可选）
+	"""
+	var activity = Activity.new(ActivityType.INITIATE_DIALOGUE)
+	activity.parameters = {
+		"range_type": range_type,
+		"initial_message": initial_message,
+		"topic": topic
+	}
+	activity.duration_expected = 5.0  # 发起对话很快
+	activity.is_interruptible = false  # 发起对话不可中断
+	return activity
+
+static func create_join_dialogue(dialogue_id: String) -> Activity:
+	"""
+	创建加入对话活动
+	
+	参数:
+		dialogue_id: 要加入的对话ID
+	"""
+	var activity = Activity.new(ActivityType.JOIN_DIALOGUE)
+	activity.parameters = {
+		"dialogue_id": dialogue_id
+	}
+	activity.duration_expected = 2.0
+	activity.is_interruptible = false
+	return activity
+
+static func create_leave_dialogue(dialogue_id: String) -> Activity:
+	"""
+	创建离开对话活动
+	
+	参数:
+		dialogue_id: 要离开的对话ID
+	"""
+	var activity = Activity.new(ActivityType.LEAVE_DIALOGUE)
+	activity.parameters = {
+		"dialogue_id": dialogue_id
+	}
+	activity.duration_expected = 1.0
+	activity.is_interruptible = true
+	return activity
+
+# ============================================
 # 专注度管理
 # ============================================
 
@@ -271,10 +332,12 @@ func _get_default_name(type: ActivityType) -> String:
 	match type:
 		ActivityType.MOVE_TO:
 			return "移动"
-		ActivityType.NORMAL_DIALOGUE:
-			return "普通对话"
-		ActivityType.WHISPER:
-			return "悄悄话"
+		ActivityType.INITIATE_DIALOGUE:
+			return "发起对话"
+		ActivityType.JOIN_DIALOGUE:
+			return "加入对话"
+		ActivityType.LEAVE_DIALOGUE:
+			return "离开对话"
 		ActivityType.LISTEN:
 			return "聆听"
 		ActivityType.QA_TEACHER:
@@ -285,11 +348,21 @@ func _get_default_name(type: ActivityType) -> String:
 			return "体育活动"
 		ActivityType.GROUP_DISCUSSION:
 			return "小组讨论"
+		ActivityType.NORMAL_DIALOGUE:
+			return "普通对话(旧)"
+		ActivityType.WHISPER:
+			return "悄悄话(旧)"
 		_:
 			return "未知活动"
 
 func _setup_default_constraints() -> void:
 	match activity_type:
+		ActivityType.INITIATE_DIALOGUE:
+			is_interruptible = false
+		ActivityType.JOIN_DIALOGUE:
+			is_interruptible = false
+		ActivityType.LEAVE_DIALOGUE:
+			is_interruptible = true
 		ActivityType.LISTEN:
 			requires_focus = true
 			var scenes_listen: Array[String] = ["classroom"]
@@ -318,10 +391,12 @@ func get_type_string() -> String:
 	match activity_type:
 		ActivityType.MOVE_TO:
 			return "MOVE_TO"
-		ActivityType.NORMAL_DIALOGUE:
-			return "NORMAL_DIALOGUE"
-		ActivityType.WHISPER:
-			return "WHISPER"
+		ActivityType.INITIATE_DIALOGUE:
+			return "INITIATE_DIALOGUE"
+		ActivityType.JOIN_DIALOGUE:
+			return "JOIN_DIALOGUE"
+		ActivityType.LEAVE_DIALOGUE:
+			return "LEAVE_DIALOGUE"
 		ActivityType.LISTEN:
 			return "LISTEN"
 		ActivityType.QA_TEACHER:
@@ -332,13 +407,17 @@ func get_type_string() -> String:
 			return "SPORTS"
 		ActivityType.GROUP_DISCUSSION:
 			return "GROUP_DISCUSSION"
+		ActivityType.NORMAL_DIALOGUE:
+			return "NORMAL_DIALOGUE"
+		ActivityType.WHISPER:
+			return "WHISPER"
 		_:
 			return "UNKNOWN"
 
 # 是否为对话类活动（影响信息接收）
 func is_dialogue_activity() -> bool:
-	return activity_type in [ActivityType.NORMAL_DIALOGUE, ActivityType.WHISPER, 
-							 ActivityType.GROUP_DISCUSSION]
+	return activity_type in [ActivityType.INITIATE_DIALOGUE, ActivityType.JOIN_DIALOGUE,
+							 ActivityType.LEAVE_DIALOGUE, ActivityType.GROUP_DISCUSSION]
 
 # 是否为专注度活动
 func is_focus_activity() -> bool:
