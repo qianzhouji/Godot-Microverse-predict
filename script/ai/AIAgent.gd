@@ -2345,6 +2345,20 @@ func _direct_ollama_call(prompt: String) -> String:
 	var data = json.get_data()
 	return data.get("response", "")
 
+func _get_current_click() -> int:
+	"""获取当前Click索引（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_current_click"):
+		return timing_system.get_current_click()
+	return 0
+
+func _get_current_game_time() -> float:
+	"""获取当前游戏时间（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_game_time"):
+		return timing_system.get_game_time()
+	return 0.0
+
 func _clean_dialogue_content(content: String) -> String:
 	"""清理生成的对话内容"""
 	# 移除常见的引号
