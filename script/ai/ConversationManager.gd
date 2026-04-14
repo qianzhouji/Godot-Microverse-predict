@@ -330,9 +330,13 @@ func get_character_status_info(character: CharacterBody2D) -> String:
 	status_info += "\n😊 心情：%s" % mood
 	status_info += "\n❤️ 健康：%s" % health
 	
-	# 使用MemoryManager获取格式化的记忆信息
+	# 使用MemorySystem获取格式化的记忆信息
 	status_info += "\n\n【记忆信息】"
-	var memory_text = MemoryManager.get_formatted_memories_for_prompt(character)
+	var memory_text = ""
+	if MemorySystem.instance:
+		memory_text = MemorySystem.instance.get_formatted_memories_for_prompt(character)
+	else:
+		memory_text = "\n\n记忆信息：\n- 暂无重要记忆"
 	# 移除开头的换行符，因为你们已经添加了标题
 	if memory_text.begins_with("\n\n记忆信息："):
 		memory_text = memory_text.substr(8)  # 移除"\n\n记忆信息："

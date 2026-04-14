@@ -77,6 +77,12 @@ const MOVEMENT_CHECK_INTERVAL: float = 0.5     # 每0.5秒检查一次移动状�
 var logger: Node = null                        # Logger节点引用
 
 # ============================================
+# V2: 对话状态检查
+# ============================================
+var _dialogue_check_timer: float = 0.0
+const DIALOGUE_CHECK_INTERVAL: float = 1.0     # 每秒检查一次对话状态
+
+# ============================================
 # 初始化
 # ============================================
 func _ready():
@@ -106,6 +112,39 @@ func _ready():
 		print("[AIAgent] %s 已连接到日志系统" % character.name)
 
 	print("[AIAgent] %s 初始化完成" % character.name)
+
+# ============================================
+# V2: 每帧处理
+# ============================================
+func _process(delta: float):
+	# 对话状态检查
+	if current_state == AgentState.IN_DIALOGUE:
+		_dialogue_check_timer += delta
+		if _dialogue_check_timer >= DIALOGUE_CHECK_INTERVAL:
+			_dialogue_check_timer = 0.0
+			_check_dialogue_state()
+
+# ============================================
+# V2: 检查对话状态
+# ============================================
+func _check_dialogue_state():
+	var dialog_manager = get_node_or_null("/root/DialogManager")
+	if not dialog_manager or not dialog_manager.dialog_service:
+		return
+	
+	# 检查自己是否还在对话中
+	if not dialog_manager.dialog_service.is_character_in_conversation(character):
+		# 对话已结束（可能被对方结束或超时）
+		if current_state == AgentState.IN_DIALOGUE:
+			print("[AIAgent] %s 检测到对话已结束，恢复空闲状态" % character.name)
+			current_state = AgentState.IDLE
+			current_activity = ""
+			remove_meta("dialogue_partner")
+			remove_meta("whisper_partner")
+			
+			# 记录日志
+			if logger:
+				logger.log_activity(character.name, "对话结束（外部触发）", _get_current_room_name())
 
 # ============================================
 # 感知层组件创建(保留原逻辑)
@@ -293,9 +332,57 @@ func _perceive() -> Dictionary:
 	if TimingSystem.instance:
 		perception.current_time = TimingSystem.instance.current_game_time
 
-	# TODO: 集成DialogueManager获取对话行为和内容
+	# 5. 获取对话行为和内容
+	var dialogue_info = _get_dialogue_info()
+	perception["dialogue_behaviors"] = dialogue_info.behaviors
+	perception["audible_contents"] = dialogue_info.contents
 
 	return perception
+
+# ============================================
+# V2: 获取对话信息
+# ============================================
+func _get_dialogue_info() -> Dictionary:
+	var result = {
+		"behaviors": [],
+		"contents": []
+	}
+	
+	var dialog_manager = get_node_or_null("/root/DialogManager")
+	if not dialog_manager or not dialog_manager.dialog_service:
+		return result
+	
+	# 获取活跃对话信息
+	var active_conversations = dialog_manager.dialog_service.get_active_conversations_info()
+	
+	for conv_info in active_conversations:
+		var speaker_name = conv_info.get("speaker", "")
+		var listener_name = conv_info.get("listener", "")
+		
+		# 添加对话行为（全场景可见）
+		result.behaviors.append({
+			"type": "DIALOGUE",
+			"participants": [speaker_name, listener_name],
+			"location": "unknown"  # 可以通过角色位置获取
+		})
+		
+		# 如果自己是参与者，可以听到内容
+		if speaker_name == character.name or listener_name == character.name:
+			# 获取自己的 ChatHistory
+			if character.has_node("ChatHistory"):
+				var chat_history = character.get_node("ChatHistory")
+				var recent = chat_history.get_recent_conversation_with(
+					speaker_name if listener_name == character.name else listener_name, 
+					1
+				)
+				if recent != "":
+					result.contents.append({
+						"type": "DIALOGUE",
+						"content": recent,
+						"participants": [speaker_name, listener_name]
+					})
+	
+	return result
 
 # ============================================
 # 体验阶段(新增)
@@ -1238,7 +1325,7 @@ func _get_current_room_at_position(pos: Vector2):
 		return null
 	return room_manager.get_current_room(room_manager.rooms, pos)
 
-# 2. 开始对话
+# 2. 开始对话（使用群组对话系统，中范围150px）
 func _execute_start_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 开始对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
@@ -1254,17 +1341,29 @@ func _execute_start_dialogue(request: ActionRequest):
 
 	# 记录对话对象，用于感知系统显示
 	set_meta("dialogue_partner", request.target_id)
-	
+
 	# 同时设置对方的对话对象
 	if target_agent.has_method("set_meta"):
 		target_agent.set_meta("dialogue_partner", character.name)
 
-	# 向DialogueManager注册新对话
-	# TODO: DialogueManager.start_dialogue(self, target_agent)
+	# 使用MultiAgentDialogueIntegration启动群组对话（中范围）
+	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
+	if integration:
+		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.MEDIUM)
+		if success:
+			print("[AIAgent] %s 成功向 %s 发起对话（中范围）" % [character.name, request.target_id])
+		else:
+			print("[AIAgent] %s 向 %s 发起对话失败，对方可能已在对话中或距离太远" % [character.name, request.target_id])
+			current_state = AgentState.IDLE
+			current_activity = ""
+			remove_meta("dialogue_partner")
+	else:
+		print("[AIAgent] %s MultiAgentDialogueIntegration未找到，无法启动对话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
+		remove_meta("dialogue_partner")
 
-	print("[AIAgent] %s 已向 %s 发起对话" % [character.name, request.target_id])
-
-# 3. 开始悄悄话(私密对话)
+# 3. 开始悄悄话(私密对话，使用群组对话系统，小范围30px)
 func _execute_start_whisper(request: ActionRequest):
 	print("[AIAgent] %s 开始悄悄话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
@@ -1280,32 +1379,63 @@ func _execute_start_whisper(request: ActionRequest):
 
 	# 记录悄悄话对象，用于感知系统显示
 	set_meta("whisper_partner", request.target_id)
-	
+
 	# 同时设置对方的悄悄话对象
 	if target_agent.has_method("set_meta"):
 		target_agent.set_meta("whisper_partner", character.name)
 
-	# 向DialogueManager注册悄悄话(私密对话)
-	# TODO: DialogueManager.start_whisper(self, target_agent)
+	# 使用MultiAgentDialogueIntegration启动悄悄话（小范围）
+	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
+	if integration:
+		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.SMALL)
+		if success:
+			print("[AIAgent] %s 成功向 %s 发起悄悄话（小范围）" % [character.name, request.target_id])
+		else:
+			print("[AIAgent] %s 向 %s 发起悄悄话失败" % [character.name, request.target_id])
+			current_state = AgentState.IDLE
+			current_activity = ""
+			remove_meta("whisper_partner")
+	else:
+		print("[AIAgent] %s MultiAgentDialogueIntegration未找到，无法启动悄悄话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
+		remove_meta("whisper_partner")
 
-	print("[AIAgent] %s 已向 %s 发起悄悄话" % [character.name, request.target_id])
-
-# 4. 加入对话
+# 4. 加入对话（使用群组对话系统）
 func _execute_join_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 加入对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "对话"
 	activity_start_time = Time.get_unix_time_from_system()
 
-	# 获取对话ID或目标
-	var dialogue_id = request.target_id
+	# 获取目标Agent
+	var target_agent = _find_agent_by_id(request.target_id)
+	if not target_agent:
+		print("[AIAgent] %s 加入对话失败：找不到目标 %s" % [character.name, request.target_id])
+		current_state = AgentState.IDLE
+		current_activity = ""
+		return
 
-	# 向DialogueManager申请加入
-	# TODO: DialogueManager.join_dialogue(self, dialogue_id)
+	# 使用MultiAgentDialogueIntegration请求加入对话
+	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
+	if integration:
+		var success = integration.request_join_dialogue(
+			character,
+			target_agent,
+			DialogueInterruptionManager.InterruptionType.POLITE
+		)
+		if success:
+			print("[AIAgent] %s 成功加入与 %s 的对话" % [character.name, request.target_id])
+		else:
+			print("[AIAgent] %s 加入与 %s 的对话失败" % [character.name, request.target_id])
+			current_state = AgentState.IDLE
+			current_activity = ""
+	else:
+		print("[AIAgent] %s MultiAgentDialogueIntegration未找到，无法加入对话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
 
-	print("[AIAgent] %s 已加入对话 %s" % [character.name, dialogue_id])
-
-# 4. 退出对话
+# 5. 退出对话（使用群组对话系统）
 func _execute_exit_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 退出对话" % character.name)
 
@@ -1316,8 +1446,11 @@ func _execute_exit_dialogue(request: ActionRequest):
 	remove_meta("dialogue_partner")
 	remove_meta("whisper_partner")
 
-	# 向DialogueManager通知退出
-	# TODO: DialogueManager.exit_dialogue(self)
+	# 使用MultiAgentDialogueIntegration退出对话
+	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
+	if integration:
+		integration.leave_dialogue(character)
+		print("[AIAgent] %s 已退出对话" % character.name)
 
 	current_state = AgentState.IDLE
 	current_activity = ""
