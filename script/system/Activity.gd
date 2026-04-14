@@ -10,24 +10,17 @@ extends RefCounted
 
 # 活动类型枚举
 enum ActivityType {
-	# 基础移动与交互
-	MOVE_TO,              # 移动到目标位置
-	
-	# 对话系统（新）
-	INITIATE_DIALOGUE,    # 发起对话
-	JOIN_DIALOGUE,        # 加入对话
-	LEAVE_DIALOGUE,       # 离开对话
-	
-	# 场景限定活动（专注度相关）
-	LISTEN,               # 聆听（仅限上课）
-	QA_TEACHER,           # 提问/回答（仅限上课）
-	SELF_STUDY,           # 自习（图书馆/自习室）
-	SPORTS,               # 体育活动（体育馆）
-	GROUP_DISCUSSION      # 小组讨论（教室/讨论室）
-	
-	# 兼容旧版本
-	NORMAL_DIALOGUE,      # 普通对话（旧，兼容）
-	WHISPER               # 悄悄话（旧，兼容）
+	MOVE_TO,
+	INITIATE_DIALOGUE,
+	JOIN_DIALOGUE,
+	LEAVE_DIALOGUE,
+	LISTEN,
+	QA_TEACHER,
+	SELF_STUDY,
+	SPORTS,
+	GROUP_DISCUSSION,
+	NORMAL_DIALOGUE,
+	WHISPER
 }
 
 # 专注度档位
