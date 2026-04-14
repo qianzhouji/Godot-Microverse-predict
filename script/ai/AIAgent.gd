@@ -1346,19 +1346,23 @@ func _execute_start_dialogue(request: ActionRequest):
 	if target_agent.has_method("set_meta"):
 		target_agent.set_meta("dialogue_partner", character.name)
 
-	# 使用MultiAgentDialogueIntegration启动群组对话（中范围）
-	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
-	if integration:
-		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.NORMAL)
-		if success:
+	# 使用新的DialogueManager启动对话（中范围）
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var current_click = _get_current_click()
+		var current_time = _get_current_game_time()
+		var dialogue_id = dialogue_manager.start_dialogue(
+			character, 1, "", "", "", current_click, current_time  # 1 = NORMAL
+		)
+		if not dialogue_id.is_empty():
 			print("[AIAgent] %s 成功向 %s 发起对话（中范围）" % [character.name, request.target_id])
 		else:
-			print("[AIAgent] %s 向 %s 发起对话失败，对方可能已在对话中或距离太远" % [character.name, request.target_id])
+			print("[AIAgent] %s 向 %s 发起对话失败" % [character.name, request.target_id])
 			current_state = AgentState.IDLE
 			current_activity = ""
 			remove_meta("dialogue_partner")
 	else:
-		print("[AIAgent] %s MultiAgentDialogueIntegration未找到，无法启动对话" % character.name)
+		print("[AIAgent] %s DialogueManager未找到，无法启动对话" % character.name)
 		current_state = AgentState.IDLE
 		current_activity = ""
 		remove_meta("dialogue_partner")
@@ -1384,11 +1388,15 @@ func _execute_start_whisper(request: ActionRequest):
 	if target_agent.has_method("set_meta"):
 		target_agent.set_meta("whisper_partner", character.name)
 
-	# 使用MultiAgentDialogueIntegration启动悄悄话（小范围）
-	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
-	if integration:
-		var success = integration.start_dialogue(character, target_agent, GroupDialogueManager.DialogueRange.WHISPER)
-		if success:
+	# 使用新的DialogueManager启动悄悄话（小范围）
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var current_click = _get_current_click()
+		var current_time = _get_current_game_time()
+		var dialogue_id = dialogue_manager.start_dialogue(
+			character, 0, "", "", "", current_click, current_time  # 0 = WHISPER
+		)
+		if not dialogue_id.is_empty():
 			print("[AIAgent] %s 成功向 %s 发起悄悄话（小范围）" % [character.name, request.target_id])
 		else:
 			print("[AIAgent] %s 向 %s 发起悄悄话失败" % [character.name, request.target_id])
@@ -1396,7 +1404,7 @@ func _execute_start_whisper(request: ActionRequest):
 			current_activity = ""
 			remove_meta("whisper_partner")
 	else:
-		print("[AIAgent] %s MultiAgentDialogueIntegration未找到，无法启动悄悄话" % character.name)
+		print("[AIAgent] %s DialogueManager未找到，无法启动悄悄话" % character.name)
 		current_state = AgentState.IDLE
 		current_activity = ""
 		remove_meta("whisper_partner")
@@ -1416,22 +1424,25 @@ func _execute_join_dialogue(request: ActionRequest):
 		current_activity = ""
 		return
 
-	# 使用MultiAgentDialogueIntegration请求加入对话
-	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
-	if integration:
-		var success = integration.request_join_dialogue(
-			character,
-			target_agent,
-			DialogueInterruptionManager.InterruptionType.POLITE
-		)
-		if success:
-			print("[AIAgent] %s 成功加入与 %s 的对话" % [character.name, request.target_id])
+	# 使用新的DialogueManager加入对话
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var target_dialogue_id = dialogue_manager.get_character_dialogue(target_agent)
+		if not target_dialogue_id.is_empty():
+			var current_click = _get_current_click()
+			var success = dialogue_manager.join_dialogue(character, target_dialogue_id, current_click)
+			if success:
+				print("[AIAgent] %s 成功加入与 %s 的对话" % [character.name, request.target_id])
+			else:
+				print("[AIAgent] %s 加入与 %s 的对话失败" % [character.name, request.target_id])
+				current_state = AgentState.IDLE
+				current_activity = ""
 		else:
-			print("[AIAgent] %s 加入与 %s 的对话失败" % [character.name, request.target_id])
+			print("[AIAgent] %s 目标 %s 不在任何对话中" % [character.name, request.target_id])
 			current_state = AgentState.IDLE
 			current_activity = ""
 	else:
-		print("[AIAgent] %s MultiAgentDialogueIntegration未找到，无法加入对话" % character.name)
+		print("[AIAgent] %s DialogueManager未找到，无法加入对话" % character.name)
 		current_state = AgentState.IDLE
 		current_activity = ""
 
@@ -2258,57 +2269,50 @@ func generate_dialogue_message(dialogue_history: String, topic: String,
 	返回:
 		生成的对话内容
 	"""
-	# 构建Prompt
-	var prompt = _build_dialogue_prompt(dialogue_history, topic, other_participants, range_type_name)
+	# 使用PromptBuilder构建Prompt
+	var prompt = PromptBuilder.build_dialogue_response_prompt(
+		self, dialogue_history, other_participants, range_type_name, topic
+	)
 	
 	# 调用LLM生成内容
 	var content = await _call_llm_for_dialogue(prompt)
 	
 	return content
 
-func _build_dialogue_prompt(dialogue_history: String, topic: String,
-							other_participants: Array[String], 
-							range_type_name: String) -> String:
-	"""构建对话生成Prompt"""
-	
-	var personality = CharacterPersonality.get_personality(character.name)
-	
-	var prompt = "你正在参与一场%s。\n\n" % range_type_name
-	prompt += "你的名字：%s\n" % character.name
-	prompt += "你的身份：%s\n" % personality.get("position", "学生")
-	prompt += "你的性格：%s\n" % personality.get("personality", "普通")
-	prompt += "你的说话风格：%s\n" % personality.get("speaking_style", "自然")
-	
-	if not topic.is_empty():
-		prompt += "讨论主题：%s\n" % topic
-	
-	if not other_participants.is_empty():
-		prompt += "其他参与者：%s\n" % ", ".join(other_participants)
-	
-	if not dialogue_history.is_empty():
-		prompt += "\n对话历史：\n%s\n" % dialogue_history
-	
-	prompt += "\n请根据你的性格和当前对话情境，发表你的观点。"
-	prompt += "\n要求："
-	prompt += "\n- 保持自然，像真人一样说话"
-	prompt += "\n- 可以回应其他人的观点"
-	prompt += "\n- 对话长度控制在1-3句话，50字以内"
-	prompt += "\n- 只返回你要说的话，不要加任何前缀或解释"
-	prompt += "\n- 不要重复之前说过的话"
-	
-	return prompt
-
 func _call_llm_for_dialogue(prompt: String) -> String:
 	"""调用LLM生成对话内容"""
 	
+	# 使用APIManager进行调用
 	var api_manager = get_node_or_null("/root/APIManager")
 	if not api_manager:
 		push_error("[AIAgent] APIManager未找到")
 		return ""
 	
-	# 构建请求
-	var request_data = {
-		"model": APIConfig.get_model_for_agent(character.name),
+	# 调用LLM - 使用call_ollama方法
+	var response = ""
+	
+	# 检查APIManager是否有call_ollama方法
+	if api_manager.has_method("call_ollama"):
+		response = await api_manager.call_ollama("qwen2.5:1.5b", prompt, 100, 0.7)
+	else:
+		# 回退到直接HTTP调用
+		response = await _direct_ollama_call(prompt)
+	
+	if response.is_empty():
+		return ""
+	
+	# 清理内容
+	var content = _clean_dialogue_content(response)
+	
+	return content
+
+func _direct_ollama_call(prompt: String) -> String:
+	"""直接调用Ollama API（回退方案）"""
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	var body = {
+		"model": "qwen2.5:1.5b",
 		"prompt": prompt,
 		"stream": false,
 		"options": {
@@ -2317,40 +2321,29 @@ func _call_llm_for_dialogue(prompt: String) -> String:
 		}
 	}
 	
-	# 创建HTTP请求
-	var http_request = HTTPRequest.new()
-	add_child(http_request)
-	
 	var error = http_request.request(
-		APIConfig.ollama_url,
+		"http://localhost:11434/api/generate",
 		["Content-Type: application/json"],
 		HTTPClient.METHOD_POST,
-		JSON.stringify(request_data)
+		JSON.stringify(body)
 	)
 	
 	if error != OK:
 		http_request.queue_free()
 		return ""
 	
-	# 等待响应
 	var result = await http_request.request_completed
 	http_request.queue_free()
 	
 	if result[1] != 200:
 		return ""
 	
-	# 解析响应
 	var json = JSON.new()
 	if json.parse(result[3].get_string_from_utf8()) != OK:
 		return ""
 	
-	var response_data = json.get_data()
-	var content = response_data.get("response", "").strip_edges()
-	
-	# 清理内容
-	content = _clean_dialogue_content(content)
-	
-	return content
+	var data = json.get_data()
+	return data.get("response", "")
 
 func _clean_dialogue_content(content: String) -> String:
 	"""清理生成的对话内容"""
