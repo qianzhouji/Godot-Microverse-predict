@@ -274,6 +274,24 @@ func start_activity(agent_id: String, activity_type: ActivityType, context: Dict
 	print("[ActivityManager] %s 开始活动: %s" % [agent_id, _get_activity_name(activity_type)])
 	activity_started.emit(agent_id, activity_type, game_time)
 	
+	# V2: 记录活动开始事件到记忆系统
+	if MemorySystem.instance:
+		var room_name = context.get("room_name", "")
+		var activity_name = _get_activity_name(activity_type)
+		MemorySystem.instance.record_event(
+			agent_id,
+			"ACTIVITY_START",
+			game_time,
+			room_name,
+			{
+				"activity_type": activity_name,
+				"focus_level": context.get("focus_level", 1.0),
+				"context": context
+			},
+			3,  # NORMAL importance
+			0.0  # neutral emotional valence
+		)
+	
 	return true
 
 # 结束活动
@@ -308,6 +326,24 @@ func end_activity(agent_id: String, reason: String = "") -> Dictionary:
 	])
 	
 	activity_ended.emit(agent_id, record.activity_type, record.total_duration, final_gain)
+	
+	# V2: 记录活动结束事件到记忆系统
+	if MemorySystem.instance:
+		MemorySystem.instance.record_event(
+			agent_id,
+			"ACTIVITY_END",
+			game_time,
+			room_name,
+			{
+				"activity_type": _get_activity_name(record.activity_type),
+				"total_duration": record.total_duration,
+				"final_gain": final_gain,
+				"reason": reason
+			},
+			3,  # NORMAL importance
+			0.1 if final_gain > 0.5 else -0.1  # emotional valence based on gain
+		)
+	
 	agent_activities.erase(agent_id)
 	
 	return result

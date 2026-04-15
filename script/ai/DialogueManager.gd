@@ -847,9 +847,24 @@ func _sync_to_memory(dialogue_data: DialogueData):
 		memory_system.add_memory(
 			character,
 			summary,
-			MemorySystem.MemoryType.INTERACTION,
-			5  # 重要性
+			memory_system.MemoryType.INTERACTION,
+			memory_system.MemoryImportance.HIGH
 		)
+		
+		# 记录社交互动（与每个其他参与者）
+		var game_time = dialogue_data.start_time
+		for other in dialogue_data.participants.keys():
+			if other != character and is_instance_valid(other):
+				memory_system.record_interaction(
+					character.name,
+					other.name,
+					dialogue_data.get_range_name(),
+					game_time,
+					dialogue_data.room_name,
+					dialogue_data.topic,
+					messages.size() * 2.0,  # 估算持续时间
+					0.05  # 轻微正面情感影响
+				)
 
 func _get_end_reason_string(reason: int) -> String:
 	match reason:

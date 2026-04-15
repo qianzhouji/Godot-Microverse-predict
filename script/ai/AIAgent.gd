@@ -932,6 +932,18 @@ func _execute_v2_move(activity: Activity) -> void:
 		if logger:
 			var current_room = _get_current_room_name()
 			logger.log_movement(character.name, current_room, target_room)
+		
+		# V2: 记录移动事件到记忆系统
+		if MemorySystem.instance:
+			var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+			MemorySystem.instance.record_agent_activity(
+				character.name,
+				"MOVE_TO",
+				game_time,
+				target_room,
+				{"from_room": _get_current_room_name(), "estimated_duration": result.estimated_duration},
+				1  # LOW importance
+			)
 	else:
 		print("[AIAgent] %s 移动失败: %s" % [character.name, result.reason])
 		if logger:
@@ -962,6 +974,29 @@ func _execute_v2_dialogue(activity: Activity) -> void:
 	if logger:
 		var room_name = _get_current_room_name()
 		logger.log_conversation_start(character.name, target_agent, room_name)
+	
+	# V2: 记录对话事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"DIALOGUE",
+			game_time,
+			_get_current_room_name(),
+			{"target_agent": target_agent, "topic": topic, "focus_level": focus},
+			3  # NORMAL importance
+		)
+		# 记录社交互动
+		MemorySystem.instance.record_interaction(
+			character.name,
+			target_agent,
+			"DIALOGUE",
+			game_time,
+			_get_current_room_name(),
+			topic,
+			5.0,  # duration
+			0.05  # emotional_impact
+		)
 
 func _execute_v2_whisper(activity: Activity) -> void:
 	"""执行悄悄话"""
@@ -984,6 +1019,29 @@ func _execute_v2_whisper(activity: Activity) -> void:
 	if logger:
 		var room_name = _get_current_room_name()
 		logger.log_dialogue(character.name, target_agent, "[悄悄话] %s" % content, room_name)
+	
+	# V2: 记录悄悄话事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"WHISPER",
+			game_time,
+			_get_current_room_name(),
+			{"target_agent": target_agent, "focus_level": focus},
+			5  # HIGH importance - 悄悄话是私密互动
+		)
+		# 记录社交互动（悄悄话情感影响更大）
+		MemorySystem.instance.record_interaction(
+			character.name,
+			target_agent,
+			"WHISPER",
+			game_time,
+			_get_current_room_name(),
+			"悄悄话",
+			3.0,  # duration
+			0.1   # emotional_impact - 悄悄话情感影响更大
+		)
 
 func _execute_v2_listen(activity: Activity) -> void:
 	"""执行聆听（上课）"""
@@ -1013,6 +1071,18 @@ func _execute_v2_listen(activity: Activity) -> void:
 	if logger:
 		var room_name = _get_current_room_name()
 		logger.log_activity(character.name, "开始听课 (%d%%专注)" % focus, room_name)
+	
+	# V2: 记录听课事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"CLASS",
+			game_time,
+			_get_current_room_name(),
+			{"teacher": teacher, "focus_level": focus},
+			3  # NORMAL importance
+		)
 
 func _execute_v2_qa(activity: Activity) -> void:
 	"""执行课堂问答"""
@@ -1048,6 +1118,18 @@ func _execute_v2_study(activity: Activity) -> void:
 	if logger:
 		var room_name = _get_current_room_name()
 		logger.log_activity(character.name, "开始自习%s (%d%%专注)" % [subject, focus], room_name)
+	
+	# V2: 记录自习事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"SELF_STUDY",
+			game_time,
+			_get_current_room_name(),
+			{"subject": subject, "focus_level": focus},
+			3  # NORMAL importance
+		)
 
 func _execute_v2_sports(activity: Activity) -> void:
 	"""执行体育活动"""
@@ -1073,6 +1155,18 @@ func _execute_v2_sports(activity: Activity) -> void:
 	if logger:
 		var room_name = _get_current_room_name()
 		logger.log_activity(character.name, "开始体育活动%s (强度%.0f%%, 专注%d%%)" % [sport_type, intensity * 100, focus], room_name)
+	
+	# V2: 记录体育活动事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"SPORTS",
+			game_time,
+			_get_current_room_name(),
+			{"sport_type": sport_type, "intensity": intensity, "focus_level": focus},
+			3  # NORMAL importance
+		)
 
 func _execute_v2_discussion(activity: Activity) -> void:
 	"""执行小组讨论"""
@@ -1095,6 +1189,31 @@ func _execute_v2_discussion(activity: Activity) -> void:
 		var room_name = _get_current_room_name()
 		var members_str = ", ".join(members)
 		logger.log_activity(character.name, "参与小组讨论: %s (成员: %s, 专注%d%%)" % [topic, members_str, focus], room_name)
+	
+	# V2: 记录小组讨论事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"GROUP_DISCUSSION",
+			game_time,
+			_get_current_room_name(),
+			{"topic": topic, "members": members, "focus_level": focus},
+			5  # HIGH importance - 小组讨论是重要社交活动
+		)
+		# 记录与所有成员的社交互动
+		for member in members:
+			if member != character.name:
+				MemorySystem.instance.record_interaction(
+					character.name,
+					member,
+					"GROUP_DISCUSSION",
+					game_time,
+					_get_current_room_name(),
+					topic,
+					10.0,  # duration
+					0.08   # emotional_impact
+				)
 
 func _get_current_room_name() -> String:
 	"""获取当前房间名称"""

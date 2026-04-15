@@ -292,23 +292,23 @@ func _get_builtin_prompt() -> String:
 {
   "agents": [
     {
-      "agent_id": "StudentXiaoming",
-      "steps": [
+	  "agent_id": "StudentXiaoming",
+	  "steps": [
         {
-          "step": 1,
-          "activity_type": "MOVE_TO",
-          "parameters": {"target_location": {"x": 100, "y": 200}, "target_room": "教室"},
-          "focus_level": 100,
-          "estimated_duration": 5.0,
-          "reason": "移动到目标场景"
+		  "step": 1,
+		  "activity_type": "MOVE_TO",
+		  "parameters": {"target_location": {"x": 100, "y": 200}, "target_room": "教室"},
+		  "focus_level": 100,
+		  "estimated_duration": 5.0,
+		  "reason": "移动到目标场景"
         },
         {
-          "step": 2,
-          "activity_type": "SELF_STUDY",
-          "parameters": {"subject": "数学"},
-          "focus_level": 100,
-          "estimated_duration": 45.0,
-          "reason": "自习数学"
+		  "step": 2,
+		  "activity_type": "SELF_STUDY",
+		  "parameters": {"subject": "数学"},
+		  "focus_level": 100,
+		  "estimated_duration": 45.0,
+		  "reason": "自习数学"
         }
       ]
     }
@@ -607,6 +607,22 @@ func _int_to_focus_level(level: int) -> Activity.FocusLevel:
 		100: return Activity.FocusLevel.HIGH
 		_: return Activity.FocusLevel.HIGH
 
+func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
+	"""获取活动类型名称"""
+	match activity_type:
+		Activity.ActivityType.MOVE_TO: return "MOVE_TO"
+		Activity.ActivityType.NORMAL_DIALOGUE: return "DIALOGUE"
+		Activity.ActivityType.WHISPER: return "WHISPER"
+		Activity.ActivityType.LISTEN: return "CLASS"
+		Activity.ActivityType.QA_TEACHER: return "QA"
+		Activity.ActivityType.SELF_STUDY: return "SELF_STUDY"
+		Activity.ActivityType.SPORTS: return "SPORTS"
+		Activity.ActivityType.GROUP_DISCUSSION: return "GROUP_DISCUSSION"
+		Activity.ActivityType.INITIATE_DIALOGUE: return "INITIATE_DIALOGUE"
+		Activity.ActivityType.JOIN_DIALOGUE: return "JOIN_DIALOGUE"
+		Activity.ActivityType.LEAVE_DIALOGUE: return "LEAVE_DIALOGUE"
+		_: return "UNKNOWN"
+
 func _get_room_default_position(room_name: String) -> Vector2:
 	"""根据房间名返回默认坐标（硬编码，基于School场景布局）"""
 	# 教室区域（主教学区）- 场景中央
@@ -696,6 +712,20 @@ func _distribute_to_agent(agent_id: String, activities: Array[Activity]) -> void
 		agent_node.receive_activity_sequence(activities)
 		activity_assigned.emit(agent_id, activities)
 		print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
+		
+		# V2: 记录活动分配事件到记忆系统
+		if MemorySystem.instance:
+			var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+			for activity in activities:
+				var activity_name = _get_activity_type_name(activity.activity_type)
+				MemorySystem.instance.record_agent_activity(
+					agent_id,
+					activity_name,
+					game_time,
+					"",
+					activity.parameters,
+					1  # LOW importance
+				)
 	else:
 		# 存储在协调结果中，等待Agent获取
 		if not agent_node:
