@@ -1,7 +1,7 @@
 # 对话系统设计文档
 
 > **项目**: Godot-Microverse-predict 抑郁风险学生校园情境模拟系统  
-> **最后更新**: 2026-04-14
+> **最后更新**: 2026-04-16
 
 ---
 
@@ -80,29 +80,28 @@
 
 ### 3.2 三种对话范围
 
-| 范围 | 中范围要求 | 距离 | 人数限制 | 特点 |
-|------|------------|------|----------|------|
-| **WHISPER (悄悄话)** | 同一中范围 | 50px | 2-3人 | 私密，不允许第三方加入 |
-| **NORMAL (普通对话)** | 同一中范围 | 200px | 2-7人 | 中范围内可加入 |
-| **BROADCAST (广播)** | 同一房间 | 不限 | 2-7人 | 跨中范围，全房间可加入 |
+| 范围 | 边界定义 | 人数限制 | 特点 |
+|------|----------|----------|------|
+| **WHISPER (悄悄话)** | 以发起者为中心，30px半径圆形 | 最多3人 | 私密，不允许第三方加入 |
+| **NORMAL (普通对话)** | 发起者所在中范围（4象限/左右/单区） | 最多7人 | 同一中范围内可加入 |
+| **BROADCAST (广播)** | 发起者所在子场景（RoomArea） | 无限制 | 同房间跨中范围，全房间可加入 |
 
 ### 3.3 范围配置
 
 ```gdscript
-enum DialogueRange {
-    WHISPER,      # 悄悄话 - 同一中范围+贴身
-    NORMAL,       # 普通对话 - 同一中范围
-    BROADCAST     # 广播 - 同一房间
+enum RangeType {
+    WHISPER,      # 悄悄话 - 以发起者为中心，30px半径
+    NORMAL,       # 普通对话 - 以发起者所在中范围为边界
+    BROADCAST     # 广播 - 以发起者所在子场景(RoomArea)为边界
 }
 
-# 距离配置
-const WHISPER_DISTANCE: float = 50.0       # 悄悄话距离
-const NORMAL_DISTANCE: float = 200.0       # 普通对话距离
+# 范围边界
+const WHISPER_RADIUS: float = 30.0         # 悄悄话半径
 
-# 人数限制
-const GROUP_MIN_PARTICIPANTS: int = 2
-const GROUP_MAX_PARTICIPANTS: int = 7      # 普通/广播
-const WHISPER_MAX_PARTICIPANTS: int = 3    # 悄悄话
+# 人数限制 (-1表示无限制)
+const WHISPER_MAX: int = 3                 # 悄悄话最多3人
+const NORMAL_MAX: int = 7                  # 普通对话最多7人
+const BROADCAST_MAX: int = -1              # 广播无人数上限
 ```
 
 ---
@@ -169,17 +168,49 @@ integration.start_group_dialogue(
 )
 ```
 
-### 4.3 中范围接口
+### 4.3 范围边界接口
 
-**GroupDialogueManager** 提供与AIAgent中范围系统对接的接口：
+**DialogueManager** 提供对话范围边界查询：
 
 ```gdscript
-# 获取角色的中范围信息
-func _get_character_medium_range_info(character: CharacterBody2D) -> Dictionary
-# 返回: {"room_name": "", "medium_range_type": -1, "medium_range_id": ""}
+# 获取对话范围的边界信息
+func get_range_boundary() -> Dictionary
+# 返回: {
+#     "type": "circle" | "medium_range" | "room_area",
+#     "center": Vector2,      # 圆心或区域中心
+#     "radius": float,         # 仅WHISPER使用
+#     "room_name": String,     # NORMAL和BROADCAST使用
+#     "medium_range_id": String  # NORMAL使用
+# }
 
-# 检查两个角色是否在同一个中范围
-func _is_in_same_medium_range(char1: CharacterBody2D, char2: CharacterBody2D) -> bool
+# 检查角色是否在对话范围内
+func is_character_in_range(character: CharacterBody2D, ai_agent = null) -> bool
+```
+
+**AIAgent** 提供当前位置边界查询：
+
+```gdscript
+# 获取当前中范围的边界信息
+func get_current_medium_range_boundary() -> Dictionary
+# 返回: {
+#     "room_name": String,
+#     "medium_range_id": String,
+#     "center_position": Vector2,
+#     "bounds": Rect2
+# }
+
+# 获取当前子场景的边界信息
+func get_current_room_boundary() -> Dictionary
+# 返回: {
+#     "room_name": String,
+#     "center_position": Vector2,
+#     "bounds": Rect2,
+#     "size": Vector2
+# }
+
+# 供DialogueManager调用的辅助方法
+func _get_character_medium_range(character: CharacterBody2D) -> String
+func _get_character_room(character: CharacterBody2D) -> String
 ```
 
 ---
@@ -265,6 +296,17 @@ School (根节点)
 
 ## 8. 改动记录
 
+### 2026-04-16 范围划分重构
+
+- ✅ 重新定义三种对话范围的边界逻辑：
+  - **WHISPER**: 30px圆形范围，以发起者为中心
+  - **NORMAL**: 以发起者所在中范围为边界（4象限/左右/单区）
+  - **BROADCAST**: 以发起者所在子场景(RoomArea)为边界
+- ✅ 大范围(BROADCAST)人数上限改为无限制(-1)
+- ✅ 新增 `get_range_boundary()` 方法获取对话范围边界
+- ✅ 新增 `get_current_medium_range_boundary()` 获取中范围边界
+- ✅ 新增 `get_current_room_boundary()` 获取子场景边界
+
 ### 2026-04-14 架构重构
 
 - ✅ 完全移除1v1对话系统
@@ -277,4 +319,4 @@ School (根节点)
 ---
 
 *文档维护者：百舟楫*  
-*最后更新：2026-04-14*
+*最后更新：2026-04-16*
