@@ -357,9 +357,9 @@ func _check_mvt_leave_decision(room_name, time_in_room, personality, is_depressi
 
 ---
 
-### 5.7 MemoryManager.gd - 记忆系统
+### 5.7 MemorySystem.gd - 记忆系统（自然语言情感体验）
 
-**职责：** 管理Agent的经验记忆，影响后续决策
+**职责：** 管理Agent的经验记忆和自然语言情感体验
 
 **记忆类型：**
 ```gdscript
@@ -372,10 +372,25 @@ enum MemoryType {
 }
 ```
 
+**新增：自然语言情感评估**
+- 在活动体验阶段，Agent使用LLM自主评估情感
+- 输入：活动信息（类型、参与者、地点、时长、专注度）+ 当前状态 + 相关记忆
+- 输出：自然语言描述（1-2句话，Agent自由发挥）
+- 存储：纯文本自然语言记忆，不再使用数值参数
+
+**核心方法：**
+| 方法 | 职责 |
+|------|------|
+| `add_natural_memory()` | 存储自然语言情感记录 |
+| `get_memories_about()` | 检索关于特定目标的记忆 |
+| `record_event()` | 记录结构化事件 |
+| `record_agent_activity()` | 记录Agent活动 |
+
 **与理论关联：**
 - 记忆影响Agent的先验信念
 - 负面记忆可能强化抑郁Agent的悲观预期
 - **每日反思的基础**：所有当日记忆被收集用于反思分析
+- **情感体验**：Agent自主评估，自然语言记录
 
 ---
 

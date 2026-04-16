@@ -81,10 +81,9 @@ log(T) = log[η_s · log(S)] − log(ρ_base) − β_effort · effort − η_a �
 ┌─────────────────────────────────────────────────────────────────┐
 │  第四层：感知与记忆系统                                           │
 │  ├─ PerceptionSystem：贝叶斯感知、信念更新、情境推断              │
-│  ├─ MemorySystem：分层记忆架构（事件/社交/情感）                  │
+│  ├─ MemorySystem：自然语言记忆架构（事件/体验/情感）              │
 │  │   ├─ EventMemory：活动事件历史记录                             │
-│  │   ├─ SocialMemory：社交关系与互动历史                          │
-│  │   └─ EmotionMemory：情感态度与变化追踪                         │
+│  │   └─ NaturalMemory：自然语言情感体验记录                       │
 │  └─ DynamicPersonality：动态特质管理（PHQ-9评估、参数调整）       │
 └─────────────────────────────────────────────────────────────────┘
                               ↓ 读取/写入
@@ -373,7 +372,7 @@ enum AgentState {
 
 ### 4.2 MemorySystem.gd
 
-**核心职责**：分层记忆架构，统一接口管理事件、社交、情感记忆。
+**核心职责**：自然语言记忆架构，Agent自主评估情感体验。
 
 #### 架构设计
 
@@ -383,24 +382,36 @@ MemorySystem (主控)
     ├── EventMemory - 事件记忆
     │       └── 记录：移动、对话、上课、自习、体育等活动
     │
-    ├── SocialMemory - 社交记忆
-    │       └── 记录：互动历史、关系分数(-1.0~1.0)、互动统计
-    │
-    └── EmotionMemory - 情感记忆
-            └── 记录：好感、信任、尊重、恐惧、厌恶、愤怒
+    └── NaturalMemory - 自然语言情感体验
+            └── 记录：Agent自主评估的活动体验和对参与者的感受
+```
+
+#### 情感评估流程
+
+```
+活动执行完成
+    ↓
+体验阶段 (_experience_current_activity)
+    ↓
+LLM情感评估 (_evaluate_activity_emotion)
+    - 输入：活动信息（类型、参与者、地点、时长、专注度）
+    - 输入：当前心情、收益感知
+    - 输入：对相关参与者的先前记忆
+    - 输出：自然语言情感描述（1-2句话）
+    ↓
+自然语言记忆存储 (add_natural_memory)
+    ↓
+用于后续决策的上下文检索
 ```
 
 #### 集成点
 
 | 调用方 | 记录内容 | 方法 |
 |--------|----------|------|
+| AIAgent._experience_current_activity | 活动情感体验 | _evaluate_activity_emotion() → add_natural_memory() |
 | AIAgent._execute_v2_* | 各类活动事件 | record_agent_activity() |
-| AIAgent._execute_v2_dialogue | 对话社交互动 | record_interaction() |
-| AIAgent._execute_v2_whisper | 悄悄话社交互动 | record_interaction() |
-| AIAgent._execute_v2_discussion | 小组讨论互动 | record_interaction() |
 | ActivityCoordinator | 活动分配事件 | record_agent_activity() |
 | ActivityManager | 活动开始/结束 | record_event() |
-| DialogueManager | 对话摘要、社交互动 | add_memory(), record_interaction() |
 
 #### 数据持久化
 
@@ -630,12 +641,12 @@ func calculate_optimal_time(perceived_S, perceived_a, effort,
 
 | 文件 | 路径 | 说明 |
 |------|------|------|
-| MemorySystem.gd | `script/ai/memory/MemorySystem.gd` | 记忆系统主控 |
+| MemorySystem.gd | `script/ai/memory/MemorySystem.gd` | 记忆系统主控（自然语言情感体验） |
 | EventMemory.gd | `script/ai/memory/EventMemory.gd` | 事件记忆 |
-| SocialMemory.gd | `script/ai/memory/SocialMemory.gd` | 社交记忆 |
-| EmotionMemory.gd | `script/ai/memory/EmotionMemory.gd` | 情感记忆 |
 | MemoryPersistence.gd | `script/ai/memory/MemoryPersistence.gd` | 持久化存储 |
 | MemoryFormatter.gd | `script/ai/memory/MemoryFormatter.gd` | 格式化工具 |
+
+**注意**：SocialMemory.gd 和 EmotionMemory.gd 已移除，改为 AIAgent 在活动体验阶段使用 LLM 自主评估情感，以自然语言形式存储。
 | MemoryManager.gd | `script/ai/memory/MemoryManager.gd` | 兼容层 |
 
 ### 对话系统
