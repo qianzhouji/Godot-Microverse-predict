@@ -7,6 +7,7 @@ class_name Room
 var rooms: Dictionary = {}
 
 func _ready():
+	add_to_group("room_manager")
 	call_deferred("_init_rooms")
 # 初始化房间信息
 func _init_rooms():

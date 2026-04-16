@@ -37,7 +37,16 @@ func _create_log_file(filename: String):
 		file.close()
 
 func _get_game_timestamp() -> String:
-	"""获取游戏内时间戳"""
+	"""获取游戏内时间戳 (V2: 使用TimingSystem)"""
+	# V2: 使用TimingSystem获取时间
+	if TimingSystem.instance:
+		var day = TimingSystem.instance.current_day
+		var game_time = TimingSystem.instance.current_game_time
+		var hour = int(game_time / 60)
+		var minute = int(fmod(game_time, 60))
+		return "第%d天 %02d:%02d" % [day, hour, minute]
+	
+	# 回退到DayNightSystem (V1兼容)
 	var dns = get_node_or_null("/root/DayNightSystem")
 	if dns:
 		var day = dns.current_day
@@ -46,6 +55,7 @@ func _get_game_timestamp() -> String:
 		var minute = int((dns.current_hour - hour) * 60)
 		var weekday_names = ["", "周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 		return "第%d天 %s %02d:%02d" % [day, weekday_names[weekday], hour, minute]
+	
 	return "未知时间"
 
 func _write_log(filename: String, content: String):

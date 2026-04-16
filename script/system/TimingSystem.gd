@@ -5,14 +5,17 @@ class_name TimingSystem
 static var instance: TimingSystem
 
 # 时间配置
-const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟
-const REAL_SECONDS_PER_GAME_MINUTE: float = 1.0  # 1现实秒 = 1游戏分钟
+const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
+const REAL_SECONDS_PER_CLICK: float = 120.0  # 120现实秒（2分钟）= 1个Click（游戏5分钟）
+# 时间比例：现实2分钟 = 游戏5分钟，即1现实秒 = 2.5游戏秒
 
 # 状态
 var is_running: bool = false
 var current_game_time: float = 8.0 * 60.0  # 从8:00开始（分钟）
 var current_day: int = 1
 var click_count: int = 0
+var _start_time_ms: int = 0  # 记录开始时间的毫秒数
+var _last_click_time_ms: int = 0  # 上次Click的时间
 
 # 信号
 signal click_triggered(game_time: float, day: int, click_num: int)
@@ -36,6 +39,8 @@ func start_day(day: int = 1):
 	current_game_time = 8.0 * 60.0  # 8:00
 	click_count = 0
 	is_running = true
+	_start_time_ms = Time.get_ticks_msec()
+	_last_click_time_ms = _start_time_ms
 	
 	day_started.emit(current_day, current_game_time)
 	print("[TimingSystem] 第%d天开始，时间：%s" % [current_day, format_time(current_game_time)])
@@ -55,12 +60,16 @@ func _process(delta: float):
 		return
 	
 	# 更新游戏时间
-	var game_delta = delta * (60.0 / REAL_SECONDS_PER_GAME_MINUTE)
+	# 现实2分钟 = 游戏5分钟，所以游戏时间流逝速度是现实的2.5倍
+	# delta(现实秒) * (5/120) = 游戏分钟
+	var game_delta = delta * (CLICK_INTERVAL_MINUTES / REAL_SECONDS_PER_CLICK)
 	current_game_time += game_delta
 	
-	# 检查是否到达Click时刻
-	var minutes_since_last_click = fmod(current_game_time, CLICK_INTERVAL_MINUTES)
-	if minutes_since_last_click < game_delta:  # 刚越过5分钟边界
+	# 检查是否到达Click时刻（现实2分钟触发一次）
+	var current_time_ms = Time.get_ticks_msec()
+	var elapsed_real_seconds = (current_time_ms - _last_click_time_ms) / 1000.0
+	if elapsed_real_seconds >= REAL_SECONDS_PER_CLICK:
+		_last_click_time_ms = current_time_ms
 		_trigger_click()
 	
 	# 检查是否到达17:00（放学时间）
@@ -88,12 +97,27 @@ func _trigger_click():
 	
 	# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
 	# V2: 等待所有Agent提交决策，然后执行协调
+	print("[TimingSystem] ActivityCoordinator.instance = %s" % ActivityCoordinator.instance)
 	if ActivityCoordinator.instance:
+		print("[TimingSystem] 开始触发Agent决策收集...")
 		# 先触发Agent决策收集
 		click_triggered.emit(current_game_time, current_day, click_count)
+		print("[TimingSystem] click_triggered信号已发射")
 		
-		# V2: 延迟执行协调，给Agent时间提交决策
-		await get_tree().create_timer(0.5).timeout
+		# V2: 等待Agent提交决策
+		# 最大等待时间：6秒(延迟) + 30秒(LLM超时) + 缓冲 = 40秒
+		print("[TimingSystem] 等待Agent提交决策...")
+		var max_wait = 40.0  # 最大等待40秒
+		var waited = 0.0
+		while waited < max_wait:
+			await get_tree().create_timer(1.0).timeout
+			waited += 1.0
+			var pending_count = ActivityCoordinator.instance.get_pending_count()
+			print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
+			# 如果所有Agent都提交了，提前结束等待
+			if pending_count >= 12:  # 假设有12个Agent
+				print("[TimingSystem] 所有Agent已提交，提前结束等待")
+				break
 		
 		# V2: 执行协调
 		var game_context = {
@@ -101,6 +125,7 @@ func _trigger_click():
 			"current_location": "学校",
 			"period": _get_current_period()
 		}
+		print("[TimingSystem] 开始执行协调...")
 		var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
 		
 		if not coordination_results.is_empty():

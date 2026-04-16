@@ -72,6 +72,17 @@ var _movement_check_timer: float = 0.0         # 移动检查计时器
 const MOVEMENT_CHECK_INTERVAL: float = 0.5     # 每0.5秒检查一次移动状态
 
 # ============================================
+# V2: 日志系统引用
+# ============================================
+var logger: Node = null                        # Logger节点引用
+
+# ============================================
+# V2: 对话状态检查
+# ============================================
+var _dialogue_check_timer: float = 0.0
+const DIALOGUE_CHECK_INTERVAL: float = 1.0     # 每秒检查一次对话状态
+
+# ============================================
 # 初始化
 # ============================================
 func _ready():
@@ -94,8 +105,46 @@ func _ready():
 
 	# 连接时序系统信号
 	_connect_to_timing_system()
+	
+	# V2: 获取日志系统引用
+	logger = get_node_or_null("/root/Logger")
+	if logger:
+		print("[AIAgent] %s 已连接到日志系统" % character.name)
 
 	print("[AIAgent] %s 初始化完成" % character.name)
+
+# ============================================
+# V2: 每帧处理
+# ============================================
+func _process(delta: float):
+	# 对话状态检查
+	if current_state == AgentState.IN_DIALOGUE:
+		_dialogue_check_timer += delta
+		if _dialogue_check_timer >= DIALOGUE_CHECK_INTERVAL:
+			_dialogue_check_timer = 0.0
+			_check_dialogue_state()
+
+# ============================================
+# V2: 检查对话状态
+# ============================================
+func _check_dialogue_state():
+	var dialog_manager = get_node_or_null("/root/DialogManager")
+	if not dialog_manager or not dialog_manager.dialog_service:
+		return
+	
+	# 检查自己是否还在对话中
+	if not dialog_manager.dialog_service.is_character_in_conversation(character):
+		# 对话已结束（可能被对方结束或超时）
+		if current_state == AgentState.IN_DIALOGUE:
+			print("[AIAgent] %s 检测到对话已结束，恢复空闲状态" % character.name)
+			current_state = AgentState.IDLE
+			current_activity = ""
+			remove_meta("dialogue_partner")
+			remove_meta("whisper_partner")
+			
+			# 记录日志
+			if logger:
+				logger.log_activity(character.name, "对话结束（外部触发）", _get_current_room_name())
 
 # ============================================
 # 感知层组件创建(保留原逻辑)
@@ -119,6 +168,9 @@ func _create_information_receiver() -> void:
 func _connect_to_timing_system() -> void:
 	# 延迟连接,确保TimingSystem已初始化
 	await get_tree().create_timer(1.0).timeout
+	
+	print("[AIAgent] %s 尝试连接时序系统..." % character.name)
+	print("[AIAgent] %s TimingSystem.instance = %s" % [character.name, TimingSystem.instance])
 
 	if TimingSystem.instance:
 		TimingSystem.instance.click_triggered.connect(_on_click_triggered)
@@ -130,24 +182,39 @@ func _connect_to_timing_system() -> void:
 # Click触发回调(核心入口) - V2时序逻辑
 # ============================================
 func _on_click_triggered(game_time: float, day: int, click_num: int):
+	print("\n[AIAgent] %s _on_click_triggered被调用, click_num=%d" % [character.name, click_num])
 	if is_player_controlled:
+		print("[AIAgent] %s 是玩家控制,跳过" % character.name)
 		return
 
-	print("\n[AIAgent] %s 收到Click #%d" % [character.name, click_num])
+	print("[AIAgent] %s 收到Click #%d" % [character.name, click_num])
+	print("[AIAgent] %s activity_cache.size()=%d, current_activity_index=%d" % [character.name, activity_cache.size(), current_activity_index])
+	print("[AIAgent] %s ActivityManager.instance=%s" % [character.name, ActivityManager.instance])
+	if ActivityManager.instance:
+		print("[AIAgent] %s ActivityManager.instance.has_activity=%s" % [character.name, ActivityManager.instance.has_activity(character.name)])
 
 	# V2时序逻辑：
 	# 1. 如果有V2活动缓存 → 执行下一步
 	# 2. 如果正在活动中 → 体验 + 决策
 	# 3. 否则 → 感知 + 决策
 	
-	# 优先检查活动缓存
+	# 优先检查活动缓存（如果为空，尝试从协调器获取）
+	if activity_cache.size() == 0 and ActivityCoordinator.instance:
+		var assigned_activities = ActivityCoordinator.instance.get_assigned_activities(character.name)
+		if assigned_activities.size() > 0:
+			print("[AIAgent] %s 从协调器获取到 %d 个分配活动" % [character.name, assigned_activities.size()])
+			receive_activity_sequence(assigned_activities)
+	
 	if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
+		print("[AIAgent] %s 执行缓存活动" % character.name)
 		_execute_next_cached_activity()
 	elif ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
 		# 正在活动中：体验 + 决策
+		print("[AIAgent] %s 执行活动中更新" % character.name)
 		_perform_activity_update()
 	else:
 		# 空闲状态 → 感知 + 自然语言决策 + 提交协调器
+		print("[AIAgent] %s 执行V2认知循环" % character.name)
 		_perform_v2_cognitive_cycle()
 
 # ============================================
@@ -190,26 +257,49 @@ func _perform_activity_update():
 # V2: 认知循环 - 感知 → 自然语言决策 → 提交协调器
 # ============================================
 func _perform_v2_cognitive_cycle():
+	print("[AIAgent] %s _perform_v2_cognitive_cycle开始执行" % character.name)
+	
 	# 1. 感知阶段
 	current_state = AgentState.PERCEIVING
+	print("[AIAgent] %s 开始感知..." % character.name)
 	var perception = _perceive()
 	print("[AIAgent] %s 感知完成" % character.name)
+	
+	# V2: 记录感知日志
+	if logger:
+		var room_name = perception.get("current_room", "未知")
+		var nearby_count = perception.get("nearby_agents", []).size()
+		logger.log_activity(character.name, "感知环境", room_name)
 
 	# 2. 体验阶段(如果有上一周期活动)
 	current_state = AgentState.EXPERIENCING
 	if not last_activity.is_empty():
-		_experience(last_activity)
+		print("[AIAgent] %s 开始体验..." % character.name)
+		var exp_gain = _experience(last_activity)
 		print("[AIAgent] %s 体验完成" % character.name)
+		
+		# V2: 记录体验日志
+		if logger:
+			logger.log_activity(character.name, "体验上一活动: %s (收益%.2f)" % [last_activity, exp_gain])
+	else:
+		print("[AIAgent] %s 无上一活动,跳过体验" % character.name)
 
 	# 3. V2: 自然语言决策阶段
 	current_state = AgentState.DECIDING
+	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	var natural_decision = await _make_natural_decision(perception)
 	print("[AIAgent] %s 自然语言决策: %s" % [character.name, natural_decision])
 	
+	# V2: 记录决策日志
+	if logger:
+		logger.log_monologue(character.name, "Click周期决策", natural_decision)
+	
 	# 4. V2: 提交决策到协调器
+	print("[AIAgent] %s 准备提交决策到协调器..." % character.name)
 	_submit_decision_to_coordinator(natural_decision)
 	
 	# V2: 决策已提交，等待协调器下发活动
+	print("[AIAgent] %s 决策已提交,等待协调器下发活动" % character.name)
 	# 实际活动将在下一个Click周期通过 receive_activity_sequence() 接收
 	print("[AIAgent] %s 决策已提交，等待协调器分配..." % character.name)
 
@@ -242,9 +332,57 @@ func _perceive() -> Dictionary:
 	if TimingSystem.instance:
 		perception.current_time = TimingSystem.instance.current_game_time
 
-	# TODO: 集成DialogueManager获取对话行为和内容
+	# 5. 获取对话行为和内容
+	var dialogue_info = _get_dialogue_info()
+	perception["dialogue_behaviors"] = dialogue_info.behaviors
+	perception["audible_contents"] = dialogue_info.contents
 
 	return perception
+
+# ============================================
+# V2: 获取对话信息
+# ============================================
+func _get_dialogue_info() -> Dictionary:
+	var result = {
+		"behaviors": [],
+		"contents": []
+	}
+	
+	var dialog_manager = get_node_or_null("/root/DialogManager")
+	if not dialog_manager or not dialog_manager.dialog_service:
+		return result
+	
+	# 获取活跃对话信息
+	var active_conversations = dialog_manager.dialog_service.get_active_conversations_info()
+	
+	for conv_info in active_conversations:
+		var speaker_name = conv_info.get("speaker", "")
+		var listener_name = conv_info.get("listener", "")
+		
+		# 添加对话行为（全场景可见）
+		result.behaviors.append({
+			"type": "DIALOGUE",
+			"participants": [speaker_name, listener_name],
+			"location": "unknown"  # 可以通过角色位置获取
+		})
+		
+		# 如果自己是参与者，可以听到内容
+		if speaker_name == character.name or listener_name == character.name:
+			# 获取自己的 ChatHistory
+			if character.has_node("ChatHistory"):
+				var chat_history = character.get_node("ChatHistory")
+				var recent = chat_history.get_recent_conversation_with(
+					speaker_name if listener_name == character.name else listener_name, 
+					1
+				)
+				if recent != "":
+					result.contents.append({
+						"type": "DIALOGUE",
+						"content": recent,
+						"participants": [speaker_name, listener_name]
+					})
+	
+	return result
 
 # ============================================
 # 体验阶段(新增)
@@ -303,6 +441,9 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 		is_depression
 	)
 	
+	# 新增：情感评估与记忆记录
+	await _evaluate_activity_emotion(activity_info)
+	
 	return {
 		"cumulative_gain": objective_gain,
 		"perceived_gain": perceived_gain,
@@ -310,6 +451,92 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 		"perceived_params": perceived_params,
 		"activity_duration": activity_info.get("duration", 0.0)
 	}
+
+# ============================================
+# 新增：活动情感评估（自然语言记忆）
+# ============================================
+func _evaluate_activity_emotion(activity_info: Dictionary) -> void:
+	"""
+	在活动体验阶段，使用LLM评估情感并生成自然语言记忆
+	"""
+	# 构建体验评估Prompt
+	var prompt = _build_emotion_evaluation_prompt(activity_info)
+	
+	# 调用LLM生成情感评估
+	var emotional_record = await _call_llm_for_emotion(prompt)
+	
+	# 记录到记忆系统（自然语言）
+	if MemorySystem.instance and not emotional_record.is_empty():
+		MemorySystem.instance.add_natural_memory(
+			character.name,
+			emotional_record,
+			activity_info.get("activity_name", "活动"),
+			_get_current_game_time()
+		)
+		
+		# 同时记录到体验日志
+		if logger:
+			logger.log_activity(character.name, "情感体验: %s" % emotional_record.substr(0, 50))
+	
+	print("[AIAgent] %s 情感评估: %s" % [character.name, emotional_record.substr(0, 50)])
+
+func _build_emotion_evaluation_prompt(activity_info: Dictionary) -> String:
+	"""构建情感评估Prompt（完整上下文）"""
+	var activity_name = activity_info.get("activity_name", "未知活动")
+	var duration = activity_info.get("duration", 0.0)
+	var location = activity_info.get("location", "未知地点")
+	var focus_level = activity_info.get("focus_level", 50)
+	
+	# 获取参与者信息
+	var participants = activity_info.get("participants", [])
+	var participant_str = ""
+	if participants.size() > 0:
+		participant_str = ", ".join(participants)
+	else:
+		participant_str = "独自"
+	
+	# 获取当前心情状态
+	var mood = character.get_meta("current_mood", "平静")
+	
+	# 构建Prompt
+	var prompt = "你是%s，刚刚完成了以下活动。\n\n" % character.name
+	prompt += "【活动信息】\n"
+	prompt += "- 活动类型：%s\n" % activity_name
+	prompt += "- 参与者：%s\n" % participant_str
+	prompt += "- 地点：%s\n" % location
+	prompt += "- 持续时间：%.1f分钟\n" % duration
+	prompt += "- 专注度：%d%%\n" % focus_level
+	prompt += "\n【你的状态】\n"
+	prompt += "- 当前心情：%s\n" % mood
+	prompt += "- 活动收益感知：%.2f\n" % reward_receiver.get_last_reward().get("perceived_gain", 0.0)
+	
+	# 添加相关记忆（如果有关于参与者的）
+	if MemorySystem.instance and participants.size() > 0:
+		var relevant_memories = ""
+		for participant in participants:
+			if participant != character.name:
+				var mems = MemorySystem.instance.get_memories_about(character.name, participant, 1)
+				if mems.size() > 0:
+					relevant_memories += "- 之前对%s的印象：%s\n" % [participant, mems[0]]
+		if not relevant_memories.is_empty():
+			prompt += "\n【相关记忆】\n" + relevant_memories
+	
+	prompt += "\n请用简洁的自然语言（1-2句话）记录这次活动带给你的感受，"
+	prompt += "以及对参与者的评价。可以自由发挥，像写日记一样。"
+	
+	return prompt
+
+func _call_llm_for_emotion(prompt: String) -> String:
+	"""调用LLM生成情感评估"""
+	# 使用现有的LLM调用机制
+	var response = await _call_local_llm(prompt, 2)  # 最多2次重试
+	
+	# 清理响应
+	var text = response.strip_edges()
+	if text.length() > 200:
+		text = text.substr(0, 200) + "..."
+	
+	return text
 
 # ============================================
 # 活动决策（继续/停止/更换）- 新时序逻辑
@@ -470,59 +697,92 @@ func _execute_activity_decision(decision: Dictionary, activity_info: Dictionary)
 # ============================================
 # 调用本地部署的大模型API
 # ============================================
-func _call_local_llm(prompt: String) -> String:
+func _call_local_llm(prompt: String, max_retries: int = 3) -> String:
 	# 本地部署的大模型API配置
 	# 默认使用Ollama本地服务,可通过修改配置支持其他本地模型
 	var api_url = "http://localhost:11434/api/generate"
-	var model_name = "qwen2.5:7b"  # 统一使用7B模型
+	var model_name = "qwen2.5:1.5b"  # 使用1.5B模型
 
-	var http_request = HTTPRequest.new()
-	add_child(http_request)
+	print("[AIAgent] %s _call_local_llm被调用, prompt长度=%d, 最大重试=%d" % [character.name, prompt.length(), max_retries])
+	
+	if prompt.is_empty():
+		push_error("[AIAgent] %s Prompt为空!" % character.name)
+		return "{}"
 
-	var body = {
-		"model": model_name,
-		"prompt": prompt,
-		"stream": false,
-		"options": {
-			"temperature": 0.7,
-			"num_predict": 500
+	for retry in range(max_retries):
+		if retry > 0:
+			print("[AIAgent] %s 第%d次重试..." % [character.name, retry])
+			await get_tree().create_timer(1.0 * retry).timeout  # 递增延迟
+
+		var http_request = HTTPRequest.new()
+		add_child(http_request)
+		
+		# 设置超时
+		http_request.timeout = 30.0  # 30秒超时
+
+		var body = {
+			"model": model_name,
+			"prompt": prompt,
+			"stream": false,
+			"options": {
+				"temperature": 0.7,
+				"num_predict": 200  # 减少生成长度以加快速度
+			}
 		}
-	}
 
-	var json_body = JSON.stringify(body)
-	var headers = ["Content-Type: application/json"]
+		var json_body = JSON.stringify(body)
+		var headers = ["Content-Type: application/json"]
 
-	print("[AIAgent] %s 调用本地LLM..." % character.name)
+		print("[AIAgent] %s 调用本地LLM (尝试%d/%d)..." % [character.name, retry + 1, max_retries])
 
-	var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
-	if error != OK:
-		push_error("[AIAgent] HTTP请求失败: %d" % error)
+		var error = http_request.request(api_url, headers, HTTPClient.METHOD_POST, json_body)
+		if error != OK:
+			push_error("[AIAgent] HTTP请求失败: %d" % error)
+			print("[AIAgent] %s HTTP请求错误: %d" % [character.name, error])
+			http_request.queue_free()
+			continue  # 重试
+
+		print("[AIAgent] %s 等待LLM响应..." % character.name)
+		
+		# 等待响应
+		var result = await http_request.request_completed
 		http_request.queue_free()
-		return "{}"
 
-	# 等待响应
-	var result = await http_request.request_completed
-	http_request.queue_free()
+		var response_code = result[1]
+		var body_text = result[3].get_string_from_utf8()
+		
+		print("[AIAgent] %s 收到HTTP响应, code=%d, body长度=%d" % [character.name, response_code, body_text.length()])
 
-	var response_code = result[1]
-	var body_text = result[3].get_string_from_utf8()
+		if response_code == 0:
+			print("[AIAgent] %s 连接失败，准备重试..." % character.name)
+			continue  # 重试
 
-	if response_code != 200:
-		push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
-		return "{}"
+		if response_code != 200:
+			push_error("[AIAgent] API错误: %d, %s" % [response_code, body_text])
+			print("[AIAgent] %s API错误: %s" % [character.name, body_text])
+			continue  # 重试
 
-	# 解析Ollama响应
-	var json = JSON.new()
-	var parse_result = json.parse(body_text)
-	if parse_result != OK:
-		push_error("[AIAgent] JSON解析失败: %s" % body_text)
-		return "{}"
+		# 解析Ollama响应
+		var json = JSON.new()
+		var parse_result = json.parse(body_text)
+		if parse_result != OK:
+			push_error("[AIAgent] JSON解析失败: %s" % body_text)
+			print("[AIAgent] %s JSON解析失败: %s" % [character.name, body_text])
+			continue  # 重试
 
-	var response_data = json.get_data()
-	var response_text = response_data.get("response", "")
+		var response_data = json.get_data()
+		var response_text = response_data.get("response", "")
 
-	print("[AIAgent] %s 收到LLM响应" % character.name)
-	return response_text
+		if response_text.is_empty():
+			print("[AIAgent] %s 响应为空，准备重试..." % character.name)
+			continue  # 重试
+
+		print("[AIAgent] %s 成功收到LLM响应: %s" % [character.name, response_text.substr(0, 100)])
+		return response_text
+
+	# 所有重试都失败
+	push_error("[AIAgent] %s 调用LLM失败，已重试%d次" % [character.name, max_retries])
+	return "{}"
 
 # ============================================
 # 解析决策响应为ActionRequest
@@ -609,16 +869,32 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	"""
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	
+	# 添加随机延迟，避免所有Agent同时调用LLM
+	# 使用基于角色名的固定偏移 + 随机延迟，确保分散
+	var name_hash = character.name.hash()
+	var fixed_delay = (abs(name_hash) % 10) * 0.5  # 0-5秒基于名字的固定延迟
+	var random_delay = randf() * 1.0  # 0-1秒随机延迟
+	var total_delay = fixed_delay + random_delay
+	print("[AIAgent] %s 等待 %.2f 秒以避免并发 (固定%.2f + 随机%.2f)..." % [character.name, total_delay, fixed_delay, random_delay])
+	await get_tree().create_timer(total_delay).timeout
+	
 	# V2: 使用PromptBuilder从文件加载模板
 	var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
+	print("[AIAgent] %s Prompt构建完成, 长度=%d" % [character.name, prompt.length()])
+	
+	if prompt.is_empty():
+		push_error("[AIAgent] %s Prompt为空,无法调用LLM" % character.name)
+		return "{}"
 	
 	# 调用LLM
 	var response = await _call_local_llm(prompt)
+	print("[AIAgent] %s LLM响应: %s" % [character.name, response.substr(0, 50)])
 	
 	# 提取决策文本
 	var decision = _extract_decision_text(response)
 	last_natural_decision = decision
 	
+	print("[AIAgent] %s 最终决策: %s" % [character.name, decision])
 	return decision
 
 func _extract_decision_text(response: String) -> String:
@@ -641,7 +917,10 @@ func _extract_decision_text(response: String) -> String:
 # ============================================
 func _submit_decision_to_coordinator(decision: String) -> void:
 	"""将自然语言决策提交到ActivityCoordinator"""
+	print("[AIAgent] %s _submit_decision_to_coordinator被调用" % character.name)
+	print("[AIAgent] %s ActivityCoordinator.instance = %s" % [character.name, ActivityCoordinator.instance])
 	if ActivityCoordinator.instance:
+		print("[AIAgent] %s 调用ActivityCoordinator.submit_decision..." % character.name)
 		ActivityCoordinator.instance.submit_decision(character.name, decision)
 		print("[AIAgent] %s 已提交决策到协调器: %s" % [character.name, decision])
 	else:
@@ -663,6 +942,14 @@ func receive_activity_sequence(activities: Array[Activity]) -> void:
 	print("[AIAgent] %s 收到 %d 个活动" % [character.name, activities.size()])
 	for i in range(activities.size()):
 		print("  [%d] %s" % [i + 1, activities[i].activity_name])
+	
+	# V2: 记录接收到的活动序列日志
+	if logger:
+		var activity_list = []
+		for act in activities:
+			activity_list.append(act.activity_name)
+		var activities_str = " -> ".join(activity_list)
+		logger.log_activity(character.name, "接收活动序列: %s" % activities_str)
 
 # ============================================
 # V2: 执行缓存的下一个活动
@@ -727,9 +1014,29 @@ func _execute_v2_move(activity: Activity) -> void:
 	
 	if result.success:
 		current_state = AgentState.EXECUTING_ACTION
+		var target_room = activity.parameters.get("target_room", "未知位置")
 		print("[AIAgent] %s 开始移动，预计%.1f分钟" % [character.name, result.estimated_duration])
+		
+		# V2: 记录移动日志
+		if logger:
+			var current_room = _get_current_room_name()
+			logger.log_movement(character.name, current_room, target_room)
+		
+		# V2: 记录移动事件到记忆系统
+		if MemorySystem.instance:
+			var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+			MemorySystem.instance.record_agent_activity(
+				character.name,
+				"MOVE_TO",
+				game_time,
+				target_room,
+				{"from_room": _get_current_room_name(), "estimated_duration": result.estimated_duration},
+				1  # LOW importance
+			)
 	else:
 		print("[AIAgent] %s 移动失败: %s" % [character.name, result.reason])
+		if logger:
+			logger.log_activity(character.name, "移动失败: %s" % result.reason)
 
 func _execute_v2_dialogue(activity: Activity) -> void:
 	"""执行普通对话"""
@@ -751,6 +1058,34 @@ func _execute_v2_dialogue(activity: Activity) -> void:
 		information_receiver.receive_dialogue(target_agent, simulated_content, float(focus) / 100.0, topic)
 	
 	print("[AIAgent] %s 开始与 %s 对话，话题: %s，专注度: %d%%" % [character.name, target_agent, topic, focus])
+	
+	# V2: 记录对话日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_conversation_start(character.name, target_agent, room_name)
+	
+	# V2: 记录对话事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"DIALOGUE",
+			game_time,
+			_get_current_room_name(),
+			{"target_agent": target_agent, "topic": topic, "focus_level": focus},
+			3  # NORMAL importance
+		)
+		# 记录社交互动
+		MemorySystem.instance.record_interaction(
+			character.name,
+			target_agent,
+			"DIALOGUE",
+			game_time,
+			_get_current_room_name(),
+			topic,
+			5.0,  # duration
+			0.05  # emotional_impact
+		)
 
 func _execute_v2_whisper(activity: Activity) -> void:
 	"""执行悄悄话"""
@@ -768,6 +1103,34 @@ func _execute_v2_whisper(activity: Activity) -> void:
 		information_receiver.receive_dialogue(target_agent, content, float(focus) / 100.0, "悄悄话")
 	
 	print("[AIAgent] %s 开始向 %s 悄悄话，专注度: %d%%" % [character.name, target_agent, focus])
+	
+	# V2: 记录悄悄话日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_dialogue(character.name, target_agent, "[悄悄话] %s" % content, room_name)
+	
+	# V2: 记录悄悄话事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"WHISPER",
+			game_time,
+			_get_current_room_name(),
+			{"target_agent": target_agent, "focus_level": focus},
+			5  # HIGH importance - 悄悄话是私密互动
+		)
+		# 记录社交互动（悄悄话情感影响更大）
+		MemorySystem.instance.record_interaction(
+			character.name,
+			target_agent,
+			"WHISPER",
+			game_time,
+			_get_current_room_name(),
+			"悄悄话",
+			3.0,  # duration
+			0.1   # emotional_impact - 悄悄话情感影响更大
+		)
 
 func _execute_v2_listen(activity: Activity) -> void:
 	"""执行聆听（上课）"""
@@ -792,6 +1155,23 @@ func _execute_v2_listen(activity: Activity) -> void:
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "听课(%d%%专注)" % focus
 	print("[AIAgent] %s 开始听课，专注度: %d%%" % [character.name, focus])
+	
+	# V2: 记录活动日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "开始听课 (%d%%专注)" % focus, room_name)
+	
+	# V2: 记录听课事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"CLASS",
+			game_time,
+			_get_current_room_name(),
+			{"teacher": teacher, "focus_level": focus},
+			3  # NORMAL importance
+		)
 
 func _execute_v2_qa(activity: Activity) -> void:
 	"""执行课堂问答"""
@@ -822,6 +1202,23 @@ func _execute_v2_study(activity: Activity) -> void:
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "自习%s(%d%%专注)" % [subject, focus]
 	print("[AIAgent] %s 开始自习%s，专注度: %d%%" % [character.name, subject, focus])
+	
+	# V2: 记录活动日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "开始自习%s (%d%%专注)" % [subject, focus], room_name)
+	
+	# V2: 记录自习事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"SELF_STUDY",
+			game_time,
+			_get_current_room_name(),
+			{"subject": subject, "focus_level": focus},
+			3  # NORMAL importance
+		)
 
 func _execute_v2_sports(activity: Activity) -> void:
 	"""执行体育活动"""
@@ -842,6 +1239,23 @@ func _execute_v2_sports(activity: Activity) -> void:
 	current_state = AgentState.IN_ACTIVITY
 	current_activity = "体育%s(%d%%专注)" % [sport_type, focus]
 	print("[AIAgent] %s 开始%s，专注度: %d%%" % [character.name, sport_type, focus])
+	
+	# V2: 记录活动日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "开始体育活动%s (强度%.0f%%, 专注%d%%)" % [sport_type, intensity * 100, focus], room_name)
+	
+	# V2: 记录体育活动事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"SPORTS",
+			game_time,
+			_get_current_room_name(),
+			{"sport_type": sport_type, "intensity": intensity, "focus_level": focus},
+			3  # NORMAL importance
+		)
 
 func _execute_v2_discussion(activity: Activity) -> void:
 	"""执行小组讨论"""
@@ -858,6 +1272,37 @@ func _execute_v2_discussion(activity: Activity) -> void:
 	print("[AIAgent] %s 开始小组讨论，话题: %s，成员: %s，专注度: %d%%" % [
 		character.name, topic, ", ".join(members), focus
 	])
+	
+	# V2: 记录讨论日志
+	if logger:
+		var room_name = _get_current_room_name()
+		var members_str = ", ".join(members)
+		logger.log_activity(character.name, "参与小组讨论: %s (成员: %s, 专注%d%%)" % [topic, members_str, focus], room_name)
+	
+	# V2: 记录小组讨论事件到记忆系统
+	if MemorySystem.instance:
+		var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+		MemorySystem.instance.record_agent_activity(
+			character.name,
+			"GROUP_DISCUSSION",
+			game_time,
+			_get_current_room_name(),
+			{"topic": topic, "members": members, "focus_level": focus},
+			5  # HIGH importance - 小组讨论是重要社交活动
+		)
+		# 记录与所有成员的社交互动
+		for member in members:
+			if member != character.name:
+				MemorySystem.instance.record_interaction(
+					character.name,
+					member,
+					"GROUP_DISCUSSION",
+					game_time,
+					_get_current_room_name(),
+					topic,
+					10.0,  # duration
+					0.08   # emotional_impact
+				)
 
 func _get_current_room_name() -> String:
 	"""获取当前房间名称"""
@@ -1088,7 +1533,7 @@ func _get_current_room_at_position(pos: Vector2):
 		return null
 	return room_manager.get_current_room(room_manager.rooms, pos)
 
-# 2. 开始对话
+# 2. 开始对话（使用群组对话系统，中范围150px）
 func _execute_start_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 开始对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
@@ -1104,17 +1549,33 @@ func _execute_start_dialogue(request: ActionRequest):
 
 	# 记录对话对象，用于感知系统显示
 	set_meta("dialogue_partner", request.target_id)
-	
+
 	# 同时设置对方的对话对象
 	if target_agent.has_method("set_meta"):
 		target_agent.set_meta("dialogue_partner", character.name)
 
-	# 向DialogueManager注册新对话
-	# TODO: DialogueManager.start_dialogue(self, target_agent)
+	# 使用新的DialogueManager启动对话（中范围）
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var current_click = _get_current_click()
+		var current_time = _get_current_game_time()
+		var dialogue_id = dialogue_manager.start_dialogue(
+			character, 1, "", "", "", current_click, current_time  # 1 = NORMAL
+		)
+		if not dialogue_id.is_empty():
+			print("[AIAgent] %s 成功向 %s 发起对话（中范围）" % [character.name, request.target_id])
+		else:
+			print("[AIAgent] %s 向 %s 发起对话失败" % [character.name, request.target_id])
+			current_state = AgentState.IDLE
+			current_activity = ""
+			remove_meta("dialogue_partner")
+	else:
+		print("[AIAgent] %s DialogueManager未找到，无法启动对话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
+		remove_meta("dialogue_partner")
 
-	print("[AIAgent] %s 已向 %s 发起对话" % [character.name, request.target_id])
-
-# 3. 开始悄悄话(私密对话)
+# 3. 开始悄悄话(私密对话，使用群组对话系统，小范围30px)
 func _execute_start_whisper(request: ActionRequest):
 	print("[AIAgent] %s 开始悄悄话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
@@ -1130,32 +1591,70 @@ func _execute_start_whisper(request: ActionRequest):
 
 	# 记录悄悄话对象，用于感知系统显示
 	set_meta("whisper_partner", request.target_id)
-	
+
 	# 同时设置对方的悄悄话对象
 	if target_agent.has_method("set_meta"):
 		target_agent.set_meta("whisper_partner", character.name)
 
-	# 向DialogueManager注册悄悄话(私密对话)
-	# TODO: DialogueManager.start_whisper(self, target_agent)
+	# 使用新的DialogueManager启动悄悄话（小范围）
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var current_click = _get_current_click()
+		var current_time = _get_current_game_time()
+		var dialogue_id = dialogue_manager.start_dialogue(
+			character, 0, "", "", "", current_click, current_time  # 0 = WHISPER
+		)
+		if not dialogue_id.is_empty():
+			print("[AIAgent] %s 成功向 %s 发起悄悄话（小范围）" % [character.name, request.target_id])
+		else:
+			print("[AIAgent] %s 向 %s 发起悄悄话失败" % [character.name, request.target_id])
+			current_state = AgentState.IDLE
+			current_activity = ""
+			remove_meta("whisper_partner")
+	else:
+		print("[AIAgent] %s DialogueManager未找到，无法启动悄悄话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
+		remove_meta("whisper_partner")
 
-	print("[AIAgent] %s 已向 %s 发起悄悄话" % [character.name, request.target_id])
-
-# 4. 加入对话
+# 4. 加入对话（使用群组对话系统）
 func _execute_join_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 加入对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "对话"
 	activity_start_time = Time.get_unix_time_from_system()
 
-	# 获取对话ID或目标
-	var dialogue_id = request.target_id
+	# 获取目标Agent
+	var target_agent = _find_agent_by_id(request.target_id)
+	if not target_agent:
+		print("[AIAgent] %s 加入对话失败：找不到目标 %s" % [character.name, request.target_id])
+		current_state = AgentState.IDLE
+		current_activity = ""
+		return
 
-	# 向DialogueManager申请加入
-	# TODO: DialogueManager.join_dialogue(self, dialogue_id)
+	# 使用新的DialogueManager加入对话
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var target_dialogue_id = dialogue_manager.get_character_dialogue(target_agent)
+		if not target_dialogue_id.is_empty():
+			var current_click = _get_current_click()
+			var success = dialogue_manager.join_dialogue(character, target_dialogue_id, current_click)
+			if success:
+				print("[AIAgent] %s 成功加入与 %s 的对话" % [character.name, request.target_id])
+			else:
+				print("[AIAgent] %s 加入与 %s 的对话失败" % [character.name, request.target_id])
+				current_state = AgentState.IDLE
+				current_activity = ""
+		else:
+			print("[AIAgent] %s 目标 %s 不在任何对话中" % [character.name, request.target_id])
+			current_state = AgentState.IDLE
+			current_activity = ""
+	else:
+		print("[AIAgent] %s DialogueManager未找到，无法加入对话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
 
-	print("[AIAgent] %s 已加入对话 %s" % [character.name, dialogue_id])
-
-# 4. 退出对话
+# 5. 退出对话（使用群组对话系统）
 func _execute_exit_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 退出对话" % character.name)
 
@@ -1166,8 +1665,11 @@ func _execute_exit_dialogue(request: ActionRequest):
 	remove_meta("dialogue_partner")
 	remove_meta("whisper_partner")
 
-	# 向DialogueManager通知退出
-	# TODO: DialogueManager.exit_dialogue(self)
+	# 使用MultiAgentDialogueIntegration退出对话
+	var integration = get_node_or_null("/root/MultiAgentDialogueIntegration")
+	if integration:
+		integration.leave_dialogue(character)
+		print("[AIAgent] %s 已退出对话" % character.name)
 
 	current_state = AgentState.IDLE
 	current_activity = ""
@@ -1516,9 +2018,26 @@ func _get_activity_name(request: ActionRequest) -> String:
 			return ""
 
 func _get_room_manager():
-	var root = get_tree().current_scene
+	# 尝试多种方式获取RoomManager
+	var tree = get_tree()
+	if not tree:
+		return null
+	
+	# 方式1: 从当前场景获取
+	var root = tree.current_scene
 	if root and root.has_node("RoomManager"):
 		return root.get_node("RoomManager")
+	
+	# 方式2: 从场景树中查找（通过group）
+	var room_managers = tree.get_nodes_in_group("room_manager")
+	if room_managers.size() > 0:
+		return room_managers[0]
+	
+	# 方式3: 全局查找
+	var room_manager = tree.root.get_node_or_null("School/RoomManager")
+	if room_manager:
+		return room_manager
+	
 	return null
 
 func _get_current_room():
@@ -1938,3 +2457,267 @@ func _check_mvt_leave_decision(room_name: String, time_in_room: float,
 		"current_time": time_in_room,
 		"reason": reason
 	}
+
+# ============================================
+# 对话内容生成
+# ============================================
+
+func generate_dialogue_message(dialogue_history: String, topic: String, 
+							   other_participants: Array[String], 
+							   range_type_name: String) -> String:
+	"""
+	生成对话内容
+	
+	参数:
+		dialogue_history: 对话历史（格式化字符串）
+		topic: 讨论主题
+		other_participants: 其他参与者名称列表
+		range_type_name: 对话范围类型名称（悄悄话/普通对话/广播）
+	
+	返回:
+		生成的对话内容
+	"""
+	# 使用PromptBuilder构建Prompt
+	var prompt = PromptBuilder.build_dialogue_response_prompt(
+		self, dialogue_history, other_participants, range_type_name, topic
+	)
+	
+	# 调用LLM生成内容
+	var content = await _call_llm_for_dialogue(prompt)
+	
+	return content
+
+func _call_llm_for_dialogue(prompt: String) -> String:
+	"""调用LLM生成对话内容"""
+	
+	# 使用APIManager进行调用
+	var api_manager = get_node_or_null("/root/APIManager")
+	if not api_manager:
+		push_error("[AIAgent] APIManager未找到")
+		return ""
+	
+	# 调用LLM - 使用call_ollama方法
+	var response = ""
+	
+	# 检查APIManager是否有call_ollama方法
+	if api_manager.has_method("call_ollama"):
+		response = await api_manager.call_ollama("qwen2.5:1.5b", prompt, 100, 0.7)
+	else:
+		# 回退到直接HTTP调用
+		response = await _direct_ollama_call(prompt)
+	
+	if response.is_empty():
+		return ""
+	
+	# 清理内容
+	var content = _clean_dialogue_content(response)
+	
+	return content
+
+func _direct_ollama_call(prompt: String) -> String:
+	"""直接调用Ollama API（回退方案）"""
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	
+	var body = {
+		"model": "qwen2.5:1.5b",
+		"prompt": prompt,
+		"stream": false,
+		"options": {
+			"temperature": 0.7,
+			"num_predict": 100
+		}
+	}
+	
+	var error = http_request.request(
+		"http://localhost:11434/api/generate",
+		["Content-Type: application/json"],
+		HTTPClient.METHOD_POST,
+		JSON.stringify(body)
+	)
+	
+	if error != OK:
+		http_request.queue_free()
+		return ""
+	
+	var result = await http_request.request_completed
+	http_request.queue_free()
+	
+	if result[1] != 200:
+		return ""
+	
+	var json = JSON.new()
+	if json.parse(result[3].get_string_from_utf8()) != OK:
+		return ""
+	
+	var data = json.get_data()
+	return data.get("response", "")
+
+func _get_current_click() -> int:
+	"""获取当前Click索引（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_current_click"):
+		return timing_system.get_current_click()
+	return 0
+
+func _get_current_game_time() -> float:
+	"""获取当前游戏时间（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_game_time"):
+		return timing_system.get_game_time()
+	return 0.0
+
+func _clean_dialogue_content(content: String) -> String:
+	"""清理生成的对话内容"""
+	# 移除常见的引号
+	content = content.replace("\"", "")
+	content = content.replace("'", "")
+	
+	# 移除前缀如"我说："、"小明："等
+	var prefixes = [character.name + "：", character.name + ":", "我说：", "我说:"]
+	for prefix in prefixes:
+		if content.begins_with(prefix):
+			content = content.substr(prefix.length()).strip_edges()
+	
+	# 限制长度
+	if content.length() > 100:
+		content = content.substr(0, 100) + "..."
+	
+	return content
+
+# ============================================
+# 对话系统范围边界获取方法
+# ============================================
+
+func get_current_medium_range_boundary() -> Dictionary:
+	"""
+	获取当前中范围的边界信息
+	
+	返回:
+		{
+			"room_name": String,        # 当前房间名称
+			"medium_range_id": String,  # 中范围标识(Q1/Q2/Q3/Q4/LEFT/RIGHT/CENTER)
+			"center_position": Vector2, # 中范围中心坐标
+			"bounds": Rect2             # 中范围边界矩形(相对于room中心)
+		}
+	"""
+	var result = {
+		"room_name": "",
+		"medium_range_id": "",
+		"center_position": Vector2.ZERO,
+		"bounds": Rect2()
+	}
+	
+	if not character:
+		return result
+	
+	var current_room = _get_current_room()
+	if not current_room:
+		return result
+	
+	result.room_name = current_room.room_name
+	
+	var my_pos = character.global_position
+	var medium_range_id = _get_character_medium_range(character)
+	result.medium_range_id = medium_range_id
+	
+	# 计算中范围中心位置
+	var center_pos = _get_medium_range_center_position(current_room, medium_range_id)
+	result.center_position = center_pos
+	
+	# 计算中范围边界
+	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
+	var half_width = room_size.x * 0.5
+	var half_height = room_size.y * 0.5
+	
+	var range_type = _get_room_medium_range_type(current_room.room_name)
+	match range_type:
+		MediumRangeType.FOUR_QUADRANT:
+			# 4象限：每个象限是房间的四分之一
+			result.bounds = Rect2(
+				center_pos.x - half_width * 0.5,
+				center_pos.y - half_height * 0.5,
+				half_width,
+				half_height
+			)
+		MediumRangeType.LEFT_RIGHT:
+			# 左右分区：每个区是房间的一半宽度
+			result.bounds = Rect2(
+				center_pos.x - half_width * 0.5,
+				center_pos.y - half_height,
+				half_width,
+				room_size.y
+			)
+		MediumRangeType.SINGLE:
+			# 单区域：整个房间
+			result.bounds = Rect2(
+				current_room.position.x - half_width,
+				current_room.position.y - half_height,
+				room_size.x,
+				room_size.y
+			)
+	
+	return result
+
+func get_current_room_boundary() -> Dictionary:
+	"""
+	获取当前子场景(RoomArea)的边界信息
+	
+	返回:
+		{
+			"room_name": String,        # 房间名称
+			"center_position": Vector2, # 房间中心坐标
+			"bounds": Rect2,            # 房间边界矩形
+			"size": Vector2             # 房间尺寸
+		}
+	"""
+	var result = {
+		"room_name": "",
+		"center_position": Vector2.ZERO,
+		"bounds": Rect2(),
+		"size": Vector2.ZERO
+	}
+	
+	var current_room = _get_current_room()
+	if not current_room:
+		return result
+	
+	result.room_name = current_room.room_name
+	
+	var room_pos = current_room.position
+	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
+	result.size = room_size
+	
+	var half_width = room_size.x * 0.5
+	var half_height = room_size.y * 0.5
+	
+	result.center_position = room_pos
+	result.bounds = Rect2(
+		room_pos.x - half_width,
+		room_pos.y - half_height,
+		room_size.x,
+		room_size.y
+	)
+	
+	return result
+
+func _get_character_medium_range(char_node: CharacterBody2D) -> String:
+	"""获取角色所在中范围标识（供DialogueManager调用）"""
+	if not is_instance_valid(char_node):
+		return ""
+	
+	var char_room = _get_current_room_at_position(char_node.global_position)
+	if not char_room:
+		return ""
+	
+	return _get_medium_range_description(char_room, char_node.global_position)
+
+func _get_character_room(char_node: CharacterBody2D) -> String:
+	"""获取角色所在房间名称（供DialogueManager调用）"""
+	if not is_instance_valid(char_node):
+		return ""
+	
+	var char_room = _get_current_room_at_position(char_node.global_position)
+	if char_room:
+		return char_room.room_name
+	return ""

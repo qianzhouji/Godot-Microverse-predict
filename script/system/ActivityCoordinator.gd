@@ -18,7 +18,7 @@ static var instance: ActivityCoordinator
 
 # LLM配置
 var llm_api_url: String = "http://localhost:11434/api/generate"
-var llm_model: String = "qwen2.5:7b"
+var llm_model: String = "qwen2.5:1.5b"
 var llm_temperature: float = 0.3  # 协调器需要更确定性的输出
 var llm_max_tokens: int = 2000
 
@@ -26,6 +26,9 @@ var llm_max_tokens: int = 2000
 var is_coordinating: bool = false
 var pending_decisions: Dictionary = {}  # {agent_id: decision_string}
 var coordination_results: Dictionary = {}  # {agent_id: Array[Activity]}
+
+# 对话管理器引用（使用Node类型避免循环依赖）
+var dialogue_manager: Node = null
 
 # 信号
 signal coordination_started(agent_count: int)
@@ -40,11 +43,19 @@ func _ready():
 	instance = self
 	print("[ActivityCoordinator] 活动协调器初始化完成")
 	_load_prompt_template()
+	
+	# 获取对话管理器引用（延迟获取避免加载顺序问题）
+	await get_tree().process_frame
+	dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		print("[ActivityCoordinator] 对话管理器已连接")
+	else:
+		push_warning("[ActivityCoordinator] 对话管理器未找到")
 
 func _load_prompt_template() -> void:
 	"""加载协调器Prompt模板"""
 	# 从文件加载或直接使用内置模板
-	var prompt_path = "res://docs/prompts/coordinator_prompt.md"
+	var prompt_path = "res://prompts/coordinator_prompt.md"
 	if FileAccess.file_exists(prompt_path):
 		var file = FileAccess.open(prompt_path, FileAccess.READ)
 		coordinator_prompt_template = file.get_as_text()
@@ -93,6 +104,10 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	返回:
 		协调结果字典
 	"""
+	print("[ActivityCoordinator] execute_coordination被调用")
+	print("[ActivityCoordinator] pending_decisions数量: %d" % pending_decisions.size())
+	print("[ActivityCoordinator] pending_decisions内容: %s" % str(pending_decisions.keys()))
+	
 	if pending_decisions.is_empty():
 		print("[ActivityCoordinator] 没有待协调的决策")
 		return {}
@@ -105,6 +120,17 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	coordination_started.emit(pending_decisions.size())
 	
 	print("[ActivityCoordinator] 开始协调 %d 个Agent..." % pending_decisions.size())
+	
+	# 打印所有Agent的决策内容
+	print("[ActivityCoordinator] ===== 所有Agent决策内容 =====")
+	for agent_id in pending_decisions.keys():
+		var decision = pending_decisions[agent_id]
+		# 截断过长的决策文本
+		var display_decision = decision
+		if display_decision.length() > 200:
+			display_decision = display_decision.substr(0, 200) + "..."
+		print("[ActivityCoordinator]   %s: %s" % [agent_id, display_decision.replace("\n", " ")])
+	print("[ActivityCoordinator] ===== 决策内容结束 =====")
 	
 	# 构建输入数据
 	var input_data = _build_coordination_input(game_context)
@@ -120,8 +146,29 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 		is_coordinating = false
 		return {}
 	
+	# 打印完整LLM响应用于调试
+	print("[ActivityCoordinator] ===== LLM完整响应 =====")
+	print("[ActivityCoordinator] 响应长度: %d" % response.length())
+	if response.length() > 500:
+		print("[ActivityCoordinator] 响应前500字符:\n%s" % response.substr(0, 500))
+		print("[ActivityCoordinator] ... (截断)")
+	else:
+		print("[ActivityCoordinator] 完整响应:\n%s" % response)
+	print("[ActivityCoordinator] ===== 响应结束 =====")
+	
 	# 解析响应
 	var results = _parse_coordination_response(response)
+	
+	# 打印协调结果调试信息
+	print("[ActivityCoordinator] ===== 协调结果摘要 =====")
+	print("[ActivityCoordinator] 共 %d 个Agent分配结果" % results.size())
+	for agent_id in results.keys():
+		var activities = results[agent_id]
+		print("[ActivityCoordinator]   %s: %d 个活动" % [agent_id, activities.size()])
+		for i in range(activities.size()):
+			var act = activities[i]
+			print("[ActivityCoordinator]     [%d] %s (类型:%s)" % [i+1, act.activity_name, str(act.activity_type)])
+	print("[ActivityCoordinator] ===== 协调结果结束 =====")
 	
 	# 下发活动给各Agent
 	_distribute_activities(results)
@@ -188,8 +235,9 @@ func _get_available_activities() -> Array[String]:
 	"""获取可用活动列表"""
 	return [
 		"MOVE_TO",
-		"NORMAL_DIALOGUE",
-		"WHISPER",
+		"INITIATE_DIALOGUE",
+		"JOIN_DIALOGUE",
+		"LEAVE_DIALOGUE",
 		"LISTEN",
 		"QA_TEACHER",
 		"SELF_STUDY",
@@ -238,30 +286,48 @@ func _get_builtin_prompt() -> String:
 3. 检查场景约束
 4. 为每个角色分配最多3步的活动序列
 
-输出格式必须是JSON：
+【重要】你必须只输出JSON，不要输出任何其他文字、解释或markdown标记。
+
+输出格式必须是纯JSON：
 {
-  "assignments": [
+  "agents": [
     {
-      "agent_id": "角色ID",
-      "steps": [
+	  "agent_id": "StudentXiaoming",
+	  "steps": [
         {
-          "step": 1,
-          "activity_type": "活动类型",
-          "parameters": {},
-          "focus_level": 100,
-          "estimated_duration": 10.0,
-          "reason": "原因"
+		  "step": 1,
+		  "activity_type": "MOVE_TO",
+		  "parameters": {"target_location": {"x": 100, "y": 200}, "target_room": "教室"},
+		  "focus_level": 100,
+		  "estimated_duration": 5.0,
+		  "reason": "移动到目标场景"
+        },
+        {
+		  "step": 2,
+		  "activity_type": "SELF_STUDY",
+		  "parameters": {"subject": "数学"},
+		  "focus_level": 100,
+		  "estimated_duration": 45.0,
+		  "reason": "自习数学"
         }
       ]
     }
   ]
 }
 
+【关键字段名 - 必须严格遵守】
+- 顶层字段必须是 "agents" (数组)
+- 每个agent必须有 "agent_id" 和 "steps" (数组)
+- 必须使用 "steps" 字段，不要使用 "activity_sequence" 或其他名称
+- steps数组中的每个元素必须有: step, activity_type, parameters, focus_level, estimated_duration, reason
+
 规则：
 - 如果活动需要特定场景但角色不在该场景，先添加MOVE_TO
 - 专注度默认100%，提到"随便""走神"时用30%或65%
 - 最多3步，第1步通常是移动
-"""
+- MOVE_TO必须包含target_location（x,y坐标）和target_room（房间名）
+
+【注意】只输出JSON，不要添加```json标记或其他任何文字。"""
 
 # ============================================
 # LLM调用
@@ -270,9 +336,14 @@ func _get_builtin_prompt() -> String:
 func _call_llm(prompt: String) -> String:
 	"""调用本地LLM"""
 	print("[ActivityCoordinator] 调用LLM...")
+	print("[ActivityCoordinator] 模型=%s, URL=%s" % [llm_model, llm_api_url])
+	print("[ActivityCoordinator] Prompt长度=%d" % prompt.length())
 	
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
+	
+	# 设置超时
+	http_request.timeout = 60.0
 	
 	var body = {
 		"model": llm_model,
@@ -287,12 +358,15 @@ func _call_llm(prompt: String) -> String:
 	var json_body = JSON.stringify(body)
 	var headers = ["Content-Type: application/json"]
 	
+	print("[ActivityCoordinator] 发送HTTP请求...")
 	var error = http_request.request(llm_api_url, headers, HTTPClient.METHOD_POST, json_body)
 	if error != OK:
 		push_error("[ActivityCoordinator] HTTP请求失败: %d" % error)
+		print("[ActivityCoordinator] HTTP请求错误: %d" % error)
 		http_request.queue_free()
 		return ""
 	
+	print("[ActivityCoordinator] 等待LLM响应...")
 	# 等待响应
 	var result = await http_request.request_completed
 	http_request.queue_free()
@@ -300,8 +374,15 @@ func _call_llm(prompt: String) -> String:
 	var response_code = result[1]
 	var body_text = result[3].get_string_from_utf8()
 	
+	print("[ActivityCoordinator] 收到HTTP响应, code=%d, body长度=%d" % [response_code, body_text.length()])
+	
+	if response_code == 0:
+		print("[ActivityCoordinator] 连接失败(code=0), Ollama可能过载")
+		return ""
+	
 	if response_code != 200:
 		push_error("[ActivityCoordinator] API错误: %d, %s" % [response_code, body_text])
+		print("[ActivityCoordinator] API错误: %s" % body_text)
 		return ""
 	
 	# 解析Ollama响应
@@ -309,12 +390,13 @@ func _call_llm(prompt: String) -> String:
 	var parse_result = json.parse(body_text)
 	if parse_result != OK:
 		push_error("[ActivityCoordinator] JSON解析失败: %s" % body_text)
+		print("[ActivityCoordinator] JSON解析失败")
 		return ""
 	
 	var response_data = json.get_data()
 	var response_text = response_data.get("response", "")
 	
-	print("[ActivityCoordinator] 收到LLM响应")
+	print("[ActivityCoordinator] 收到LLM响应: %s" % response_text.substr(0, 100))
 	return response_text
 
 # ============================================
@@ -325,36 +407,102 @@ func _parse_coordination_response(response: String) -> Dictionary:
 	"""解析协调响应（LLM已处理双向奔赴逻辑）"""
 	var results = {}
 	
+	print("[ActivityCoordinator] _parse_coordination_response: 开始解析, response长度=%d" % response.length())
+	print("[ActivityCoordinator] _parse_coordination_response: 响应前200字符=%s" % response.substr(0, 200))
+	
 	# 提取JSON
 	var json_text = _extract_json_from_text(response)
+	print("[ActivityCoordinator] _parse_coordination_response: 提取的JSON长度=%d" % json_text.length())
+	print("[ActivityCoordinator] _parse_coordination_response: 提取的JSON前200字符=%s" % json_text.substr(0, 200))
 	
 	var json = JSON.new()
 	var parse_result = json.parse(json_text)
 	
 	if parse_result != OK:
 		push_error("[ActivityCoordinator] 无法解析响应: %s" % response)
+		print("[ActivityCoordinator] _parse_coordination_response: JSON解析失败, error=%d" % parse_result)
 		return results
 	
 	var data = json.get_data()
-	var assignments = data.get("assignments", [])
+	print("[ActivityCoordinator] _parse_coordination_response: 解析后的数据类型=%s" % typeof(data))
 	
-	# 解析每个Agent的分配（LLM已处理双向奔赴和坐标计算）
-	for assignment in assignments:
-		var agent_id = assignment.get("agent_id", "")
-		var steps = assignment.get("steps", [])
-		
-		if agent_id.is_empty():
-			continue
-		
-		var activities: Array[Activity] = []
-		
-		for step_data in steps:
-			var activity = _parse_step_to_activity(step_data, agent_id)
-			if activity:
-				activities.append(activity)
-		
-		results[agent_id] = activities
-		print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
+	if not data is Dictionary:
+		print("[ActivityCoordinator] _parse_coordination_response: 数据不是Dictionary, 是=%s" % typeof(data))
+		return results
+	
+	# 支持多种格式：
+	# 格式1: { "assignments": [{ "agent_id": "...", "steps": [...] }] }
+	# 格式2: { "agents": [{ "agent_id": "...", "steps": [...] }] }
+	# 格式3: { "agents": [{ "agent_id": "...", "assignments": [...] }] } (LLM实际输出)
+	
+	var assignments = data.get("assignments", [])
+	var agents = data.get("agents", [])
+	
+	print("[ActivityCoordinator] _parse_coordination_response: assignments字段数量=%d, agents字段数量=%d" % [assignments.size(), agents.size()])
+	
+	# 解析每个Agent的分配
+	if not assignments.is_empty():
+		# 格式1: 使用assignments字段
+		print("[ActivityCoordinator] _parse_coordination_response: 使用'assignments'字段")
+		for assignment in assignments:
+			var agent_id = assignment.get("agent_id", "")
+			var steps = assignment.get("steps", [])
+			
+			print("[ActivityCoordinator] _parse_coordination_response: 处理assignment, agent_id=%s, steps数量=%d" % [agent_id, steps.size()])
+			
+			if agent_id.is_empty():
+				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
+				continue
+			
+			var activities: Array[Activity] = []
+			for step_data in steps:
+				var activity = _parse_step_to_activity(step_data, agent_id)
+				if activity:
+					activities.append(activity)
+				else:
+					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
+			
+			results[agent_id] = activities
+			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
+	
+	elif not agents.is_empty():
+		# 格式2或3: 使用agents字段
+		print("[ActivityCoordinator] _parse_coordination_response: 使用'agents'字段")
+		for agent_data in agents:
+			var agent_id = agent_data.get("agent_id", "")
+			
+			# 尝试获取steps、assignments、activities或activity_sequence
+			var steps = agent_data.get("steps", [])
+			var agent_assignments = agent_data.get("assignments", [])
+			var agent_activities = agent_data.get("activities", [])
+			var activity_sequence = agent_data.get("activity_sequence", [])
+			
+			print("[ActivityCoordinator] _parse_coordination_response: 处理agent, agent_id=%s, steps=%d, assignments=%d, activities=%d, activity_sequence=%d" % [agent_id, steps.size(), agent_assignments.size(), agent_activities.size(), activity_sequence.size()])
+			
+			if agent_id.is_empty():
+				print("[ActivityCoordinator] _parse_coordination_response: agent_id为空,跳过")
+				continue
+			
+			var parsed_activities: Array[Activity] = []
+			
+			# 优先使用steps，如果没有则使用其他字段
+			var activity_list = steps
+			if activity_list.is_empty():
+				activity_list = agent_assignments
+			if activity_list.is_empty():
+				activity_list = agent_activities
+			if activity_list.is_empty():
+				activity_list = activity_sequence
+			
+			for step_data in activity_list:
+				var activity = _parse_step_to_activity(step_data, agent_id)
+				if activity:
+					parsed_activities.append(activity)
+				else:
+					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
+			
+			results[agent_id] = parsed_activities
+			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 	
 	return results
 
@@ -370,11 +518,21 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 	
 	match activity_type:
 		Activity.ActivityType.MOVE_TO:
+			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: parameters=%s" % str(parameters))
+			var target_location_dict = parameters.get("target_location", {})
+			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location_dict=%s" % str(target_location_dict))
 			var target_location = Vector2(
-				parameters.get("target_location", {}).get("x", 0),
-				parameters.get("target_location", {}).get("y", 0)
+				target_location_dict.get("x", 0),
+				target_location_dict.get("y", 0)
 			)
 			var target_room = parameters.get("target_room", "")
+			
+			# 如果LLM没有返回坐标，根据房间名自动分配
+			if target_location == Vector2.ZERO and not target_room.is_empty():
+				target_location = _get_room_default_position(target_room)
+				print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: 使用房间默认坐标 %s" % str(target_location))
+			
+			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location=%s, target_room=%s" % [str(target_location), target_room])
 			activity = Activity.create_move_to(target_location, target_room)
 		
 		Activity.ActivityType.NORMAL_DIALOGUE:
@@ -411,7 +569,12 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 		
 		Activity.ActivityType.GROUP_DISCUSSION:
 			var topic = parameters.get("topic", "")
-			var members = parameters.get("members", [])
+			var members_raw = parameters.get("members", [])
+			# 转换为Array[String]
+			var members: Array[String] = []
+			for m in members_raw:
+				if m is String:
+					members.append(m)
 			var discussion_focus = _int_to_focus_level(focus_level)
 			activity = Activity.create_group_discussion(topic, members, discussion_focus)
 	
@@ -424,13 +587,16 @@ func _string_to_activity_type(type_str: String) -> Activity.ActivityType:
 	"""字符串转活动类型"""
 	match type_str.to_upper():
 		"MOVE_TO": return Activity.ActivityType.MOVE_TO
-		"NORMAL_DIALOGUE": return Activity.ActivityType.NORMAL_DIALOGUE
-		"WHISPER": return Activity.ActivityType.WHISPER
+		"INITIATE_DIALOGUE": return Activity.ActivityType.INITIATE_DIALOGUE
+		"JOIN_DIALOGUE": return Activity.ActivityType.JOIN_DIALOGUE
+		"LEAVE_DIALOGUE": return Activity.ActivityType.LEAVE_DIALOGUE
 		"LISTEN": return Activity.ActivityType.LISTEN
 		"QA_TEACHER": return Activity.ActivityType.QA_TEACHER
 		"SELF_STUDY": return Activity.ActivityType.SELF_STUDY
 		"SPORTS": return Activity.ActivityType.SPORTS
 		"GROUP_DISCUSSION": return Activity.ActivityType.GROUP_DISCUSSION
+		"NORMAL_DIALOGUE": return Activity.ActivityType.NORMAL_DIALOGUE
+		"WHISPER": return Activity.ActivityType.WHISPER
 		_: return Activity.ActivityType.MOVE_TO
 
 func _int_to_focus_level(level: int) -> Activity.FocusLevel:
@@ -441,8 +607,66 @@ func _int_to_focus_level(level: int) -> Activity.FocusLevel:
 		100: return Activity.FocusLevel.HIGH
 		_: return Activity.FocusLevel.HIGH
 
+func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
+	"""获取活动类型名称"""
+	match activity_type:
+		Activity.ActivityType.MOVE_TO: return "MOVE_TO"
+		Activity.ActivityType.NORMAL_DIALOGUE: return "DIALOGUE"
+		Activity.ActivityType.WHISPER: return "WHISPER"
+		Activity.ActivityType.LISTEN: return "CLASS"
+		Activity.ActivityType.QA_TEACHER: return "QA"
+		Activity.ActivityType.SELF_STUDY: return "SELF_STUDY"
+		Activity.ActivityType.SPORTS: return "SPORTS"
+		Activity.ActivityType.GROUP_DISCUSSION: return "GROUP_DISCUSSION"
+		Activity.ActivityType.INITIATE_DIALOGUE: return "INITIATE_DIALOGUE"
+		Activity.ActivityType.JOIN_DIALOGUE: return "JOIN_DIALOGUE"
+		Activity.ActivityType.LEAVE_DIALOGUE: return "LEAVE_DIALOGUE"
+		_: return "UNKNOWN"
+
+func _get_room_default_position(room_name: String) -> Vector2:
+	"""根据房间名返回默认坐标（硬编码，基于School场景布局）"""
+	# 教室区域（主教学区）- 场景中央
+	if "教室" in room_name or "classroom" in room_name.to_lower():
+		return Vector2(1000 + randf_range(-50, 50), 400 + randf_range(-50, 50))
+	# 图书馆
+	elif "图书馆" in room_name or "library" in room_name.to_lower():
+		return Vector2(600 + randf_range(-50, 50), 300 + randf_range(-50, 50))
+	# 体育馆
+	elif "体育馆" in room_name or "gym" in room_name.to_lower():
+		return Vector2(1400 + randf_range(-50, 50), 600 + randf_range(-50, 50))
+	# 食堂
+	elif "食堂" in room_name or "cafeteria" in room_name.to_lower():
+		return Vector2(800 + randf_range(-50, 50), 700 + randf_range(-50, 50))
+	# 操场
+	elif "操场" in room_name or "playground" in room_name.to_lower():
+		return Vector2(1200 + randf_range(-100, 100), 800 + randf_range(-100, 100))
+	# 走廊
+	elif "走廊" in room_name or "corridor" in room_name.to_lower():
+		return Vector2(1000 + randf_range(-100, 100), 200 + randf_range(-50, 50))
+	# 默认：教室中央
+	else:
+		print("[ActivityCoordinator] 未知房间 '%s'，使用默认坐标" % room_name)
+		return Vector2(1000 + randf_range(-50, 50), 400 + randf_range(-50, 50))
+
 func _extract_json_from_text(text: String) -> String:
-	"""从文本中提取JSON"""
+	"""从文本中提取JSON（支持markdown代码块）"""
+	# 首先尝试查找 ```json 或 ``` 标记的代码块
+	var code_block_start = text.find("```json")
+	if code_block_start >= 0:
+		code_block_start += 7  # 跳过 ```json
+		var code_block_end = text.find("```", code_block_start)
+		if code_block_end >= 0:
+			return text.substr(code_block_start, code_block_end - code_block_start).strip_edges()
+	
+	# 尝试普通代码块
+	code_block_start = text.find("```")
+	if code_block_start >= 0:
+		code_block_start += 3  # 跳过 ```
+		var code_block_end = text.find("```", code_block_start)
+		if code_block_end >= 0:
+			return text.substr(code_block_start, code_block_end - code_block_start).strip_edges()
+	
+	# 回退到查找第一个 { 和最后一个 }
 	var json_start = text.find("{")
 	var json_end = text.rfind("}")
 	
@@ -459,19 +683,192 @@ func _distribute_activities(results: Dictionary) -> void:
 	"""将活动序列下发给各Agent"""
 	for agent_id in results.keys():
 		var activities = results[agent_id]
-		var agent_node = _find_agent_node(agent_id)
 		
-		if agent_node and agent_node.has_method("receive_activity_sequence"):
-			agent_node.receive_activity_sequence(activities)
-			activity_assigned.emit(agent_id, activities)
-			print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
+		# 分离对话活动和非对话活动
+		var dialogue_activities: Array[Activity] = []
+		var normal_activities: Array[Activity] = []
+		
+		for activity in activities:
+			if _is_dialogue_activity(activity):
+				dialogue_activities.append(activity)
+			else:
+				normal_activities.append(activity)
+		
+		# 处理对话活动
+		for activity in dialogue_activities:
+			_process_dialogue_activity(agent_id, activity)
+		
+		# 下发非对话活动给Agent
+		if normal_activities.size() > 0:
+			_distribute_to_agent(agent_id, normal_activities)
+
+func _distribute_to_agent(agent_id: String, activities: Array[Activity]) -> void:
+	"""将活动下发给指定Agent"""
+	var agent_node = _find_agent_node(agent_id)
+	
+	print("[ActivityCoordinator] _distribute_to_agent: agent_id=%s, agent_node=%s" % [agent_id, agent_node])
+	
+	if agent_node and agent_node.has_method("receive_activity_sequence"):
+		agent_node.receive_activity_sequence(activities)
+		activity_assigned.emit(agent_id, activities)
+		print("[ActivityCoordinator] 已向 %s 下发 %d 个活动" % [agent_id, activities.size()])
+		
+		# V2: 记录活动分配事件到记忆系统
+		if MemorySystem.instance:
+			var game_time = TimingSystem.instance.current_game_time if TimingSystem.instance else 0.0
+			for activity in activities:
+				var activity_name = _get_activity_type_name(activity.activity_type)
+				MemorySystem.instance.record_agent_activity(
+					agent_id,
+					activity_name,
+					game_time,
+					"",
+					activity.parameters,
+					1  # LOW importance
+				)
+	else:
+		# 存储在协调结果中，等待Agent获取
+		if not agent_node:
+			print("[ActivityCoordinator] %s 的活动已缓存（找不到Agent节点），等待获取" % agent_id)
 		else:
-			# 存储在协调结果中，等待Agent获取
-			print("[ActivityCoordinator] %s 的活动已缓存，等待获取" % agent_id)
+			print("[ActivityCoordinator] %s 的活动已缓存（Agent无receive_activity_sequence方法），等待获取" % agent_id)
+
+func _is_dialogue_activity(activity: Activity) -> bool:
+	"""检查是否为对话相关活动"""
+	return activity.activity_type in [
+		Activity.ActivityType.INITIATE_DIALOGUE,
+		Activity.ActivityType.JOIN_DIALOGUE,
+		Activity.ActivityType.LEAVE_DIALOGUE
+	]
+
+func _process_dialogue_activity(agent_id: String, activity: Activity) -> bool:
+	"""
+	处理对话相关活动
+	
+	返回:
+		是否成功处理
+	"""
+	if not dialogue_manager:
+		push_error("[ActivityCoordinator] 对话管理器未初始化")
+		return false
+	
+	var agent_node = _find_agent_node(agent_id)
+	if not agent_node:
+		push_error("[ActivityCoordinator] 找不到Agent节点: %s" % agent_id)
+		return false
+	
+	var character = agent_node.get_parent() as CharacterBody2D
+	if not character:
+		push_error("[ActivityCoordinator] Agent父节点不是CharacterBody2D")
+		return false
+	
+	match activity.activity_type:
+		Activity.ActivityType.INITIATE_DIALOGUE:
+			return _handle_initiate_dialogue(character, activity)
+		Activity.ActivityType.JOIN_DIALOGUE:
+			return _handle_join_dialogue(character, activity)
+		Activity.ActivityType.LEAVE_DIALOGUE:
+			return _handle_leave_dialogue(character, activity)
+	
+	return false
+
+func _handle_initiate_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
+	"""处理发起对话活动"""
+	var range_type = activity.parameters.get("range_type", 1)  # 1 = NORMAL
+	var initial_message = activity.parameters.get("initial_message", "")
+	var topic = activity.parameters.get("topic", "")
+	
+	# 获取当前游戏时间（从TimingSystem）
+	var current_click = _get_current_click()
+	var current_time = _get_current_game_time()
+	
+	# 调用DialogueManager发起对话
+	var dialogue_id = dialogue_manager.start_dialogue(
+		character,
+		range_type,
+		topic,
+		"",  # room_name 自动获取
+		"",  # medium_range_id 自动获取
+		current_click,
+		current_time
+	)
+	
+	if dialogue_id.is_empty():
+		print("[ActivityCoordinator] %s 发起对话失败" % character.name)
+		return false
+	
+	print("[ActivityCoordinator] %s 成功发起对话: %s" % [character.name, dialogue_id])
+	
+	# 如果有初始消息，立即添加
+	if not initial_message.is_empty():
+		dialogue_manager.add_message(dialogue_id, character, initial_message, current_click)
+	
+	return true
+
+func _handle_join_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
+	"""处理加入对话活动"""
+	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	
+	if dialogue_id.is_empty():
+		print("[ActivityCoordinator] %s 加入对话失败：未指定对话ID" % character.name)
+		return false
+	
+	var current_click = _get_current_click()
+	
+	var success = dialogue_manager.join_dialogue(character, dialogue_id, current_click)
+	
+	if success:
+		print("[ActivityCoordinator] %s 成功加入对话: %s" % [character.name, dialogue_id])
+	else:
+		print("[ActivityCoordinator] %s 加入对话失败: %s" % [character.name, dialogue_id])
+	
+	return success
+
+func _handle_leave_dialogue(character: CharacterBody2D, activity: Activity) -> bool:
+	"""处理离开对话活动"""
+	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	
+	if dialogue_id.is_empty():
+		# 如果没有指定ID，使用角色当前的对话
+		dialogue_id = dialogue_manager.get_character_dialogue(character)
+	
+	if dialogue_id.is_empty():
+		print("[ActivityCoordinator] %s 不在任何对话中" % character.name)
+		return false
+	
+	var success = dialogue_manager.leave_dialogue(character, dialogue_id)
+	
+	if success:
+		print("[ActivityCoordinator] %s 成功离开对话: %s" % [character.name, dialogue_id])
+	else:
+		print("[ActivityCoordinator] %s 离开对话失败: %s" % [character.name, dialogue_id])
+	
+	return success
+
+func _get_current_click() -> int:
+	"""获取当前Click索引（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_current_click"):
+		return timing_system.get_current_click()
+	return 0
+
+func _get_current_game_time() -> float:
+	"""获取当前游戏时间（从TimingSystem）"""
+	var timing_system = get_node_or_null("/root/TimingSystem")
+	if timing_system and timing_system.has_method("get_game_time"):
+		return timing_system.get_game_time()
+	return 0.0
 
 func get_assigned_activities(agent_id: String) -> Array[Activity]:
 	"""获取分配给指定Agent的活动序列"""
-	return coordination_results.get(agent_id, [])
+	var result = coordination_results.get(agent_id, [])
+	# 确保返回类型是 Array[Activity]
+	var typed_result: Array[Activity] = []
+	if result is Array:
+		for item in result:
+			if item is Activity:
+				typed_result.append(item)
+	return typed_result
 
 # ============================================
 # 辅助方法
@@ -481,30 +878,48 @@ func _find_agent_node(agent_id: String) -> Node:
 	"""查找Agent节点"""
 	var tree = get_tree()
 	if not tree:
+		print("[ActivityCoordinator] _find_agent_node: tree is null")
 		return null
 	
 	var characters = tree.get_nodes_in_group("character")
+	print("[ActivityCoordinator] _find_agent_node: 找到 %d 个character节点" % characters.size())
+	
 	for char in characters:
+		print("[ActivityCoordinator] _find_agent_node: 检查 character=%s, 目标=%s" % [char.name, agent_id])
 		if char.name == agent_id:
+			print("[ActivityCoordinator] _find_agent_node: 找到匹配的character %s" % agent_id)
 			# AIAgent是Character的子节点
 			for child in char.get_children():
+				print("[ActivityCoordinator] _find_agent_node: 检查子节点 %s, type=%s" % [child.name, child.get_class()])
 				if child is AIAgentClass:
+					print("[ActivityCoordinator] _find_agent_node: 找到AIAgent子节点")
 					return child
 			# 或者AIAgent就是char本身
 			if char is AIAgentClass:
+				print("[ActivityCoordinator] _find_agent_node: character本身就是AIAgent")
 				return char
+			print("[ActivityCoordinator] _find_agent_node: character %s 没有AIAgent子节点" % agent_id)
 	
+	print("[ActivityCoordinator] _find_agent_node: 未找到 %s" % agent_id)
 	return null
 
 func _get_current_room_name(character: CharacterBody2D) -> String:
 	"""获取角色当前房间名称"""
-	if ActivityManager.instance and ActivityManager.instance.room_manager:
-		var room = ActivityManager.instance.room_manager.get_current_room(
-			ActivityManager.instance.room_manager.rooms,
-			character.global_position
-		)
-		if room and room.has("room_name"):
-			return room.room_name
+	# 从场景树查找 RoomManager
+	var tree = get_tree()
+	if not tree:
+		return "unknown"
+	
+	var room_managers = tree.get_nodes_in_group("room_manager")
+	if room_managers.size() > 0:
+		var room_manager = room_managers[0]
+		if room_manager.has_method("get_current_room"):
+			var room = room_manager.get_current_room(
+				room_manager.rooms,
+				character.global_position
+			)
+			if room and room.has("room_name"):
+				return room.room_name
 	return "unknown"
 
 func _get_agent_role(character: CharacterBody2D) -> String:

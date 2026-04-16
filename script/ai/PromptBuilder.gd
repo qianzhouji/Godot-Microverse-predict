@@ -29,18 +29,37 @@ static func build_natural_decision_prompt(agent: AIAgent, perception: Dictionary
     # 构建变量映射
     var variables = {}
     
-    # 基础信息
+    # 角色描述
+    variables["role_description"] = _get_role_description(personality)
     variables["agent_name"] = agent_name
+    
+    # 基本信息和人格
     variables["basic_info"] = _build_basic_info(personality)
+    variables["big_five_traits"] = _build_big_five_traits(personality)
+    variables["mental_health_status"] = _build_mental_health_status(personality)
+    variables["functioning_level"] = _build_functioning_level(personality)
+    variables["specific_abilities"] = _build_specific_abilities(personality)
+    
+    # 认知计算参数
+    variables["cognitive_parameters"] = _build_cognitive_parameters(personality)
     
     # 当前状态
     variables["current_time"] = TimingSystem.instance.format_time(TimingSystem.instance.current_game_time)
     variables["current_room"] = perception.get("current_room", "未知")
     variables["current_period"] = TimelineState.instance.current_period
-    variables["nearby_agents"] = _build_nearby_agents(perception.get("nearby_agents", []))
+    variables["behavior_constraints"] = _build_behavior_constraints()
     
-    # 时间约束
-    variables["time_constraints"] = _build_behavior_constraints()
+    # 周围环境信息
+    variables["environment_info"] = _build_environment_info(perception)
+    
+    # 感知到的情境参数
+    variables["perceived_params"] = _build_perceived_params(agent, perception.get("current_room", ""))
+    
+    # 记忆（简化版）
+    variables["memories"] = _build_memories(agent)
+    
+    # 当前活动状态
+    variables["activity_status"] = _build_activity_status(agent)
     
     # 填充模板
     return _fill_template(template, variables)
@@ -218,6 +237,45 @@ static func _build_activity_status(agent: AIAgent) -> String:
         _:
             return "其他状态"
 
+static func _build_environment_info(perception: Dictionary) -> String:
+    var info = []
+    
+    # 当前房间
+    var room = perception.get("current_room", "未知")
+    info.append("当前位置：" + room)
+    
+    # 附近角色详情
+    var nearby = perception.get("nearby_agents", [])
+    if nearby.is_empty():
+        info.append("附近角色：无")
+    else:
+        var agents_desc = []
+        for agent in nearby:
+            var name = agent.get("name", "未知")
+            var activity = agent.get("activity", "")
+            if activity.is_empty():
+                agents_desc.append(name)
+            else:
+                agents_desc.append(name + "(" + activity + ")")
+        info.append("附近角色：" + "、".join(agents_desc))
+    
+    # 可见行为
+    var behaviors = perception.get("visible_behaviors", [])
+    if not behaviors.is_empty():
+        info.append("可见行为：" + "、".join(behaviors))
+    
+    # 可听内容
+    var audible = perception.get("audible_contents", [])
+    if not audible.is_empty():
+        info.append("可听内容：" + "、".join(audible))
+    
+    return "\n".join(info)
+
+static func _build_memories(agent: AIAgent) -> String:
+    # TODO: 从记忆系统获取真实记忆
+    # 暂时返回简化版本
+    return "- 近期活动：正常参与学校生活\n- 社交关系：与同学保持正常交往"
+
 static func _build_mood_status(agent: AIAgent) -> String:
     # TODO: 从DynamicPersonality获取当前心情
     return "心情一般"
@@ -270,6 +328,145 @@ static func _fill_template(template: String, variables: Dictionary) -> String:
         result = result.replace(placeholder, value)
     
     return result
+
+# ============================================
+# 对话系统Prompt构建（新）
+# ============================================
+
+static func build_initiate_dialogue_prompt(agent: AIAgent, target_info: Dictionary) -> String:
+    """
+    构建发起对话决策Prompt
+    
+    参数:
+        agent: 发起者Agent
+        target_info: 目标信息 {target_name, target_room, target_medium_range}
+    """
+    var agent_name = agent.character.name
+    var personality = CharacterPersonality.get_personality(agent_name)
+    
+    var prompt = "你现在想要发起一场对话。\n\n"
+    prompt += "你的信息：\n"
+    prompt += "- 名字：%s\n" % agent_name
+    prompt += "- 身份：%s\n" % personality.get("position", "学生")
+    prompt += "- 性格：%s\n" % personality.get("personality", "普通")
+    prompt += "- 说话风格：%s\n" % personality.get("speaking_style", "自然")
+    prompt += "\n"
+    
+    if target_info.has("target_name"):
+        prompt += "你想与 %s 对话。\n" % target_info.target_name
+    
+    if target_info.has("target_room"):
+        prompt += "目标位置：%s\n" % target_info.target_room
+    
+    prompt += "\n请决定：\n"
+    prompt += "1. 对话范围：悄悄话(私密)/普通对话(小群体)/广播(公开)\n"
+    prompt += "2. 讨论主题（可选）\n"
+    prompt += "3. 初始消息内容\n"
+    prompt += "\n请以JSON格式返回：\n"
+    prompt += '{"range_type": 0/1/2, "topic": "主题", "initial_message": "消息内容"}'
+    
+    return prompt
+
+static func build_join_dialogue_decision_prompt(agent: AIAgent, dialogue_info: Dictionary) -> String:
+    """
+    构建是否加入对话的决策Prompt
+    
+    参数:
+        agent: 决策Agent
+        dialogue_info: 对话信息 {dialogue_id, initiator, participants, range_type, topic}
+    """
+    var agent_name = agent.character.name
+    var personality = CharacterPersonality.get_personality(agent_name)
+    
+    var prompt = "你注意到附近有一场对话正在进行。\n\n"
+    prompt += "你的信息：\n"
+    prompt += "- 名字：%s\n" % agent_name
+    prompt += "- 性格：%s\n" % personality.get("personality", "普通")
+    prompt += "\n"
+    
+    prompt += "对话信息：\n"
+    prompt += "- 发起人：%s\n" % dialogue_info.get("initiator", "未知")
+    prompt += "- 参与者：%s\n" % ", ".join(dialogue_info.get("participants", []))
+    prompt += "- 类型：%s\n" % dialogue_info.get("range_type_name", "普通对话")
+    
+    if dialogue_info.has("topic") and not dialogue_info.topic.is_empty():
+        prompt += "- 主题：%s\n" % dialogue_info.topic
+    
+    prompt += "\n请决定是否加入这场对话。\n"
+    prompt += "考虑因素：你的性格、与参与者的关系、对话题的兴趣、当前状态。\n"
+    prompt += "\n只回答：加入/不加入\n"
+    
+    return prompt
+
+static func build_dialogue_response_prompt(agent: AIAgent, 
+                                           dialogue_history: String,
+                                           other_participants: Array[String],
+                                           range_type_name: String,
+                                           topic: String = "") -> String:
+    """
+    构建对话回应Prompt（供AIAgent.generate_dialogue_message使用）
+    
+    参数:
+        agent: 发言Agent
+        dialogue_history: 对话历史
+        other_participants: 其他参与者
+        range_type_name: 对话范围名称
+        topic: 讨论主题
+    """
+    var agent_name = agent.character.name
+    var personality = CharacterPersonality.get_personality(agent_name)
+    
+    var prompt = "你正在参与一场%s。\n\n" % range_type_name
+    prompt += "你的信息：\n"
+    prompt += "- 名字：%s\n" % agent_name
+    prompt += "- 身份：%s\n" % personality.get("position", "学生")
+    prompt += "- 性格：%s\n" % personality.get("personality", "普通")
+    prompt += "- 说话风格：%s\n" % personality.get("speaking_style", "自然")
+    
+    if not topic.is_empty():
+        prompt += "\n讨论主题：%s\n" % topic
+    
+    if not other_participants.is_empty():
+        prompt += "其他参与者：%s\n" % ", ".join(other_participants)
+    
+    if not dialogue_history.is_empty():
+        prompt += "\n对话历史：\n%s\n" % dialogue_history
+    
+    prompt += "\n现在轮到你发言。\n"
+    prompt += "要求：\n"
+    prompt += "- 保持自然，像真人一样说话\n"
+    prompt += "- 可以回应其他人的观点\n"
+    prompt += "- 对话长度控制在1-3句话，50字以内\n"
+    prompt += "- 只返回你要说的话，不要加任何前缀或解释\n"
+    prompt += "- 不要重复之前说过的话\n"
+    
+    return prompt
+
+static func build_teacher_select_speaker_prompt(teacher_agent: AIAgent, 
+                                                 requesting_students: Array[String]) -> String:
+    """
+    构建教师选择发言者的Prompt
+    
+    参数:
+        teacher_agent: 教师Agent
+        requesting_students: 请求发言的学生列表
+    """
+    var teacher_name = teacher_agent.character.name
+    var personality = CharacterPersonality.get_personality(teacher_name)
+    
+    var prompt = "你是%s，正在上课。\n" % teacher_name
+    prompt += "身份：%s\n" % personality.get("position", "教师")
+    prompt += "教学风格：%s\n\n" % personality.get("speaking_style", "严谨")
+    
+    prompt += "以下学生请求发言：\n"
+    for student in requesting_students:
+        prompt += "- %s\n" % student
+    
+    prompt += "\n请从中选择一位学生发言。\n"
+    prompt += "考虑因素：学生的参与度、问题的相关性、课堂平衡。\n"
+    prompt += "\n只返回你选择的学生名字。\n"
+    
+    return prompt
 
 # ============================================
 # 清除缓存（用于热更新）
