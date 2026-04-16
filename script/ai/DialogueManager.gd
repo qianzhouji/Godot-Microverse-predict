@@ -19,9 +19,9 @@ class_name DialogueManager
 
 # 对话范围枚举
 enum RangeType {
-	WHISPER,      # 悄悄话 - 小范围，最多3人
-	NORMAL,       # 普通对话 - 中范围，最多7人
-	BROADCAST     # 广播 - 大范围(整个教室)，无人数上限
+	WHISPER,      # 悄悄话 - 以角色为中心，30px半径，最多3人
+	NORMAL,       # 普通对话 - 以发起者所在中范围为边界，最多7人
+	BROADCAST     # 广播 - 以发起者所在子场景(RoomArea)为边界，无人数上限
 }
 
 # 对话结束原因
@@ -94,9 +94,83 @@ class DialogueData:
 			RangeType.NORMAL:
 				return 7
 			RangeType.BROADCAST:
-				return 999  # 大范围无人数上限
+				return -1  # 大范围无人数上限(-1表示无限制)
 			_:
 				return 7
+	
+	# 获取对话范围的边界区域
+	func get_range_boundary() -> Dictionary:
+		"""
+		获取对话范围的边界信息
+		
+		返回:
+			{
+				"type": "circle" | "medium_range" | "room_area",
+				"center": Vector2,  # 圆心或区域中心
+				"radius": float,     # 仅WHISPER使用
+				"room_name": String, # NORMAL和BROADCAST使用
+				"medium_range_id": String  # NORMAL使用
+			}
+		"""
+		match range_type:
+			RangeType.WHISPER:
+				return {
+					"type": "circle",
+					"center": initiator.global_position if initiator else Vector2.ZERO,
+					"radius": 30.0,
+					"room_name": room_name,
+					"medium_range_id": medium_range_id
+				}
+			RangeType.NORMAL:
+				return {
+					"type": "medium_range",
+					"center": Vector2.ZERO,  # 中范围边界由room_manager计算
+					"radius": 0.0,
+					"room_name": room_name,
+					"medium_range_id": medium_range_id
+				}
+			RangeType.BROADCAST:
+				return {
+					"type": "room_area",
+					"center": Vector2.ZERO,  # 子场景边界由room_manager计算
+					"radius": 0.0,
+					"room_name": room_name,
+					"medium_range_id": ""
+				}
+			_:
+				return {"type": "circle", "center": Vector2.ZERO, "radius": 30.0, "room_name": "", "medium_range_id": ""}
+	
+	# 检查角色是否在对话范围内（需要外部传入AIAgent引用）
+	func is_character_in_range(character: CharacterBody2D, ai_agent = null) -> bool:
+		"""检查角色是否在此对话的范围内"""
+		if not is_instance_valid(character):
+			return false
+		
+		var boundary = get_range_boundary()
+		
+		match boundary.type:
+			"circle":
+				# WHISPER: 30px圆形范围
+				var distance = character.global_position.distance_to(boundary.center)
+				return distance <= boundary.radius
+			
+			"medium_range":
+				# NORMAL: 同一中范围
+				if ai_agent and ai_agent.has_method("_get_character_medium_range"):
+					var char_medium_range = ai_agent._get_character_medium_range(character)
+					return char_medium_range == boundary.medium_range_id
+				# 回退：使用元数据
+				return character.get_meta("medium_range_id", "") == boundary.medium_range_id
+			
+			"room_area":
+				# BROADCAST: 同一子场景
+				if ai_agent and ai_agent.has_method("_get_character_room"):
+					var char_room = ai_agent._get_character_room(character)
+					return char_room == boundary.room_name
+				# 回退：使用元数据
+				return character.get_meta("current_room", "") == boundary.room_name
+		
+		return false
 	
 	func add_participant(character: CharacterBody2D, click_index: int) -> bool:
 		if participants.has(character):
@@ -255,10 +329,11 @@ func join_dialogue(character: CharacterBody2D, dialogue_id: String, current_clic
 		print("[DialogueManager] %s 是悄悄话，无法加入" % dialogue_id)
 		return false
 	
-	# 检查人数上限
-	if dialogue_data.participants.size() >= dialogue_data.get_max_participants():
+	# 检查人数上限（-1表示无限制）
+	var max_participants = dialogue_data.get_max_participants()
+	if max_participants > 0 and dialogue_data.participants.size() >= max_participants:
 		print("[DialogueManager] %s 已满（%d/%d人）" % [
-			dialogue_id, dialogue_data.participants.size(), dialogue_data.get_max_participants()
+			dialogue_id, dialogue_data.participants.size(), max_participants
 		])
 		return false
 	
@@ -765,12 +840,26 @@ func _get_character_room(character: CharacterBody2D) -> String:
 	"""获取角色所在房间"""
 	if not is_instance_valid(character):
 		return ""
+	
+	# 优先从AIAgent获取（更准确）
+	var ai_agent = _get_ai_agent(character)
+	if ai_agent and ai_agent.has_method("_get_character_room"):
+		return ai_agent._get_character_room(character)
+	
+	# 回退到元数据
 	return character.get_meta("current_room", "")
 
 func _get_character_medium_range(character: CharacterBody2D) -> String:
 	"""获取角色所在中范围"""
 	if not is_instance_valid(character):
 		return ""
+	
+	# 优先从AIAgent获取（更准确）
+	var ai_agent = _get_ai_agent(character)
+	if ai_agent and ai_agent.has_method("_get_character_medium_range"):
+		return ai_agent._get_character_medium_range(character)
+	
+	# 回退到元数据
 	return character.get_meta("medium_range_id", "")
 
 func _set_character_dialogue_meta(character: CharacterBody2D, dialogue_id: String, range_type: int):
@@ -802,11 +891,21 @@ func _is_character_in_dialogue_range(character: CharacterBody2D, dialogue_data: 
 	var char_medium = _get_character_medium_range(character)
 	
 	match dialogue_data.range_type:
-		RangeType.WHISPER, RangeType.NORMAL:
-			# 需要同一房间+同一中范围
+		RangeType.WHISPER:
+			# WHISPER: 30px圆形范围，需要检查实际距离
+			if char_room != dialogue_data.room_name:
+				return false
+			if dialogue_data.initiator and is_instance_valid(dialogue_data.initiator):
+				var distance = character.global_position.distance_to(dialogue_data.initiator.global_position)
+				return distance <= 30.0
+			return false
+		
+		RangeType.NORMAL:
+			# NORMAL: 同一中范围即可
 			return char_room == dialogue_data.room_name and char_medium == dialogue_data.medium_range_id
+		
 		RangeType.BROADCAST:
-			# 只需要同一房间
+			# BROADCAST: 同一子场景即可
 			return char_room == dialogue_data.room_name
 	
 	return false

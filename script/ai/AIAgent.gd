@@ -2495,3 +2495,140 @@ func _clean_dialogue_content(content: String) -> String:
 		content = content.substr(0, 100) + "..."
 	
 	return content
+
+# ============================================
+# 对话系统范围边界获取方法
+# ============================================
+
+func get_current_medium_range_boundary() -> Dictionary:
+	"""
+	获取当前中范围的边界信息
+	
+	返回:
+		{
+			"room_name": String,        # 当前房间名称
+			"medium_range_id": String,  # 中范围标识(Q1/Q2/Q3/Q4/LEFT/RIGHT/CENTER)
+			"center_position": Vector2, # 中范围中心坐标
+			"bounds": Rect2             # 中范围边界矩形(相对于room中心)
+		}
+	"""
+	var result = {
+		"room_name": "",
+		"medium_range_id": "",
+		"center_position": Vector2.ZERO,
+		"bounds": Rect2()
+	}
+	
+	if not character:
+		return result
+	
+	var current_room = _get_current_room()
+	if not current_room:
+		return result
+	
+	result.room_name = current_room.room_name
+	
+	var my_pos = character.global_position
+	var medium_range_id = _get_character_medium_range(character)
+	result.medium_range_id = medium_range_id
+	
+	# 计算中范围中心位置
+	var center_pos = _get_medium_range_center_position(current_room, medium_range_id)
+	result.center_position = center_pos
+	
+	# 计算中范围边界
+	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
+	var half_width = room_size.x * 0.5
+	var half_height = room_size.y * 0.5
+	
+	var range_type = _get_room_medium_range_type(current_room.room_name)
+	match range_type:
+		MediumRangeType.FOUR_QUADRANT:
+			# 4象限：每个象限是房间的四分之一
+			result.bounds = Rect2(
+				center_pos.x - half_width * 0.5,
+				center_pos.y - half_height * 0.5,
+				half_width,
+				half_height
+			)
+		MediumRangeType.LEFT_RIGHT:
+			# 左右分区：每个区是房间的一半宽度
+			result.bounds = Rect2(
+				center_pos.x - half_width * 0.5,
+				center_pos.y - half_height,
+				half_width,
+				room_size.y
+			)
+		MediumRangeType.SINGLE:
+			# 单区域：整个房间
+			result.bounds = Rect2(
+				current_room.position.x - half_width,
+				current_room.position.y - half_height,
+				room_size.x,
+				room_size.y
+			)
+	
+	return result
+
+func get_current_room_boundary() -> Dictionary:
+	"""
+	获取当前子场景(RoomArea)的边界信息
+	
+	返回:
+		{
+			"room_name": String,        # 房间名称
+			"center_position": Vector2, # 房间中心坐标
+			"bounds": Rect2,            # 房间边界矩形
+			"size": Vector2             # 房间尺寸
+		}
+	"""
+	var result = {
+		"room_name": "",
+		"center_position": Vector2.ZERO,
+		"bounds": Rect2(),
+		"size": Vector2.ZERO
+	}
+	
+	var current_room = _get_current_room()
+	if not current_room:
+		return result
+	
+	result.room_name = current_room.room_name
+	
+	var room_pos = current_room.position
+	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
+	result.size = room_size
+	
+	var half_width = room_size.x * 0.5
+	var half_height = room_size.y * 0.5
+	
+	result.center_position = room_pos
+	result.bounds = Rect2(
+		room_pos.x - half_width,
+		room_pos.y - half_height,
+		room_size.x,
+		room_size.y
+	)
+	
+	return result
+
+func _get_character_medium_range(char_node: CharacterBody2D) -> String:
+	"""获取角色所在中范围标识（供DialogueManager调用）"""
+	if not is_instance_valid(char_node):
+		return ""
+	
+	var char_room = _get_current_room_at_position(char_node.global_position)
+	if not char_room:
+		return ""
+	
+	return _get_medium_range_description(char_room, char_node.global_position)
+
+func _get_character_room(char_node: CharacterBody2D) -> String:
+	"""获取角色所在房间名称（供DialogueManager调用）"""
+	if not is_instance_valid(char_node):
+		return ""
+	
+	var char_room = _get_current_room_at_position(char_node.global_position)
+	if char_room:
+		return char_room.room_name
+	return ""
