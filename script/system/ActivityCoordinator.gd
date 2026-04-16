@@ -55,7 +55,7 @@ func _ready():
 func _load_prompt_template() -> void:
 	"""加载协调器Prompt模板"""
 	# 从文件加载或直接使用内置模板
-	var prompt_path = "res://docs/prompts/coordinator_prompt.md"
+	var prompt_path = "res://prompts/coordinator_prompt.md"
 	if FileAccess.file_exists(prompt_path):
 		var file = FileAccess.open(prompt_path, FileAccess.READ)
 		coordinator_prompt_template = file.get_as_text()
