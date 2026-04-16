@@ -211,7 +211,7 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 	elif ActivityManager.instance and ActivityManager.instance.has_activity(character.name):
 		# 正在活动中：体验 + 决策
 		print("[AIAgent] %s 执行活动中更新" % character.name)
-		_perform_activity_update()
+		await _perform_activity_update()
 	else:
 		# 空闲状态 → 感知 + 自然语言决策 + 提交协调器
 		print("[AIAgent] %s 执行V2认知循环" % character.name)
@@ -222,7 +222,9 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 # ============================================
 func _perform_activity_update():
 	print("[AIAgent] %s 活动中更新..." % character.name)
-	
+	await _perform_activity_update_async()
+
+func _perform_activity_update_async():
 	# 1. 获取当前活动信息
 	var activity_info = ActivityManager.instance.get_activity_info(character.name)
 	if not activity_info.has_activity:
@@ -232,7 +234,7 @@ func _perform_activity_update():
 	
 	# 2. 体验阶段：接收累积奖赏（ActivityManager已在Click时触发RewardSystem）
 	current_state = AgentState.EXPERIENCING
-	var experience_result = _experience_current_activity(activity_info)
+	var experience_result = await _experience_current_activity(activity_info)
 	print("[AIAgent] %s 体验完成: 累计时长%.1f分钟, 收益%.3f" % [
 		character.name,
 		activity_info.duration,
