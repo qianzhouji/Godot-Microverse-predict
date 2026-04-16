@@ -1,8 +1,8 @@
 # 角色状态系统详细文档
 
-> **系统名称**: CharacterPersonality + DynamicPersonality + MemoryManager + AIAgent
-> **版本**: 1.0
-> **最后更新**: 2026-04-07
+> **系统名称**: CharacterPersonality + DynamicPersonality + MemorySystem + AIAgent
+> **版本**: 2.0
+> **最后更新**: 2026-04-16
 
 ---
 
@@ -11,7 +11,7 @@
 1. [系统概述](#系统概述)
 2. [静态人设状态](#静态人设状态)
 3. [动态特质状态](#动态特质状态)
-4. [记忆系统](#记忆系统)
+4. [自然语言记忆系统](#自然语言记忆系统)
 5. [运行时状态](#运行时状态)
 6. [感知信念状态](#感知信念状态)
 7. [状态交互关系](#状态交互关系)
@@ -25,8 +25,8 @@
 
 角色状态系统是 Godot-Microverse-predict 项目的核心数据层，负责：
 - 定义角色的静态人设（性格、能力、背景）
-- 追踪角色的动态心理变化
-- 存储角色的经历和记忆
+- 追踪角色的动态心理变化（MVT参数）
+- 存储角色的经历和**自然语言情感体验**
 - 管理角色的实时活动状态
 
 ### 架构位置
@@ -36,13 +36,13 @@
 │  数据层（Data Layer）                                         │
 │  ├─ CharacterPersonality     - 静态人设配置                  │
 │  ├─ DynamicPersonality       - 动态特质管理                  │
-│  ├─ MemoryManager            - 记忆存储与检索                │
+│  ├─ MemorySystem             - 自然语言记忆与情感体验        │
 │  └─ PerceptionSystem         - 感知信念状态                  │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  运行时层（Runtime Layer）                                    │
-│  ├─ AIAgent                  - 实时活动状态                  │
+│  ├─ AIAgent                  - 实时活动状态与情感评估        │
 │  ├─ AgentRewardReceiver      - 奖赏历史                      │
 │  └─ CharacterBody2D          - 物理位置和动画                │
 └─────────────────────────────────────────────────────────────┘
@@ -53,8 +53,8 @@
 | 层级 | 状态类型 | 存储位置 | 更新频率 |
 |------|---------|---------|---------|
 | 静态层 | 人设配置 | CharacterPersonality.PERSONALITY_CONFIG | 永不更新 |
-| 动态层 | 心理特质 | character_data.dynamic_traits | 事件触发 |
-| 记忆层 | 经历记忆 | character_data.memories | 持续累积 |
+| 动态层 | 心理特质 | character_data.dynamic_traits | 事件触发 / 每日反思 |
+| 记忆层 | 自然语言体验 | MemorySystem._natural_memories | 每次活动体验 |
 | 感知层 | 信念状态 | PerceptionSystem.agent_beliefs | 体验采样 |
 | 运行时 | 活动状态 | AIAgent成员变量 | 实时更新 |
 
@@ -99,93 +99,37 @@ extends Node
 
 ### 3. 大五人格（OCEAN模型）
 
-| 维度 | 字段 | 范围 | 健康Agent | 抑郁Agent | 含义 |
-|------|------|------|----------|----------|------|
-| 开放性 | `openness` | 0-100 | 70 | 45 | 想象力、好奇心 |
-| 尽责性 | `conscientiousness` | 0-100 | 65 | 70 | 自律、组织性 |
-| 外向性 | `extraversion` | 0-100 | 85 | 30 | 社交活跃度 |
-| 宜人性 | `agreeableness` | 0-100 | 75 | 55 | 合作、信任 |
-| 神经质 | `neuroticism` | 0-100 | 35 | 75 | 情绪稳定性 |
-
-### 4. 初始抑郁状态
-
 ```gdscript
-"initial_depression": {
-    "phq9_baseline": 12,                 # PHQ-9基线分数 (0-27)
-    "severity_level": "中度",             # 严重程度等级
-    "symptom_duration_weeks": 8,         # 症状持续周数
-    "key_symptoms": ["兴趣减退", "疲劳感", "睡眠问题", "自我否定"]
+"big_five": {
+    "openness": 0.4,           # 开放性
+    "conscientiousness": 0.6,  # 尽责性
+    "extraversion": 0.3,       # 外向性（抑郁Agent较低）
+    "agreeableness": 0.5,      # 宜人性
+    "neuroticism": 0.7         # 神经质（抑郁Agent较高）
 }
 ```
 
-**PHQ-9分数对应表**:
-| 分数 | 等级 | 抑郁水平 |
-|------|------|---------|
-| 0-4 | 无 | 0-0.15 |
-| 5-9 | 轻度 | 0.15-0.33 |
-| 10-14 | 中度 | 0.33-0.52 |
-| 15-19 | 中重度 | 0.52-0.70 |
-| 20-27 | 重度 | 0.70-1.0 |
-
-### 5. 功能水平
-
-```gdscript
-"functioning_level": {
-    "academic_functioning": 65,          # 学业功能 (0-100)
-    "social_functioning": 40,            # 社交功能 (0-100)
-    "daily_living": 70,                  # 日常生活 (0-100)
-    "peer_relationships": 35,            # 同伴关系 (0-100)
-    "teacher_relationships": 60          # 师生关系 (0-100)
-}
-```
-
-### 6. 专能性
-
-```gdscript
-"specific_ability": {
-    "mathematics": 75,                   # 数学
-    "verbal_expression": 50,             # 语言表达
-    "visual_spatial": 60,                # 视觉空间
-    "physical_coordination": 45,         # 身体协调
-    "creative_thinking": 55,             # 创造性思维
-    "problem_solving": 70,               # 问题解决
-    "memory": 65,                        # 记忆力
-    "attention_span": 50                 # 注意力持续时间
-}
-```
-
-### 7. 认知机制参数（MVT模型）
+### 4. MVT认知机制参数（核心差异）
 
 ```gdscript
 "cognitive_mechanism": {
-    "p_base": 0.4,                       # 离开阈值
-    "eta_s": 0.6,                        # 初始奖赏感知权重
-    "eta_a": 0.7,                        # 衰减率感知权重
-    "beta_effort": 0.8,                  # 努力敏感性（核心差异参数）
-    "alpha": 0.55                        # 收益敏感性
+    "p_base": 0.4,           # 离开阈值（抑郁Agent较低）
+    "eta_s": 0.6,            # 初始奖赏感知权重
+    "eta_a": 0.7,            # 衰减率感知权重（抑郁Agent较高）
+    "beta_effort": 0.8,      # 努力敏感性（抑郁Agent核心差异）
+    "alpha": 0.55            # 收益敏感性（抑郁Agent较低）
 }
 ```
 
-**参数对比表**:
-| 参数 | 健康Agent | 抑郁Agent | 功能说明 |
-|------|----------|----------|---------|
-| `p_base` | 0.5-0.6 | 0.3-0.4 | 对环境平均奖赏的估计 |
-| `eta_s` | 0.5-0.7 | 0.6 | 对初始丰富度的敏感度 |
-| `eta_a` | 0.4-0.55 | 0.7-0.75 | 对奖赏衰减的敏感度 |
-| `beta_effort` | 0.4 | **0.8** | 努力成本对决策的影响 |
-| `alpha` | 0.8 | 0.5-0.6 | 收益的非线性效用 |
+**健康 vs 抑郁Agent 参数对比：**
 
-### 获取人设数据
-
-```gdscript
-# 获取完整人设
-var personality = CharacterPersonality.get_personality("StudentXiaoming")
-
-# 获取特定字段
-var role_type = personality.get("role_type", "healthy_student")
-var big_five = personality.get("big_five", {})
-var cognitive = personality.get("cognitive_mechanism", {})
-```
+| 参数 | 健康Agent | 抑郁Agent | 功能 |
+|------|----------|----------|------|
+| p_base | 0.5-0.6 | 0.3-0.4 | 离开阈值 |
+| eta_s | 0.5 | 0.4 | 初始奖赏感知权重 |
+| eta_a | 0.5 | 0.7 | 衰减率感知权重 |
+| beta_effort | 0.4 | **0.8** | **努力敏感性（核心差异）** |
+| alpha | 0.8 | 0.5-0.6 | 收益敏感性 |
 
 ---
 
@@ -198,19 +142,26 @@ class_name DynamicPersonality
 extends Node
 ```
 
-### 存储位置
+### 设计变更（v2.0）
 
-动态特质存储在角色的 `character_data.dynamic_traits` 元数据中。
+**旧设计（已移除）：**
+- 事件直接触发数值更新（如 beta_effort += 0.05）
+- 系统预定义更新规则
+
+**新设计：**
+- 事件触发 → **每日反思时LLM统一评估**
+- Agent自主判断认知参数调整
+- 自然语言记录调整原因
 
 ### 动态特质列表
 
-| 特质 | 字段 | 范围 | 基线来源 | 变化触发 |
+| 特质 | 字段 | 范围 | 基线来源 | 更新方式 |
 |------|------|------|---------|---------|
-| 当日抑郁水平 | `daily_depression_level` | 0-1 | 0.5 | 每日反思、事件反馈 |
-| 离开阈值 | `p_base` | 0-1 | cognitive_mechanism.p_base | 任务成功/失败 |
-| 初始奖赏感知权重 | `eta_s` | 0-1 | cognitive_mechanism.eta_s | 积极/消极社交 |
-| 衰减率感知权重 | `eta_a` | 0-1 | cognitive_mechanism.eta_a | 负面预期 |
-| 努力敏感性 | `beta_effort` | 0-1 | cognitive_mechanism.beta_effort | 任务反馈、教师评价 |
+| 当日抑郁水平 | `daily_depression_level` | 0-1 | 0.5 | **每日反思LLM评估** |
+| 离开阈值 | `p_base` | 0-1 | cognitive_mechanism.p_base | **每日反思LLM评估** |
+| 初始奖赏感知权重 | `eta_s` | 0-1 | cognitive_mechanism.eta_s | **每日反思LLM评估** |
+| 衰减率感知权重 | `eta_a` | 0-1 | cognitive_mechanism.eta_a | **每日反思LLM评估** |
+| 努力敏感性 | `beta_effort` | 0-1 | cognitive_mechanism.beta_effort | **每日反思LLM评估** |
 
 ### 边界保护机制
 
@@ -219,42 +170,29 @@ extends Node
 new_value = clamp(new_value, baseline - 0.2, baseline + 0.2)
 ```
 
-### 更新规则
+### 每日反思流程（v2.0）
 
-#### 任务反馈影响
-
-| 事件 | 影响参数 | 抑郁Agent | 健康Agent |
-|------|---------|----------|----------|
-| 任务成功 | beta_effort↓, p_base↑, 抑郁↓ | ×0.7 | ×1.2 |
-| 任务失败 | beta_effort↑, p_base↓, 抑郁↑ | ×1.5 | ×0.8 |
-
-#### 社交互动影响
-
-| 事件 | 影响参数 | 抑郁Agent | 健康Agent |
-|------|---------|----------|----------|
-| 积极社交 | 抑郁↓, eta_s↑ | ×0.7 | ×1.2 |
-| 消极社交 | beta_effort↑, eta_a↑, 抑郁↑ | ×1.5 | ×0.8 |
-
-#### 教师评价影响
-
-| 事件 | 影响参数 | 抑郁Agent | 健康Agent |
-|------|---------|----------|----------|
-| 表扬 | beta_effort↓, 抑郁↓ | ×0.7 | ×1.2 |
-| 批评 | beta_effort↑, 抑郁↑ | ×1.5 | ×0.8 |
+```
+收集当日所有自然语言记忆
+    ↓
+LLM分析情绪主题和关键事件
+    ↓
+LLM判断四项认知参数调整方向和严重程度(1-5)
+    ↓
+动态幅度计算：基础幅度(1%-12%) × 个体差异乘数
+    ↓
+PHQ-9九项完整评估
+    ↓
+更新抑郁水平和认知参数
+    ↓
+自然语言记录反思结果
+```
 
 ### API接口
 
 ```gdscript
 # 获取动态特质
 var traits = DynamicPersonality.get_dynamic_traits(character)
-
-# 更新特质
-DynamicPersonality.update_trait(
-    character,           # 角色节点
-    "beta_effort",       # 特质名称
-    -0.05,               # 变化量（负值减少）
-    "任务成功增强自信"    # 原因（用于记忆）
-)
 
 # 获取PHQ-9等级描述
 var desc = DynamicPersonality.get_phq9_level_description(0.45)
@@ -266,83 +204,133 @@ var prompt_text = DynamicPersonality.get_traits_for_prompt(character)
 
 ---
 
-## 记忆系统
+## 自然语言记忆系统
 
 ### 类定义
 
 ```gdscript
-# MemoryManager.gd
+# MemorySystem.gd
 extends Node
 ```
 
-### 记忆类型枚举
+### 设计变更（v2.0重大重构）
 
-```gdscript
-enum MemoryType {
-    PERSONAL,      # 个人记忆（内心想法、感受）
-    INTERACTION,   # 互动记忆（与他人对话）
-    TASK,          # 任务记忆（完成任务的经历）
-    EMOTION,       # 情感记忆（强烈的情绪体验）
-    EVENT          # 事件记忆（重要事件）
-}
+**旧设计（已移除）：**
+```
+SocialMemory - 数值关系分数(-1.0~1.0)
+EmotionMemory - 6维度情感值(0-1)
+系统自动更新数值
 ```
 
-### 重要性等级
-
-```gdscript
-enum MemoryImportance {
-    LOW = 1,       # 低重要性
-    NORMAL = 3,    # 普通重要性
-    HIGH = 5,      # 高重要性
-    CRITICAL = 10  # 关键重要性
-}
+**新设计：**
+```
+NaturalMemory - 自然语言情感描述
+Agent自主LLM评估
+活动体验阶段触发
 ```
 
-### 记忆结构
+### 记忆类型
+
+| 类型 | 说明 | 触发时机 |
+|------|------|---------|
+| `EVENT` | 结构化事件（移动、对话、上课） | 活动执行时 |
+| `NATURAL_EMOTION` | 自然语言情感体验 | **活动体验阶段** |
+
+### 自然语言记忆结构
 
 ```gdscript
 {
-    "content": "记忆内容文本",
-    "timestamp": "2026-04-07 15:30",  # 可读时间
-    "type": MemoryType.INTERACTION,    # 记忆类型
-    "importance": 5,                   # 重要性等级
-    "created_at": 1712485800          # Unix时间戳（用于排序）
+    "type": "NATURAL_EMOTION",
+    "content": "今天和小红讨论数学作业，她主动分享笔记，感觉她人还不错，愿意继续合作。",
+    "context": "小组讨论",
+    "timestamp": "第1天 10:45",
+    "real_timestamp": 1712485800
 }
 ```
 
-### 记忆存储位置
+### 情感评估流程
 
-记忆存储在角色的 `character_data.memories` 数组中。
+```
+活动执行完成
+    ↓
+体验阶段 (_experience_current_activity)
+    ↓
+构建Prompt（完整上下文）
+    - 活动信息（类型、参与者、地点、时长、专注度）
+    - 当前心情、收益感知
+    - 对相关参与者的先前记忆
+    ↓
+LLM情感评估 (_call_llm_for_emotion)
+    ↓
+自然语言输出（1-2句话，Agent自由发挥）
+    ↓
+存储到 MemorySystem.add_natural_memory()
+    ↓
+用于后续决策的上下文检索
+```
+
+### Prompt示例
+
+```
+你是StudentXiaoming，刚刚完成了以下活动。
+
+【活动信息】
+- 活动类型：小组讨论
+- 参与者：小红
+- 地点：教室（小组讨论区）
+- 持续时间：15.0分钟
+- 专注度：80%
+
+【你的状态】
+- 当前心情：有点累
+- 活动收益感知：0.72
+
+【相关记忆】
+- 之前对小红的印象：不太熟悉
+
+请用简洁的自然语言（1-2句话）记录这次活动带给你的感受，
+以及对参与者的评价。可以自由发挥，像写日记一样。
+```
 
 ### API接口
 
 ```gdscript
-# 添加记忆
-MemoryManager.add_memory(
-    character,                              # 角色节点
-    "今天和小红在食堂吃饭，聊得很开心",       # 记忆内容
-    MemoryManager.MemoryType.INTERACTION,   # 记忆类型
-    MemoryManager.MemoryImportance.NORMAL   # 重要性
+# 添加自然语言记忆（情感体验）
+MemorySystem.instance.add_natural_memory(
+    agent_id,                                    # Agent名称
+    "今天和小红讨论数学，她人还不错...",         # 自然语言内容
+    "小组讨论",                                  # 上下文
+    game_time                                    # 游戏时间
 )
 
-# 获取所有记忆
-var memories = MemoryManager.get_character_memories(character)
+# 获取关于某人的记忆（用于情感评估Prompt）
+var memories = MemorySystem.instance.get_memories_about(
+    "StudentXiaoming",   # Agent名称
+    "小红",              # 目标名称
+    3                    # 最多返回3条
+)
+# 返回: ["上次和小红...", "之前对小红..."]
 
-# 获取格式化的记忆文本（用于AI Prompt）
-var memory_text = MemoryManager.get_formatted_memories_for_prompt(character, 5)
-# 返回: "\n\n记忆信息：\n- [互动] 今天和小红在食堂吃饭...\n- [任务] 完成了数学作业..."
-
-# 获取特定类型的记忆
-var interaction_memories = MemoryManager.get_memories_by_type(
-    character, 
-    MemoryManager.MemoryType.INTERACTION
+# 记录结构化事件
+MemorySystem.instance.record_event(
+    agent_id,
+    "DIALOGUE",
+    game_time,
+    "教室",
+    {"topic": "数学作业"},
+    3
 )
 ```
 
-### 记忆清理机制
+### 与旧系统的对比
 
-- 自动清理：当记忆数量超过阈值时，删除最不重要、最旧的记忆
-- 保留策略：高重要性记忆优先保留
+| 特性 | 旧系统 (Social/EmotionMemory) | 新系统 (NaturalMemory) |
+|------|------------------------------|------------------------|
+| 数据形式 | 数值参数 | 自然语言文本 |
+| 评估主体 | 系统自动计算 | Agent自主LLM评估 |
+| 更新时机 | 每次互动自动更新 | 活动体验阶段统一评估 |
+| 可解释性 | 低（只有数字） | 高（有原因和情境） |
+| 灵活性 | 固定维度（好感/信任等） | 自由发挥 |
 
 ---
 
@@ -361,7 +349,7 @@ extends Node
 enum AgentState {
     IDLE,                # 空闲 - 无活动
     PERCEIVING,          # 感知中 - 收集场景信息
-    EXPERIENCING,        # 体验中 - 处理奖赏反馈
+    EXPERIENCING,        # 体验中 - 处理奖赏反馈 + **情感评估**
     DECIDING,            # 决策中 - 调用LLM决策
     WAITING_FOR_CLICK,   # 等待Click执行 - 请求已缓存
     EXECUTING_ACTION,    # 执行行动中 - 移动、对话等
@@ -375,27 +363,25 @@ enum AgentState {
 | 变量 | 类型 | 说明 |
 |------|------|------|
 | `current_state` | AgentState | 当前状态 |
-| `current_activity` | String | 当前活动类型（"对话"、"体育活动"、"自习"） |
-| `activity_start_time` | float | 活动开始时间（Unix时间戳） |
-| `last_activity` | String | 上一周期活动（用于体验阶段） |
+| `current_activity` | String | 当前活动类型 |
+| `activity_start_time` | float | 活动开始时间 |
+| `last_activity` | String | 上一周期活动（用于体验） |
 | `cached_request` | ActionRequest | 缓存的行动请求 |
 | `is_waiting_execution` | bool | 是否等待Click执行 |
-| `is_player_controlled` | bool | 是否由玩家控制 |
 
-### 移动状态
+### 新增：情感评估相关
 
 | 变量 | 类型 | 说明 |
 |------|------|------|
-| `_is_moving` | bool | 是否正在移动 |
-| `_target_position` | Vector2 | 目标位置坐标 |
-| `_movement_check_timer` | float | 移动检查计时器 |
+| `_emotion_evaluation_prompt` | String | 情感评估Prompt模板 |
+| `_last_emotional_record` | String | 上一次情感记录（调试用） |
 
 ### 状态流转图
 
 ```
 IDLE
   │
-  ├── Click触发 ──→ PERCEIVING ──→ EXPERIENCING ──→ DECIDING ──→ WAITING_FOR_CLICK
+  ├── Click触发 ──→ PERCEIVING ──→ EXPERIENCING（+情感评估）──→ DECIDING ──→ WAITING_FOR_CLICK
   │                                                                              │
   │                                                                              │
   └──←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←┘
@@ -439,17 +425,6 @@ class BeliefState:
     var last_update_time: int  # 上次更新时间
 ```
 
-### 存储结构
-
-```gdscript
-static var agent_beliefs: Dictionary = {
-    "AgentName": {
-        "RoomName": BeliefState,
-        "AnotherRoom": BeliefState
-    }
-}
-```
-
 ### 先验分布
 
 **健康Agent**:
@@ -481,15 +456,6 @@ var desc = PerceptionSystem.get_belief_description(
     "教室（主教学区）",
     true
 )
-# 返回: "\n\n【你对当前情境的感知】\n- 你觉得这个情境一开始能获得的收益：45%（较低）..."
-
-# 预测未来收益
-var predicted = PerceptionSystem.predict_gain(
-    "StudentXiaoming",
-    "教室（主教学区）",
-    10.0,  # 10分钟后的收益
-    true
-)
 ```
 
 ---
@@ -499,129 +465,138 @@ var predicted = PerceptionSystem.predict_gain(
 ### 状态更新流程
 
 ```
-事件触发
-    │
-    ├──→ 更新动态特质（DynamicPersonality.update_trait）
-    │       └── 修改 character_data.dynamic_traits
-    │
-    ├──→ 添加记忆（MemoryManager.add_memory）
-    │       └── 添加到 character_data.memories
-    │
-    ├──→ 更新感知信念（PerceptionSystem.add_sample）
-    │       └── 修改 agent_beliefs[agent][room]
-    │
-    └──→ 更新运行时状态（AIAgent）
-            └── 修改 current_state, current_activity等
+┌─────────────────────────────────────────────────────────────┐
+│  1. 活动触发                                                 │
+│     ActivityManager 分配活动 → AIAgent 执行                  │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  2. 体验阶段（新增情感评估）                                  │
+│     - 接收累积奖赏 (RewardSystem)                            │
+│     - 贝叶斯更新信念 (PerceptionSystem)                      │
+│     - **LLM情感评估** → 自然语言记忆 (MemorySystem)          │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  3. 决策阶段                                                 │
+│     - 获取感知参数 (PerceptionSystem)                        │
+│     - 获取相关记忆 (MemorySystem)                            │
+│     - 计算MVT最优时间 (UtilitySystem)                        │
+│     - LLM生成决策 (AIAgent)                                  │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│  4. 每日反思（v2.0）                                         │
+│     - 收集所有自然语言记忆                                   │
+│     - LLM分析情绪主题和认知变化                              │
+│     - 更新动态特质 (DynamicPersonality)                      │
+│     - PHQ-9完整评估                                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 数据流向
+### 记忆在决策中的作用
 
-```
-静态人设（CharacterPersonality）
-    │
-    ├──→ 初始化动态特质基线
-    │
-    ├──→ 提供Prompt构建信息
-    │
-    └──→ 决策时读取认知参数
-
-动态特质（DynamicPersonality）
-    │
-    ├──→ 影响决策（通过Prompt）
-    │
-    ├──→ 触发记忆记录
-    │
-    └──→ 每日反思时更新
-
-记忆（MemoryManager）
-    │
-    ├──→ 影响决策（通过Prompt）
-    │
-    └──→ 情感关系计算
-
-感知信念（PerceptionSystem）
-    │
-    └──→ 影响决策（通过Prompt）
-
-运行时状态（AIAgent）
-    │
-    ├──→ 驱动行为执行
-    │
-    └──→ 触发体验采样
+```gdscript
+# AIAgent 决策时构建Prompt
+func _make_natural_decision(perception):
+    # 1. 获取基础信息
+    var personality = _get_personality()
+    
+    # 2. 获取相关记忆（自然语言）
+    var memory_text = MemorySystem.instance.get_formatted_memories_for_prompt(character, 5)
+    # 返回: "- 今天和小红讨论数学，感觉她人还不错..."
+    
+    # 3. 构建完整Prompt
+    var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
+    # 包含：人格 + 状态 + 自然语言记忆 + 当前情境
+    
+    # 4. LLM生成决策
+    var decision = await _call_local_llm(prompt)
 ```
 
 ---
 
 ## 使用示例
 
-### 示例1：获取角色完整状态
+### 示例1：查看角色完整状态
 
 ```gdscript
-func get_character_full_status(character: Node) -> Dictionary:
-    var status = {}
-    
-    # 1. 静态人设
-    status["personality"] = CharacterPersonality.get_personality(character.name)
-    
-    # 2. 动态特质
-    status["dynamic_traits"] = DynamicPersonality.get_dynamic_traits(character)
-    
-    # 3. 记忆
-    status["memories"] = MemoryManager.get_character_memories(character)
-    
-    # 4. 运行时状态
-    var agent = character.get_node("AIAgent")
-    if agent:
-        status["current_state"] = agent.current_state
-        status["current_activity"] = agent.current_activity
-    
-    return status
+# 获取角色节点
+var character = get_node("StudentXiaoming")
+var agent = character.get_node("AIAgent")
+
+# 1. 静态人设
+var personality = CharacterPersonality.get_personality("StudentXiaoming")
+print("角色: %s" % personality.name)
+print("类型: %s" % personality.role_type)
+print("努力敏感性: %.2f" % personality.cognitive_mechanism.beta_effort)
+
+# 2. 动态特质
+var traits = DynamicPersonality.get_dynamic_traits(character)
+print("当前beta_effort: %.2f" % traits.beta_effort)
+print("抑郁水平: %.2f" % traits.daily_depression_level)
+
+# 3. 自然语言记忆
+var memories = MemorySystem.instance.get_memories_about("StudentXiaoming", "小红", 3)
+for mem in memories:
+    print("记忆: %s" % mem)
+
+# 4. 当前状态
+print("当前状态: %s" % agent.current_state)
+print("当前活动: %s" % agent.current_activity)
 ```
 
-### 示例2：处理事件并更新状态
+### 示例2：追踪情感变化
 
 ```gdscript
-func on_task_completed(character: Node, success: bool):
-    # 1. 更新动态特质
-    var effort_level = 0.5
-    DynamicPersonality.apply_task_feedback(character, success, effort_level)
-    
-    # 2. 添加记忆
-    var result = "成功" if success else "失败"
-    MemoryManager.add_memory(
-        character,
-        "任务%s完成" % result,
-        MemoryManager.MemoryType.TASK,
-        MemoryManager.MemoryImportance.HIGH
-    )
+# 获取Agent对小红的所有情感记录
+var all_memories = MemorySystem.instance._natural_memories.get("StudentXiaoming", [])
+var xiaohong_memories = []
+
+for mem in all_memories:
+    if "小红" in mem.content:
+        xiaohong_memories.append(mem)
+
+# 按时间排序查看情感变化
+for mem in xiaohong_memories:
+    print("[%s] %s" % [mem.timestamp, mem.content])
+
+# 输出示例:
+// [第1天 10:45] 今天和小红讨论数学，她主动分享笔记，感觉人还不错。
+// [第3天 14:20] 小红又在课堂上嘲笑我，真的很讨厌她。
+// [第5天 09:15] 小红今天帮我捡起了掉落的笔，或许她也没那么坏。
 ```
 
-### 示例3：构建决策Prompt
+### 示例3：调试情感评估
 
 ```gdscript
-func build_decision_context(character: Node) -> String:
-    var context = ""
+# 在AIAgent中查看最近一次情感评估
+func _evaluate_activity_emotion(activity_info):
+    var prompt = _build_emotion_evaluation_prompt(activity_info)
+    print("情感评估Prompt:\n%s" % prompt)
     
-    # 静态人设
-    var personality = CharacterPersonality.get_personality(character.name)
-    context += "【人格特质】" + personality.get("personality", "")
+    var emotional_record = await _call_llm_for_emotion(prompt)
+    print("情感评估结果: %s" % emotional_record)
     
-    # 动态特质
-    context += DynamicPersonality.get_traits_for_prompt(character)
-    
-    # 记忆
-    context += MemoryManager.get_formatted_memories_for_prompt(character, 5)
-    
-    # 感知参数
-    var current_room = get_current_room(character)
-    context += PerceptionSystem.get_belief_description(
-        character.name, current_room, is_depression_risk(character)
-    )
-    
-    return context
+    # 存储...
 ```
 
 ---
 
-*文档维护者：百舟楫*
-*最后更新：2026-04-07*
+## 版本历史
+
+### v2.0 (2026-04-16)
+- **重大重构**: 社交/情感记忆系统改为自然语言评估
+- **移除**: SocialMemory.gd, EmotionMemory.gd（数值系统）
+- **新增**: AIAgent._evaluate_activity_emotion()（LLM情感评估）
+- **新增**: MemorySystem.add_natural_memory()（自然语言存储）
+- **变更**: 动态特质更新改为每日反思时LLM统一评估
+
+### v1.0 (2026-04-07)
+- 初始版本
+- SocialMemory/EmotionMemory数值系统
+- 事件直接触发数值更新
+
+---
+
+*本文档由AI助手百舟楫维护*
