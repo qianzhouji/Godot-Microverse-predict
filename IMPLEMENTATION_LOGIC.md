@@ -1,8 +1,6 @@
 # 项目实现逻辑文档 - Godot-Microverse-predict
 
 > 本文档用于维护项目的代码实现逻辑，记录各模块的职责、交互方式及与理论框架的对应关系。
-> 
-> **最后更新：** 2026-04-07
 
 ---
 
@@ -22,23 +20,24 @@
   - [2.8 DailyReflectionSystem.gd](#28-dailyreflectionsystemgd)
   - [2.9 RewardSystem.gd](#29-rewardsystemgd)
   - [2.10 AgentRewardReceiver.gd](#210-agentrewardreceivergd)
-  - [2.11 DayNightSystem.gd](#211-daynightsystemgd)
-  - [2.12 ScheduleSystem.gd](#212-schedulesystemgd)
-- [三、关键实现问题](#三关键实现问题)
+- [三、数据流详细说明](#三数据流详细说明)
 - [四、待办事项](#四待办事项)
+- [五、文件结构速查](#五文件结构速查)
+- [六、核心参数速查表](#六核心参数速查表)
+- [七、MVT公式实现速查](#七mvt公式实现速查)
 
 ---
 
 ## 一、项目架构总览
 
-### 1.1 三层架构与代码映射（2026-04-05更新：感知层与系统层分离完成）
+### 1.1 三层架构与代码映射
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Layer 1: 客观现实（系统层）- Agent不可见 ⭐ 分离完成              │
+│  Layer 1: 客观现实（系统层）- Agent不可见                        │
 │  ├─ RoomArea.gd          - 定义情境参数(S, a, E)                 │
-│  ├─ RewardSystem.gd      - 【新增】奖赏发放中介 ⭐               │
-│  ├─ RoomManager.gd       - 房间管理与内部接口 ⭐                 │
+│  ├─ RewardSystem.gd      - 奖赏发放中介                          │
+│  ├─ RoomManager.gd       - 房间管理与内部接口                    │
 │  └─ RoomData.gd          - 房间数据结构                          │
 │                                                                 │
 │  职责：维护客观世界，通过RewardSystem发放"奖赏"                  │
@@ -49,8 +48,8 @@
                     （Agent只接收"奖赏"数值）
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  Layer 2: 感知推断（认知层）- 个体差异 ⭐ 分离完成                │
-│  ├─ AgentRewardReceiver.gd - 【新增】Agent奖赏接收器 ⭐          │
+│  Layer 2: 感知推断（认知层）- 个体差异                           │
+│  ├─ AgentRewardReceiver.gd - Agent奖赏接收器                     │
 │  └─ PerceptionSystem.gd  - 贝叶斯感知系统                        │
 │                                                                 │
 │  职责：从奖赏序列推断情境特征，个体差异体现在先验和感知精度      │
@@ -64,7 +63,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │  Layer 3: 效用评估（决策层）                                      │
 │  ├─ UtilitySystem.gd     - 效用计算与MVT决策                     │
-│  ├─ AIAgent.gd           - Agent决策中枢 ⭐ 已移除直接RoomArea访问 │
+│  ├─ AIAgent.gd           - Agent决策中枢                         │
 │  └─ DynamicPersonality.gd - 动态特质管理（外部控制）              │
 │                                                                 │
 │  职责：计算主观效用，驱动行为决策                                  │
@@ -73,8 +72,6 @@
 │  健康Agent：α↑ (0.8), β↓ (0.4)                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
-**⭐ 2026-04-05重大更新**: 完成感知层与系统层分离，Agent不再直接访问RoomArea参数
 
 ### 1.2 核心数据流
 
@@ -153,9 +150,8 @@ const DEPRESSION_PRIOR_S_VAR = 0.15
 | `get_perceived_params()` | 输出感知到的情境参数(Ŝ, â) |
 | `predict_gain()` | 基于信念预测未来收益 |
 
-**实现更新（2026-04-07）**：
-- ✅ 贝叶斯更新已使用非线性最小二乘拟合理论收益函数
-- 拟合公式：`G(t) = (S/a)[1 - exp(-at)]`
+**信念更新实现：**
+- 使用非线性最小二乘拟合理论收益函数 `G(t) = (S/a)[1 - exp(-at)]`
 - 通过网格搜索找到最优的 S 和 a 参数
 - 后验 = 先验 × 似然（正态分布共轭先验）
 
@@ -182,7 +178,7 @@ const DEPRESSION_ALPHA = 0.55       # 抑郁Agent（收益贬值）
 const DEPRESSION_BETA_EFFORT = 0.8  # 抑郁Agent（努力放大）
 ```
 
-**最优停留时间计算（2026-04-07更新）：**
+**最优停留时间计算：**
 ```gdscript
 static func calculate_optimal_time(perceived_S, perceived_a, effort, 
                                    alpha, beta_effort, p_base, eta_s, eta_a):
@@ -219,13 +215,7 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
 4. 执行行为（移动/对话/任务）
 ```
 
-**与理论框架的实现（2026-04-07更新）：**
-- ✅ 感知参数已注入Prompt
-- ✅ 效用参数已注入Prompt
-- ✅ **MVT计算结果直接驱动行为** - `_check_mvt_leave_decision()` 已实现
-- ✅ 使用理论解析公式计算最优停留时间
-
-**已实现（2026-04-07）：**
+**MVT驱动行为决策实现：**
 ```gdscript
 # _check_mvt_leave_decision() 已实现完整MVT决策逻辑
 func _check_mvt_leave_decision(room_name, time_in_room, personality, is_depression):
@@ -278,11 +268,11 @@ func _check_mvt_leave_decision(room_name, time_in_room, personality, is_depressi
 
 ---
 
-### 2.6 DynamicPersonality.gd - 动态特质管理 ⭐ 2026-04-05重大扩展
+### 2.6 DynamicPersonality.gd - 动态特质管理
 
 **职责：** 管理随时间变化的心理特质和认知计算机制参数
 
-**核心功能（2026-04-05新增）：**
+**核心功能：**
 
 | 函数 | 触发条件 | 影响 |
 |------|---------|------|
@@ -359,7 +349,9 @@ enum MemoryType {
 - 任务成功/失败记忆通过外部系统影响动态特质
 - **每日反思的基础**：所有当日记忆被收集用于反思分析
 
-### 2.8 DailyReflectionSystem.gd - 每日反思系统 ⭐ 2026-04-05新增
+---
+
+### 2.8 DailyReflectionSystem.gd - 每日反思系统
 
 **职责：** 每日结束时自动反思，动态调整认知参数，完成PHQ-9评估
 
@@ -407,30 +399,41 @@ func _on_day_end():
 
 ---
 
-### 2.8 CharacterController.gd - 角色控制器
+### 2.9 RewardSystem.gd - 奖赏发放中介
 
-**职责：** 执行物理层面的移动、交互、动画
+**职责：** 系统层核心组件，封装RoomArea访问，计算并发放奖赏
 
-**关键功能：**
-| 功能 | 说明 |
-|------|------|
-| `move_to()` | 导航寻路移动 |
-| `sit_on_chair()` | 坐下交互 |
-| `update_animation()` | 动画状态更新 |
-| `_calculate_avoidance_direction()` | 避障逻辑 |
+**核心功能：**
+- 封装RoomArea访问（Agent不可见）
+- 计算客观收益 G(t) = (S/a)[1 - exp(-at)]
+- 通过信号向Agent发放奖赏
 
-**与AIAgent的关系：**
-- AIAgent决策 → CharacterController执行
-- 分离决策层与执行层
+**设计原则：** Agent不能直接读取S,a,E，只能通过此接口接收"奖赏"
+
+**信号：** `reward_distributed(agent_name, room_name, time, gain, effort)`
+
+---
+
+### 2.10 AgentRewardReceiver.gd - Agent奖赏接收器
+
+**职责：** Agent端的奖赏接收器，感知层组件
+
+**核心功能：**
+- 订阅RewardSystem信号
+- 接收并缓存奖赏历史
+- 添加感知噪声（极小）
+- 传递给PerceptionSystem
+
+**依赖：** RewardSystem, PerceptionSystem
 
 ---
 
 ## 三、数据流详细说明
 
-### 3.1 正常决策循环（2026-04-05更新：感知层与系统层分离）
+### 3.1 正常决策循环
 
 ```
-[系统层] ⭐ Agent不可见
+[系统层] - Agent不可见
 RewardSystem.distribute_reward(agent_name, room_name, time=5)
     ↓
 内部读取 RoomArea(S=0.8, a=0.3, E=0.2) 【Agent不可访问】
@@ -439,7 +442,7 @@ RewardSystem.distribute_reward(agent_name, room_name, time=5)
     ↓
 发射信号 reward_distributed(agent_name, "食堂", 5, 0.72, 0.2)
 
-[感知层] ⭐ 接收信号
+[感知层] - 接收信号
 AgentRewardReceiver._on_reward_received()
     ↓
 添加极小噪声(σ=2%) → 感知gain = 0.71
@@ -454,7 +457,7 @@ UtilitySystem.calculate_optimal_time(Ŝ=0.74, â=0.32, E=0.2,
     ↓
 计算得最优时间 T* = 13秒
 
-[决策层] ⭐ MVT驱动
+[决策层] - MVT驱动
 AIAgent._check_mvt_leave_decision()
 - 当前已停留5秒 < T*(13秒)
 - 但效用开始下降，可能触发离开
@@ -464,7 +467,7 @@ MVT决策：STAY / LEAVE / SWITCH
 CharacterController执行移动/交互
 ```
 
-**⭐ 关键变更**: Agent不再直接访问RoomArea，只能通过RewardSystem接收奖赏
+**关键变更**: Agent不再直接访问RoomArea，只能通过RewardSystem接收奖赏
 
 ### 3.2 抑郁vs健康Agent差异示例
 
@@ -478,52 +481,7 @@ CharacterController执行移动/交互
 
 ---
 
-## 四、与理论框架的对应检查表（2026-04-05更新）
-
-| 理论要求 | 实现状态 | 实现文件 | 备注 |
-|---------|---------|---------|------|
-| 三类智能体架构 | ✅ | CharacterPersonality.gd | 完整实现 |
-| 情境参数(S,a,E) | ✅ | RoomArea.gd | 完整实现 |
-| 客观收益函数G(t) | ✅ | RewardSystem.gd ⭐ | 系统层计算 |
-| **感知层与系统层分离** | ✅ | 多层协作 ⭐ | **2026-04-05完成** |
-| 贝叶斯感知系统 | ✅ | PerceptionSystem.gd ⭐ | 非线性拟合实现 |
-| 先验信念差异 | ✅ | PerceptionSystem.gd | 健康vs抑郁 |
-| 感知噪声 | ✅ | PerceptionSystem.gd ⭐ | σ=2%，极小噪声 |
-| 效用函数U=G^α-βE | ✅ | UtilitySystem.gd | 完整实现 |
-| 参数个体差异 | ✅ | CharacterPersonality.gd | α和β差异 |
-| MVT最优时间计算 | ✅ | UtilitySystem.gd ⭐ | 理论解析公式实现 |
-| **MVT驱动行为决策** | ✅ | AIAgent.gd ⭐ | **2026-04-07实现** |
-| PHQ-9动态追踪 | ⚠️ | DynamicPersonality.gd | 有变量未完整集成 |
-| 记忆系统 | ✅ | MemoryManager.gd | 完整实现 |
-
-**图例：** ✅ 完整实现 | ⚠️ 简化/部分实现 | ❌ 未实现  
-**⭐** 2026-04-05新增或重大更新
-
----
-
-## 五、关键待办事项（2026-04-05更新）
-
-### 已完成的重大改进 ✅
-
-1. **MVT驱动行为决策** ✅ 2026-04-05完成
-   - 实现 `_check_mvt_leave_decision()` 函数
-   - 三种触发条件：超过最优时间 / 效用为负 / 抑郁Agent提前离开
-   - 实现 `_select_next_room_by_mvt()` 效用最大化选择
-
-2. **感知层与系统层分离** ✅ 2026-04-05完成
-   - 创建 `RewardSystem.gd` - 系统层奖赏发放
-   - 创建 `AgentRewardReceiver.gd` - 感知层接收器
-   - 修改 `AIAgent.gd` - 移除所有直接RoomArea访问
-   - 修改 `RoomManager.gd` - 添加内部接口
-   - 修改 `RoomArea.gd` - 移除直接暴露参数的接口
-   - 配置 `AutoLoad` - RewardSystem设置为单例
-   - Agent只能通过RewardSystem接收"奖赏"，不能直接读取S,a,E
-
-3. **感知噪声调整** ✅ 2026-04-05完成
-   - 将 `BASE_PERCEPTION_NOISE` 从0.1降至0.02（σ=2%）
-   - 理论依据：主要噪声应在决策层（ε），感知层仅轻微不确定性
-
-### 待完成事项 ⏳
+## 四、待办事项
 
 ### 高优先级
 （暂无）
@@ -540,30 +498,30 @@ CharacterController执行移动/交互
 
 ---
 
-## 六、文件结构速查（2026-04-05更新：感知层分离）
+## 五、文件结构速查
 
 ```
 res://
 ├── script/
 │   ├── ai/                         # AI系统层
-│   │   ├── AIAgent.gd              # Agent决策中枢 ⭐ 已移除RoomArea访问
+│   │   ├── AIAgent.gd              # Agent决策中枢
 │   │   ├── PerceptionSystem.gd     # 贝叶斯感知系统（Layer 2）
 │   │   ├── UtilitySystem.gd        # 效用计算系统（Layer 3）
-│   │   ├── AgentRewardReceiver.gd  # 【新增】Agent奖赏接收器 ⭐
+│   │   ├── AgentRewardReceiver.gd  # Agent奖赏接收器
 │   │   ├── DynamicPersonality.gd   # 动态特质管理
-│   │   ├── DialogManager.gd        # 对话管理
+│   │   ├── DialogueManager.gd      # 对话管理
 │   │   ├── ConversationManager.gd  # 对话内容生成
 │   │   ├── APIManager.gd           # AI API调用
 │   │   └── memory/
 │   │       └── MemoryManager.gd    # 记忆系统
-│   ├── system/                     # 【新增】系统层目录 ⭐
-│   │   └── RewardSystem.gd         # 【新增】奖赏发放中介 ⭐
+│   ├── system/                     # 系统层目录
+│   │   └── RewardSystem.gd         # 奖赏发放中介
 │   ├── CharacterPersonality.gd     # 角色人设配置
 │   ├── CharacterController.gd      # 角色物理控制
 │   ├── CharacterManager.gd         # 角色管理
 │   ├── RoomArea.gd                 # 情境参数定义（Layer 1）
 │   ├── RoomData.gd                 # 房间数据结构
-│   ├── RoomManager.gd              # 房间管理 ⭐ 已添加内部接口
+│   ├── RoomManager.gd              # 房间管理
 │   └── ...
 ├── scene/
 │   ├── maps/
@@ -574,22 +532,12 @@ res://
 │       └── *.tscn                  # UI场景
 ├── PROJECT_OVERVIEW.md             # 理论基础文档
 ├── IMPLEMENTATION_LOGIC.md         # 实现逻辑文档（本文档）
-├── PROJECT_STRUCTURE.md            # 【新增】完整项目结构文档 ⭐
-└── TODO_Perception_System_Separation_2026-04-05.md  # 【新增】分离实施待办 ⭐
+└── PROJECT_STRUCTURE.md            # 完整项目结构文档
 ```
-
-**⭐ 2026-04-05新增文件**:
-- `script/system/RewardSystem.gd` - 系统层奖赏发放
-- `script/ai/AgentRewardReceiver.gd` - 感知层接收器
-- `script/ai/DailyReflectionSystem.gd` - 每日反思与认知调整系统
-- `PROJECT_STRUCTURE.md` - 完整项目结构文档
-- `TODO_Perception_System_Separation_2026-04-05.md` - 分离实施待办
-- `docs/DYNAMIC_PERSONALITY_DESIGN.md` - 动态人设设计文档
-- `docs/DAILY_REFLECTION_DESIGN.md` - 每日反思设计文档
 
 ---
 
-## 七、核心参数速查表
+## 六、核心参数速查表
 
 ### 情境参数（RoomArea）
 | 参数 | 范围 | 低 | 中 | 高 |
@@ -609,64 +557,9 @@ res://
 
 ---
 
----
+## 七、MVT公式实现速查
 
-## 八、最近更新记录
-
-### 2026-04-07 MVT公式修正
-
-#### 上午：MVT理论公式实现修正
-- ✅ **修正 UtilitySystem.gd**
-  - 重写 `calculate_optimal_time()` 使用理论解析公式：`log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε`
-  - 更新 `get_agent_utility_params()` 返回全部四个MVT核心参数（ρ_base, η_s, η_a, β_effort）
-  - 更新 `get_utility_params_description()` 添加MVT参数描述
-  - 更新 `get_decision_analysis()` 集成MVT建议停留时间
-- ✅ **修正 AIAgent.gd**
-  - 实现 `_check_mvt_leave_decision()` 完整MVT离开决策检查
-- ✅ **修正 PerceptionSystem.gd**
-  - 重写 `_update_beliefs()` 使用非线性最小二乘拟合理论收益函数 `G(t) = (S/a)[1 - exp(-at)]`
-  - 替代原来的线性近似
-- ✅ **更新项目文档**
-  - 更新 README.md 中的MVT公式说明
-  - 更新 PROJECT_STRUCTURE.md 中的实现描述
-  - 更新 IMPLEMENTATION_LOGIC.md（本文档）
-
-### 2026-04-05 重大更新日
-
-#### 上午：感知层与系统层分离完成
-- ✅ **MVT驱动行为决策实现** - AIAgent现在根据MVT计算结果直接驱动停留/离开行为
-- ✅ **感知层与系统层分离全部完成** - Agent不再直接访问RoomArea参数
-  - ✅ 新增RewardSystem.gd - 系统层奖赏发放中介
-  - ✅ 新增AgentRewardReceiver.gd - 感知层奖赏接收器
-  - ✅ 修改AIAgent.gd - 移除所有直接RoomArea访问
-  - ✅ 修改RoomManager.gd - 添加内部接口
-  - ✅ 修改RoomArea.gd - 移除直接暴露参数的接口
-  - ✅ 配置AutoLoad - RewardSystem设置为单例
-- ✅ **感知噪声调整** - 从10%降至2%（σ=0.02）
-- ✅ **新增项目文档** - PROJECT_STRUCTURE.md, TODO_Perception_System_Separation_2026-04-05.md, docs/AUTOLOAD_SETUP.md
-
-#### 下午：动态人设系统扩展
-- ✅ **扩展DynamicPersonality.gd** - 新增事件反馈影响函数
-  - `apply_task_feedback()` - 任务成功/失败影响
-  - `apply_social_feedback()` - 社交互动影响
-  - `apply_teacher_feedback()` - 教师评价影响
-  - `daily_phq9_update()` - 每日PHQ-9更新
-  - `_apply_boundary_protection()` - 边界保护机制
-- ✅ **新增设计文档** - docs/DYNAMIC_PERSONALITY_DESIGN.md
-
-#### 傍晚：每日反思系统实现
-- ✅ **创建DailyReflectionSystem.gd** - 完整的每日反思与认知调整系统
-  - LLM-based反思分析（情绪主题、关键事件、认知变化）
-  - 四项认知参数动态调整（严重程度1-5映射到1%-12%）
-  - 个体差异（抑郁Agent负面×1.5，健康Agent有韧性）
-  - 完整PHQ-9九项评估（总分0-27，五个等级）
-- ✅ **新增设计文档** - docs/DAILY_REFLECTION_DESIGN.md
-
----
-
-## 九、MVT公式实现速查（2026-04-07）
-
-### 9.1 客观收益函数（RewardSystem.gd）
+### 7.1 客观收益函数（RewardSystem.gd）
 ```gdscript
 # G(t) = (S/a)[1 - exp(-at)]
 func _calculate_objective_gain(S: float, a: float, time: float) -> float:
@@ -674,7 +567,7 @@ func _calculate_objective_gain(S: float, a: float, time: float) -> float:
     return clamp(gain, 0.0, 1.0)
 ```
 
-### 9.2 主观效用函数（UtilitySystem.gd）
+### 7.2 主观效用函数（UtilitySystem.gd）
 ```gdscript
 # U(G) = G^α - β_effort × E
 static func calculate_utility(gain: float, effort: float, 
@@ -684,7 +577,7 @@ static func calculate_utility(gain: float, effort: float,
     return gain_utility - effort_cost
 ```
 
-### 9.3 最优停留时间公式（UtilitySystem.gd）
+### 7.3 最优停留时间公式（UtilitySystem.gd）
 ```gdscript
 # log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
 static func calculate_optimal_time(perceived_S, perceived_a, effort,
@@ -698,7 +591,7 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
     return clamp(exp(log_T), 1.0, 60.0)
 ```
 
-### 9.4 信念更新（PerceptionSystem.gd）
+### 7.4 信念更新（PerceptionSystem.gd）
 ```gdscript
 # 使用非线性最小二乘拟合 G(t) = (S/a)[1 - exp(-at)]
 # 网格搜索最优 S 和 a，然后贝叶斯更新
@@ -707,4 +600,3 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
 ---
 
 *本文档应与PROJECT_OVERVIEW.md（理论基础）同步维护。*
-*最后更新：2026-04-07*
