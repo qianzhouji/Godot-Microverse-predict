@@ -569,7 +569,7 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
 
 | 文档 | 用途 |
 |------|------|
-| [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) | 理论基础和研究设计 |
+| [README.md](./README.md) | 项目简介、理论基础和研究设计 |
 | [本文档](./PROJECT_STRUCTURE.md) | 项目结构、脚本清单与实现逻辑 |
 | [docs/TECHNICAL_DOCUMENTATION.md](./docs/TECHNICAL_DOCUMENTATION.md) | 系统架构与技术实现详情 |
 | [docs/Dialogue_System.md](./docs/Dialogue_System.md) | 对话系统设计 |
