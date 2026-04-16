@@ -441,6 +441,9 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 		is_depression
 	)
 	
+	# 新增：情感评估与记忆记录
+	await _evaluate_activity_emotion(activity_info)
+	
 	return {
 		"cumulative_gain": objective_gain,
 		"perceived_gain": perceived_gain,
@@ -448,6 +451,92 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 		"perceived_params": perceived_params,
 		"activity_duration": activity_info.get("duration", 0.0)
 	}
+
+# ============================================
+# 新增：活动情感评估（自然语言记忆）
+# ============================================
+func _evaluate_activity_emotion(activity_info: Dictionary) -> void:
+	"""
+	在活动体验阶段，使用LLM评估情感并生成自然语言记忆
+	"""
+	# 构建体验评估Prompt
+	var prompt = _build_emotion_evaluation_prompt(activity_info)
+	
+	# 调用LLM生成情感评估
+	var emotional_record = await _call_llm_for_emotion(prompt)
+	
+	# 记录到记忆系统（自然语言）
+	if MemorySystem.instance and not emotional_record.is_empty():
+		MemorySystem.instance.add_natural_memory(
+			character.name,
+			emotional_record,
+			activity_info.get("activity_name", "活动"),
+			_get_current_game_time()
+		)
+		
+		# 同时记录到体验日志
+		if logger:
+			logger.log_activity(character.name, "情感体验: %s" % emotional_record.substr(0, 50))
+	
+	print("[AIAgent] %s 情感评估: %s" % [character.name, emotional_record.substr(0, 50)])
+
+func _build_emotion_evaluation_prompt(activity_info: Dictionary) -> String:
+	"""构建情感评估Prompt（完整上下文）"""
+	var activity_name = activity_info.get("activity_name", "未知活动")
+	var duration = activity_info.get("duration", 0.0)
+	var location = activity_info.get("location", "未知地点")
+	var focus_level = activity_info.get("focus_level", 50)
+	
+	# 获取参与者信息
+	var participants = activity_info.get("participants", [])
+	var participant_str = ""
+	if participants.size() > 0:
+		participant_str = ", ".join(participants)
+	else:
+		participant_str = "独自"
+	
+	# 获取当前心情状态
+	var mood = character.get_meta("current_mood", "平静")
+	
+	# 构建Prompt
+	var prompt = "你是%s，刚刚完成了以下活动。\n\n" % character.name
+	prompt += "【活动信息】\n"
+	prompt += "- 活动类型：%s\n" % activity_name
+	prompt += "- 参与者：%s\n" % participant_str
+	prompt += "- 地点：%s\n" % location
+	prompt += "- 持续时间：%.1f分钟\n" % duration
+	prompt += "- 专注度：%d%%\n" % focus_level
+	prompt += "\n【你的状态】\n"
+	prompt += "- 当前心情：%s\n" % mood
+	prompt += "- 活动收益感知：%.2f\n" % reward_receiver.get_last_reward().get("perceived_gain", 0.0)
+	
+	# 添加相关记忆（如果有关于参与者的）
+	if MemorySystem.instance and participants.size() > 0:
+		var relevant_memories = ""
+		for participant in participants:
+			if participant != character.name:
+				var mems = MemorySystem.instance.get_memories_about(character.name, participant, 1)
+				if mems.size() > 0:
+					relevant_memories += "- 之前对%s的印象：%s\n" % [participant, mems[0]]
+		if not relevant_memories.is_empty():
+			prompt += "\n【相关记忆】\n" + relevant_memories
+	
+	prompt += "\n请用简洁的自然语言（1-2句话）记录这次活动带给你的感受，"
+	prompt += "以及对参与者的评价。可以自由发挥，像写日记一样。"
+	
+	return prompt
+
+func _call_llm_for_emotion(prompt: String) -> String:
+	"""调用LLM生成情感评估"""
+	# 使用现有的LLM调用机制
+	var response = await _call_local_llm(prompt, 2)  # 最多2次重试
+	
+	# 清理响应
+	var text = response.strip_edges()
+	if text.length() > 200:
+		text = text.substr(0, 200) + "..."
+	
+	return text
 
 # ============================================
 # 活动决策（继续/停止/更换）- 新时序逻辑

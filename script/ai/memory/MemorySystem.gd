@@ -19,6 +19,9 @@ var emotion_memory: EmotionMemory
 # 缓存已加载的Agent数据
 var _loaded_agents: Dictionary = {}  # {agent_id: true}
 
+# 新增：自然语言记忆存储 {agent_id: [memory_entry, ...]}
+var _natural_memories: Dictionary = {}
+
 # 记忆类型枚举（保持兼容）
 enum MemoryType {
 	PERSONAL,      # 个人记忆
@@ -177,6 +180,68 @@ func _get_memory_timestamp(memory: Dictionary) -> float:
 # 新增接口
 # ============================================
 
+# 新增：添加自然语言记忆（情感评估用）
+func add_natural_memory(agent_id: String, content: String, 
+						context: String = "", game_time: float = 0.0) -> void:
+	"""
+	添加自然语言记忆（用于情感评估和体验记录）
+	
+	参数:
+	- agent_id: Agent标识
+	- content: 自然语言内容（情感评估结果）
+	- context: 上下文（如活动名称）
+	- game_time: 游戏时间
+	"""
+	if content.strip_edges().is_empty():
+		return
+	
+	_ensure_agent_loaded(agent_id)
+	
+	# 创建自然语言记忆条目
+	var memory_entry = {
+		"type": "NATURAL_EMOTION",
+		"content": content,
+		"context": context,
+		"timestamp": MemoryFormatter.format_game_timestamp(game_time) if game_time > 0 else "未知时间",
+		"real_timestamp": Time.get_unix_time_from_system()
+	}
+	
+	# 存储到自然语言记忆列表
+	if not _natural_memories.has(agent_id):
+		_natural_memories[agent_id] = []
+	_natural_memories[agent_id].append(memory_entry)
+	
+	# 限制记忆数量（保留最近50条）
+	if _natural_memories[agent_id].size() > 50:
+		_natural_memories[agent_id].pop_front()
+	
+	print("[MemorySystem] %s 添加自然记忆: %s" % [agent_id, content.substr(0, 40)])
+	_save_agent_memory(agent_id)
+
+# 新增：获取关于某人的自然语言记忆
+func get_memories_about(agent_id: String, target_name: String, max_count: int = 3) -> Array:
+	"""
+	获取关于特定目标的自然语言记忆
+	用于在情感评估时提供上下文
+	"""
+	if not _natural_memories.has(agent_id):
+		return []
+	
+	var result = []
+	var memories = _natural_memories[agent_id]
+	
+	# 倒序遍历，找最近的相关记忆
+	for i in range(memories.size() - 1, -1, -1):
+		var mem = memories[i]
+		var content = mem.get("content", "")
+		# 简单字符串匹配（包含目标名字）
+		if target_name in content:
+			result.append(content)
+			if result.size() >= max_count:
+				break
+	
+	return result
+
 # 记录事件
 func record_event(agent_id: String, event_type: String, 
 				  game_time: float, location: String = "",
@@ -304,6 +369,9 @@ func _ensure_agent_loaded(agent_id: String) -> void:
 			social_memory.deserialize(data["social"])
 		if data.has("emotions"):
 			emotion_memory.deserialize(data["emotions"])
+		# 加载自然语言记忆
+		if data.has("natural_memories"):
+			_natural_memories[agent_id] = data["natural_memories"]
 	
 	_loaded_agents[agent_id] = true
 
@@ -311,7 +379,8 @@ func _save_agent_memory(agent_id: String) -> void:
 	var data = {
 		"events": event_memory.serialize(),
 		"social": social_memory.serialize(),
-		"emotions": emotion_memory.serialize()
+		"emotions": emotion_memory.serialize(),
+		"natural_memories": _natural_memories.get(agent_id, [])
 	}
 	MemoryPersistence.save_agent_memory(agent_id, data)
 
