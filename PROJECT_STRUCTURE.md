@@ -54,336 +54,60 @@ res://
 
 ---
 
-## 三、核心脚本详解
+## 三、核心脚本清单
+
+> **详细技术说明请参考**: [docs/TECHNICAL_DOCUMENTATION.md](./docs/TECHNICAL_DOCUMENTATION.md)
 
 ### 3.1 AI系统层 (script/ai/)
 
-#### AIAgent.gd
-- **路径**: `res://script/ai/AIAgent.gd`
-- **类型**: Node
-- **职责**: Agent决策中枢，协调感知、效用、记忆系统
-- **核心功能**:
-  - **新时序逻辑**: 每次Click触发体验(累积) + 决策(继续/停止/更换)
-  - MVT驱动行为决策（离开/停留/切换情境）
-  - LLM-based对话生成
-  - 活动生命周期管理
-- **依赖**: PerceptionSystem, UtilitySystem, RewardSystem, AgentRewardReceiver, ActivityManager
-- **关键函数**:
-  - `_on_click_triggered()` - Click触发入口（区分空闲/活动中状态）
-  - `_perform_activity_update()` - 活动中更新：体验 + 决策
-  - `_make_activity_decision()` - 活动决策（继续/停止/更换）
-  - `_experience_current_activity()` - 体验当前活动累积奖赏
-  - `_check_mvt_leave_decision()` - MVT决策检查
-  - `_select_next_room_by_mvt()` - 基于效用选择下一个房间
+| 脚本 | 类型 | 核心职责 |
+|------|------|----------|
+| AIAgent.gd | Node | Agent决策中枢，认知循环（感知→体验→决策→执行） |
+| PerceptionSystem.gd | 静态类 | 贝叶斯感知系统，情境参数推断 |
+| UtilitySystem.gd | 静态类 | MVT效用计算与最优停留时间决策 |
+| AgentRewardReceiver.gd | Node | 奖赏接收器，感知层组件 |
+| DynamicPersonality.gd | 静态类 | 动态特质管理，PHQ-9评估与参数调整 |
+| DialogueManager.gd | Node | 统一对话管理器（大/中/小三种范围） |
+| SpeakerQueueManager.gd | Node | 智能发言队列管理 |
+| PromptBuilder.gd | 静态类 | Prompt模板构建 |
+| DailyReflectionSystem.gd | 静态类 | 每日反思与认知机制动态调整 |
+| memory/MemoryManager.gd | AutoLoad | 记忆系统管理 |
+| memory/MemorySystem.gd | AutoLoad | 分层记忆架构（事件/社交/情感） |
 
-#### PerceptionSystem.gd
-- **路径**: `res://script/ai/PerceptionSystem.gd`
-- **类型**: Node (静态类)
-- **职责**: 贝叶斯感知系统，管理Agent对情境的主观推断
-- **核心功能**:
-  - 维护Agent对每个情境的信念状态
-  - 贝叶斯更新后验信念（使用非线性最小二乘拟合理论收益函数）
-  - 先验信念差异（健康vs抑郁）
-- **关键参数**:
-  - `BASE_PERCEPTION_NOISE = 0.02` - 极小的感知噪声（标准差2%）
-  - 健康Agent先验: S~Uniform(0.5, 0.25)
-  - 抑郁Agent先验: S~Uniform(0.3, 0.15)
-- **理论依据**: 
-  - 感知层噪声仅表示轻微不确定性，主要噪声在决策层（ε）
-  - 信念更新使用非线性拟合: `G(t) = (S/a)[1 - exp(-at)]`
+### 3.2 系统层 (script/system/)
 
-#### UtilitySystem.gd
-- **路径**: `res://script/ai/UtilitySystem.gd`
-- **类型**: Node (静态类)
-- **职责**: 效用计算系统，实现MVT决策
-- **核心功能**:
-  - 计算主观效用: U = G^α - β_effort × E
-  - 计算最优停留时间 T*（使用理论解析公式）
-  - 管理个体差异参数（四个MVT核心参数）
-- **关键公式**:
-  - 主观效用: `U(G) = G^α - β_effort × E`
-  - 最优停留时间: `log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε`
-- **关键参数**:
-  - 健康Agent: α=0.8, β_effort=0.4, ρ_base=0.5, η_s=0.5, η_a=0.5
-  - 抑郁Agent: α=0.55, β_effort=0.8, ρ_base=0.35, η_s=0.4, η_a=0.7
-
-#### AgentRewardReceiver.gd ⭐ 新增
-- **路径**: `res://script/ai/AgentRewardReceiver.gd`
-- **类型**: Node
-- **职责**: Agent端的奖赏接收器，感知层组件
-- **核心功能**:
-  - 订阅RewardSystem信号
-  - 接收并缓存奖赏历史
-  - 添加感知噪声（极小）
-  - 传递给PerceptionSystem
-- **依赖**: RewardSystem, PerceptionSystem
-
-#### DynamicPersonality.gd
-- **路径**: `res://script/ai/DynamicPersonality.gd`
-- **类型**: Node (静态类)
-- **职责**: 动态特质管理，追踪可变化的心理特质
-- **核心功能**:
-  - 管理每日抑郁水平（PHQ-9）
-  - 动态调整认知机制参数
-  - 外部显式调用更新（无自动触发）
-- **可调整特质**: p_base, eta_s, eta_a, beta_effort, daily_depression_level
-- **更新规则**:
-  - 任务成功: beta_effort↓, p_base↑, 抑郁↓
-  - 任务失败: beta_effort↑, p_base↓, 抑郁↑
-  - 积极社交: 抑郁↓, eta_s↑
-  - 消极社交: beta_effort↑, eta_a↑, 抑郁↑
-  - 教师表扬: beta_effort↓, 抑郁↓
-  - 教师批评: beta_effort↑, 抑郁↑
-- **个体差异**: 抑郁Agent负面×1.5/正面×0.7，健康Agent负面×0.8/正面×1.2
-- **边界保护**: 偏离基线≤20%
-
-#### DialogManager.gd
-- **路径**: `res://script/ai/DialogManager.gd`
-- **类型**: Node
-- **职责**: 对话管理系统，协调角色间对话
-- **核心功能**:
-  - 管理活跃对话
-  - 触发对话事件
-  - 对话历史记录
-
-#### ConversationManager.gd
-- **路径**: `res://script/ai/ConversationManager.gd`
-- **类型**: Node
-- **职责**: 对话内容生成，调用LLM生成自然对话
-- **核心功能**:
-  - 构建对话Prompt
-  - 调用API生成回复
-  - 管理对话上下文
-
-#### APIManager.gd
-- **路径**: `res://script/ai/APIManager.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: LLM API管理，统一接口调用不同模型
-- **核心功能**:
-  - 支持多种API（Kimi, OpenAI等）
-  - 请求队列管理
-  - 响应解析
-
-#### memory/MemoryManager.gd
-- **路径**: `res://script/ai/memory/MemoryManager.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 记忆系统，管理Agent的经验记忆
-- **核心功能**:
-  - 添加、查询、遗忘记忆
-  - 记忆重要性评估
-  - 为Prompt格式化记忆
-- **记忆类型**: PERSONAL, INTERACTION, TASK, EMOTION, EVENT
-- **重要性等级**: LOW(1), NORMAL(3), HIGH(5), CRITICAL(10)
-
-#### DailyReflectionSystem.gd ⭐ 2026-04-05新增
-- **路径**: `res://script/ai/DailyReflectionSystem.gd`
-- **类型**: Node (静态类)
-- **职责**: 每日反思与认知机制动态调整系统（LLM-based）
-- **核心功能**:
-  - `conduct_daily_reflection()` - 执行完整每日反思流程
-  - `_analyze_reflection()` - LLM分析当日经历，输出{情绪主题, 关键事件, 认知变化}
-  - `_decide_cognitive_adjustments()` - LLM判断四项参数调整方向和严重程度(1-5)
-  - `_calculate_adjustment_magnitude()` - 动态幅度计算（严重程度→基础幅度×个体差异）
-  - `_conduct_phq9_assessment()` - 完整PHQ-9九项评估
-- **严重程度映射**: 1→1%, 2→3%, 3→5%, 4→8%, 5→12%
-- **个体差异**: 抑郁Agent负面×1.5，健康Agent负面×0.8
-- **PHQ-9评估**: 九项症状，总分0-27，五个等级
-  - `_conduct_phq9_assessment()` - 完整PHQ-9九项评估
-- **调整幅度设计**:
-  - 严重程度1-5映射到1%-12%
-  - 个体差异：抑郁Agent负面×1.5，健康Agent有韧性
-  - 边界保护：偏离基线≤20%
-- **PHQ-9评估**: 九项症状，总分0-27，五个等级
-
----
-
-### 3.2 系统层 (script/system/) ⭐ 新增
-
-#### RewardSystem.gd ⭐ 新增
-- **路径**: `res://script/system/RewardSystem.gd`
-- **类型**: Node (单例)
-- **职责**: 奖赏发放中介，系统层核心组件
-- **核心功能**:
-  - 封装RoomArea访问（Agent不可见）
-  - 计算客观收益 G(t) = (S/a)[1 - exp(-at)]
-  - 通过信号向Agent发放奖赏
-- **设计原则**: Agent不能直接读取S,a,E，只能通过此接口接收"奖赏"
-- **信号**: `reward_distributed(agent_name, room_name, time, gain, effort)`
-
-#### DayNightSystem.gd ⭐ 2026-04-05新增
-- **路径**: `res://script/system/DayNightSystem.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 游戏时间管理系统，模拟一天的时间流逝
-- **核心功能**:
-  - 1现实分钟 = 1游戏小时，24分钟 = 1游戏天
-  - 从早上7点开始，17点放学，周末休息
-  - 信号：day_started, hour_changed, day_ended, school_time_started/ended
-  - 自动触发所有学生的每日反思（一天结束时）
-- **时间配置**:
-  - `REAL_SECONDS_PER_GAME_HOUR = 60.0`
-  - `SCHOOL_START_HOUR = 7.0`
-  - `SCHOOL_END_HOUR = 17.0`
-
-#### ScheduleSystem.gd ⭐ 2026-04-05新增
-- **路径**: `res://script/system/ScheduleSystem.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 课程表与任务管理系统
-- **核心功能**:
-  - 为所有Agent分配个性化课程任务
-  - 根据角色类型（抑郁/健康/教师）调整任务优先级
-  - 监听DayNightSystem信号，上学日自动分配任务
-- **课程表**:
-  - 上午：班主任课 → 英语课 → 小组讨论
-  - 午休：食堂用餐
-  - 下午：数学课 → 体育活动
-- **个性化分配**:
-  - 抑郁风险学生：高努力情境低优先级（可能回避）
-  - 健康学生：正常参与所有活动
-  - 教师：按课程表教学
-
-#### ActivityManager.gd ⭐ 2026-04-08新增
-- **路径**: `res://script/system/ActivityManager.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 活动管理系统，支持新时序逻辑
-- **核心功能**:
-  - `start_activity()` - 开始新活动，记录活动上下文
-  - `end_activity()` - 结束活动，计算最终收益
-  - `_on_click_triggered()` - Click时更新所有活动状态
-  - `_update_activity_on_click()` - 计算累积奖赏，触发RewardSystem
-  - `interrupt_activity()` / `resume_activity()` - 中断/恢复活动
-- **活动类型**: CLASS, STUDY, DIALOGUE, SPORTS, MEAL, WALK, REST
-- **活动状态**: IDLE, ACTIVE, PAUSED, ENDING
-- **新时序逻辑**: 每次Click自动触发体验(累积奖赏) + 决策(继续/停止/更换)
-
-#### TaskManager.gd ⭐ 2026-04-05新增
-- **路径**: `res://script/system/TaskManager.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 任务管理核心系统，强制执行课程出勤
-- **核心功能**:
-  - `_enforce_class_attendance()` - 强制上课时间Agent在教室
-  - `_should_attend_class()` - 根据人设判断是否逃课
-  - `_add_class_task()` - 添加课程任务（优先级8）
-  - `trigger_class_interaction()` - 触发课堂互动
-  - `can_freely_move()` - 判断是否可以自由移动
-- **逃课机制**: 抑郁Agent根据beta_effort有30%概率逃课
-- **课堂互动**: 老师提问、学生回答、同桌讨论、小组闲聊（30%被发现）
-- **常量**:
-  - MAX_TASKS = 5
-  - CLASS_TASK_PRIORITY = 8
-
-#### Logger.gd ⭐ 2026-04-05新增
-- **路径**: `res://script/system/Logger.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 游戏日志系统，按游戏时间记录三种日志
-- **日志文件**:
-  - `activity_log.txt` - 角色移动和活动
-  - `monologue_log.txt` - 任务内心独白
-  - `dialogue_log.txt` - 角色对话
-- **核心函数**:
-  - `log_activity()` - 记录活动
-  - `log_movement()` - 记录移动
-  - `log_monologue()` - 记录内心独白
-  - `log_dialogue()` - 记录对话
-- **时间戳格式**: `[第X天 周X HH:MM]`
-
----
+| 脚本 | 类型 | 核心职责 |
+|------|------|----------|
+| TimingSystem.gd | 单例 | 中央时序系统，Click周期管理 |
+| ActivityCoordinator.gd | 单例 | LLM协调器，活动分配 |
+| ActivityManager.gd | AutoLoad | 活动生命周期管理 |
+| RewardSystem.gd | 单例 | 奖赏发放中介，客观收益计算 |
+| TimelineState.gd | AutoLoad | 课程表与行为约束 |
+| Logger.gd | AutoLoad | 游戏日志系统（活动/移动/对话） |
 
 ### 3.3 角色系统 (script/)
 
-#### CharacterPersonality.gd
-- **路径**: `res://script/CharacterPersonality.gd`
-- **类型**: Node (静态类)
-- **职责**: 角色人设配置，定义三类智能体参数
-- **核心功能**:
-  - 定义抑郁风险学生、健康学生、教师的基线参数
-  - 人口学、大五人格、PHQ-9基线、功能水平、专能性
-  - MVT核心参数: p_base, η_s, η_a, β_effort, α
-- **配置角色** (13个):
-  - **抑郁风险学生** (2): StudentXiaoming, StudentXiaoyu
-  - **健康学生** (6): StudentXiaohong, StudentXiaogang, StudentXiaoli, StudentXiaojun, StudentXiaomei, StudentXiaowei
-  - **教师** (5): TeacherWang, PrincipalLi, LibrarianZhang, TeacherLi, TeacherChen
-
-#### CharacterController.gd
-- **路径**: `res://script/CharacterController.gd`
-- **类型**: CharacterBody2D
-- **职责**: 角色物理控制器，处理移动、交互、动画
-- **核心功能**:
-  - 导航寻路移动
-  - 避障逻辑
-  - 坐下/站起交互
-  - 动画状态管理
-
-#### CharacterManager.gd
-- **路径**: `res://script/CharacterManager.gd`
-- **类型**: Node (AutoLoad)
-- **职责**: 角色管理，协调所有角色
-- **核心功能**:
-  - 角色注册与查找
-  - 批量操作
-
----
+| 脚本 | 类型 | 核心职责 |
+|------|------|----------|
+| CharacterPersonality.gd | 静态类 | 13个角色的完整人设配置 |
+| CharacterController.gd | CharacterBody2D | 角色物理控制与移动 |
+| CharacterManager.gd | AutoLoad | 角色注册与批量管理 |
 
 ### 3.4 房间/情境系统 (script/)
 
-#### RoomArea.gd
-- **路径**: `res://script/RoomArea.gd`
-- **类型**: Area2D
-- **职责**: 定义情境参数（MVT模型参数）
-- **核心参数**:
-  - `initial_reward_rate` (S): 初始收益率
-  - `reward_decay_rate` (a): 收益衰减率
-  - `effort_level` (E): 努力成本
-- **设计变更**: 移除直接暴露参数给AI的接口，改为仅通过RewardSystem访问
-
-#### RoomManager.gd
-- **路径**: `res://script/RoomManager.gd`
-- **类型**: Node
-- **职责**: 房间管理，协调房间系统
-- **核心功能**:
-  - 管理所有房间数据
-  - 位置判断（Agent在哪个房间）
-  - 内部接口: `get_room_objective_params_internal()`（仅供系统层使用）
-
-#### RoomData.gd
-- **路径**: `res://script/RoomData.gd`
-- **类型**: RefCounted
-- **职责**: 房间数据结构
-- **属性**: name, position, size, description, important_locations
-
----
+| 脚本 | 类型 | 核心职责 |
+|------|------|----------|
+| RoomArea.gd | Area2D | 情境参数定义（S, a, E） |
+| RoomManager.gd | Node | 房间管理与中范围划分 |
 
 ### 3.5 UI系统 (script/ui/)
 
-#### MainMenu.gd
-- **职责**: 主菜单逻辑
-
-#### DialogBubble.gd
-- **职责**: 对话气泡显示
-
-#### GodUI.gd
-- **职责**: 上帝视角UI（全局控制面板）
-
-#### CharacterAISettings.gd / AIModelLabel.gd
-- **职责**: AI模型设置与显示
-
-#### GlobalSettingsUI.gd / SettingsManager.gd
-- **职责**: 全局设置管理
-
-#### SaveLoadUI.gd
-- **职责**: 存档/读档功能
-
----
+- MainMenu.gd, DialogBubble.gd, GodUI.gd
+- CharacterAISettings.gd, GlobalSettingsUI.gd, SaveLoadUI.gd
 
 ### 3.6 工具脚本 (script/utils/)
 
-#### APIConfig.gd
-- **职责**: API配置管理
-
-#### Config.gd
-- **职责**: 项目配置
-
-#### Logger.gd
-- **职责**: 日志系统
+- APIConfig.gd, Config.gd
 
 ---
 
