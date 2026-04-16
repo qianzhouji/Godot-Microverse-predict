@@ -1,8 +1,6 @@
-# 项目完整结构文档 - Godot-Microverse-predict
+# 项目结构与实现逻辑文档 - Godot-Microverse-predict
 
-> **创建日期**: 2026-04-05
-> **最后更新**: 2026-04-05
-> **文档用途**: 维护项目所有脚本的完整清单、职责说明及架构关系
+> **文档用途**: 维护项目所有脚本的完整清单、职责说明、架构关系及实现逻辑
 
 ---
 
@@ -10,19 +8,14 @@
 
 - [一、项目概述](#一项目概述)
 - [二、目录结构总览](#二目录结构总览)
-- [三、核心脚本详解](#三核心脚本详解)
-  - [3.1 AI系统层](#31-ai系统层)
-  - [3.2 系统层](#32-系统层)
-  - [3.3 角色系统](#33-角色系统)
-  - [3.4 房间/情境系统](#34-房间情境系统)
-  - [3.5 UI系统](#35-ui系统)
-  - [3.6 工具脚本](#36-工具脚本)
+- [三、核心脚本清单](#三核心脚本清单)
 - [四、三层架构与数据流](#四三层架构与数据流)
-- [五、噪声设计说明](#五噪声设计说明)
-- [六、AutoLoad配置](#六autoload配置)
-- [七、文档关联](#七文档关联)
-- [八、最近变更记录](#八最近变更记录)
-- [九、系统架构总览](#九系统架构总览)
+- [五、核心模块详解](#五核心模块详解)
+- [六、数据流详细说明](#六数据流详细说明)
+- [七、AutoLoad配置](#七autoload配置)
+- [八、核心参数速查表](#八核心参数速查表)
+- [九、MVT公式实现速查](#九mvt公式实现速查)
+- [十、文档关联](#十文档关联)
 
 ---
 
@@ -40,7 +33,7 @@
 res://
 ├── script/                          # 核心脚本目录
 │   ├── ai/                          # AI系统层
-│   ├── system/                      # 系统层（新增）
+│   ├── system/                      # 系统层
 │   ├── ui/                          # UI系统
 │   ├── utils/                       # 工具脚本
 │   └── *.gd                         # 根级脚本
@@ -181,41 +174,320 @@ res://
 
 ---
 
-## 五、噪声设计说明
+## 五、核心模块详解
 
-### 5.1 两层噪声架构
+### 5.1 RoomArea.gd - 情境参数定义
 
-根据理论公式和实现需求，项目采用**两层噪声架构**：
+**职责：** 定义MVT理论中的三类情境参数
 
-| 噪声层级 | 位置 | 大小 | 理论依据 | 实现方式 |
-|---------|------|------|---------|---------|
-| **感知噪声** | PerceptionSystem | σ = 2% (极小) | 感知不确定性 | `perceive_gain()` 添加高斯噪声 |
-| **决策噪声** | AIAgent (待实现) | ε (公式中的误差项) | 随机决策噪声 | 在计算T*后添加 |
-
-### 5.2 为什么感知噪声要足够小？
-
-1. **理论一致性**: 理论公式中的ε是决策噪声，不是感知噪声
-2. **避免双重噪声**: 如果感知噪声太大，加上决策噪声会导致行为过于随机
-3. **保留个体差异**: 即使感知噪声小，不同Agent的(η_s, η_a)差异仍会导致不同的感知精度
-4. **贝叶斯更新有效性**: 噪声太大会使样本不可靠，影响信念更新
-
-### 5.3 当前实现
-
+**关键属性：**
 ```gdscript
-# PerceptionSystem.gd
-const BASE_PERCEPTION_NOISE = 0.02  # 标准差仅2%
+@export var initial_reward_rate: float = 0.5  # S: 初始收益率
+@export var reward_decay_rate: float = 0.5    # a: 收益衰减率  
+@export var effort_level: float = 0.5         # E: 努力成本
+```
 
-static func perceive_gain(actual_gain, eta_s, eta_a):
-    var avg_eta = (eta_s + eta_a) / 2.0
-    var noise_std = BASE_PERCEPTION_NOISE * (1.0 - avg_eta * 0.3)
-    # 当eta=0.5时，噪声 ≈ 1.7%
-    # 当eta=1.0时，噪声 ≈ 1.4%
-    return clamp(actual_gain + randfn(0, noise_std), 0, 1)
+**重要原则：** Agent**不应直接读取**这些参数，只能通过系统发放的"奖赏"间接感知
+
+---
+
+### 5.2 PerceptionSystem.gd - 贝叶斯感知系统
+
+**职责：** 管理Agent对情境的主观感知
+
+**核心类：**
+```gdscript
+class BeliefState:
+    var S_mean: float      # 对初始收益率的后验估计
+    var S_var: float       # 估计的不确定性
+    var a_mean: float      # 对衰减率的后验估计
+    var a_var: float
+    var samples: Array     # 观测样本缓存
+```
+
+**个体差异实现：**
+```gdscript
+# 健康Agent：中性乐观先验
+const PRIOR_S_MEAN = 0.5
+const PRIOR_S_VAR = 0.25
+
+# 抑郁Agent：悲观预期先验
+const DEPRESSION_PRIOR_S_MEAN = 0.3
+const DEPRESSION_PRIOR_S_VAR = 0.15
+```
+
+**关键函数：**
+| 函数 | 职责 |
+|------|------|
+| `add_sample()` | 接收系统奖赏，添加感知噪声 |
+| `_update_beliefs()` | 贝叶斯更新后验信念 |
+| `get_perceived_params()` | 输出感知到的情境参数(Ŝ, â) |
+
+**信念更新实现：**
+- 使用非线性最小二乘拟合理论收益函数 `G(t) = (S/a)[1 - exp(-at)]`
+- 通过网格搜索找到最优的 S 和 a 参数
+
+---
+
+### 5.3 UtilitySystem.gd - 效用计算系统
+
+**职责：** 计算主观效用，实现MVT决策
+
+**核心公式实现：**
+```gdscript
+# U(G) = G^α - β_effort × E
+static func calculate_utility(gain: float, effort: float, 
+                              alpha: float, beta_effort: float) -> float:
+    var gain_utility = pow(max(gain, 0.0), alpha)
+    var effort_cost = beta_effort * effort
+    return gain_utility - effort_cost
+```
+
+**个体差异参数：**
+```gdscript
+const DEFAULT_ALPHA = 0.8           # 健康Agent
+const DEFAULT_BETA_EFFORT = 0.4     # 健康Agent
+const DEPRESSION_ALPHA = 0.55       # 抑郁Agent（收益贬值）
+const DEPRESSION_BETA_EFFORT = 0.8  # 抑郁Agent（努力放大）
+```
+
+**最优停留时间计算：**
+```gdscript
+# log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
+static func calculate_optimal_time(perceived_S, perceived_a, effort, 
+                                   alpha, beta_effort, p_base, eta_s, eta_a):
+    var term1 = log(eta_s * log(perceived_S))
+    var term2 = -log(p_base)
+    var term3 = -beta_effort * effort
+    var term4 = -eta_a * log(perceived_a)
+    var epsilon = randfn(0.0, 0.1)
+    var log_T = term1 + term2 + term3 + term4 + epsilon
+    return clamp(exp(log_T), 1.0, 60.0)
 ```
 
 ---
 
-## 六、AutoLoad配置
+### 5.4 AIAgent.gd - Agent决策中枢
+
+**职责：** 整合感知、效用、记忆，驱动Agent行为
+
+**当前决策流程：**
+```
+1. 生成场景描述（包含感知参数）
+2. 构建Prompt（人格+状态+记忆+情境）
+3. 调用LLM生成决策
+4. 执行行为（移动/对话/任务）
+```
+
+**MVT驱动行为决策实现：**
+```gdscript
+func _check_mvt_leave_decision(room_name, time_in_room, personality, is_depression):
+    var params = UtilitySystem.get_agent_utility_params(personality)
+    var optimal_time = UtilitySystem.calculate_optimal_time(
+        perceived_S, perceived_a, effort, 
+        params.alpha, params.beta_effort, 
+        params.p_base, params.eta_s, params.eta_a
+    )
+    
+    var should_leave = time_in_room >= optimal_time
+    return {
+        "should_leave": should_leave,
+        "optimal_time": optimal_time,
+        "reason": "MVT预测的最优停留时间"
+    }
+```
+
+---
+
+### 5.5 CharacterPersonality.gd - 角色人设配置
+
+**职责：** 定义三类智能体的基线参数
+
+**角色类型：**
+| 角色 | role_type | 核心特征 |
+|------|-----------|---------|
+| TeacherWang/PrincipalLi/LibrarianZhang | teacher | 制度性环境 |
+| StudentXiaoming | depression_risk_student | 高β_effort(0.8), 低α(0.55) |
+| StudentXiaohong/StudentXiaogang | healthy_student | 正常参数 |
+
+**MVT核心参数配置：**
+```gdscript
+"StudentXiaoming": {
+    "role_type": "depression_risk_student",
+    "cognitive_mechanism": {
+        "p_base": 0.4,
+        "eta_s": 0.6,
+        "eta_a": 0.7,
+        "beta_effort": 0.8,       # 核心差异参数
+        "alpha": 0.55
+    }
+}
+```
+
+---
+
+### 5.6 DynamicPersonality.gd - 动态特质管理
+
+**职责：** 管理随时间变化的心理特质和认知计算机制参数
+
+**核心功能：**
+
+| 函数 | 触发条件 | 影响 |
+|------|---------|------|
+| `apply_task_feedback()` | 任务完成/失败 | beta_effort, p_base, daily_depression_level |
+| `apply_social_feedback()` | 社交互动后 | daily_depression_level, eta_s, beta_effort |
+| `apply_teacher_feedback()` | 收到评价后 | beta_effort, daily_depression_level |
+| `daily_phq9_update()` | 每日结束 | 基于当日事件净变化更新抑郁水平 |
+| `_apply_boundary_protection()` | 所有更新 | 防止偏离基线超过20% |
+
+**个体差异设计：**
+```gdscript
+# 抑郁Agent（如StudentXiaoming）
+- 基线: beta_effort = 0.8
+- 负面事件影响: ×1.5（恶化更快）
+- 正面事件影响: ×0.7（恢复更慢）
+- 边界: [0.6, 1.0]
+
+# 健康Agent（如StudentXiaohong）
+- 基线: beta_effort = 0.4
+- 负面事件影响: ×0.8（有韧性）
+- 正面事件影响: ×1.2（恢复更快）
+- 边界: [0.2, 0.6]
+```
+
+---
+
+### 5.7 MemoryManager.gd - 记忆系统
+
+**职责：** 管理Agent的经验记忆，影响后续决策
+
+**记忆类型：**
+```gdscript
+enum MemoryType {
+    PERSONAL,      # 个人记忆
+    INTERACTION,   # 互动记忆
+    TASK,          # 任务记忆
+    EMOTION,       # 情感记忆
+    EVENT          # 事件记忆
+}
+```
+
+**与理论关联：**
+- 记忆影响Agent的先验信念
+- 负面记忆可能强化抑郁Agent的悲观预期
+- **每日反思的基础**：所有当日记忆被收集用于反思分析
+
+---
+
+### 5.8 DailyReflectionSystem.gd - 每日反思系统
+
+**职责：** 每日结束时自动反思，动态调整认知参数，完成PHQ-9评估
+
+**核心流程：**
+```
+收集当日记忆 → LLM反思分析 → 参数调整决策 → 动态幅度计算 → PHQ-9评估 → 记录结果
+```
+
+**动态幅度计算：**
+```gdscript
+# 严重程度 → 基础幅度
+1 → ±1%    # 轻微
+2 → ±3%    # 轻度
+3 → ±5%    # 中度
+4 → ±8%    # 重度
+5 → ±12%   # 严重
+
+# 最终幅度 = 基础幅度 × 个体差异乘数
+# 抑郁Agent负面: ×1.5, 正面: ×0.7
+# 健康Agent负面: ×0.8, 正面: ×1.2
+```
+
+**PHQ-9评估：**
+- 九项症状，每项0-3分
+- 总分0-27，转换为抑郁水平(0-1)
+- 五个等级：无/轻度/中度/中重度/重度抑郁
+
+---
+
+### 5.9 RewardSystem.gd - 奖赏发放中介
+
+**职责：** 系统层核心组件，封装RoomArea访问，计算并发放奖赏
+
+**核心功能：**
+- 封装RoomArea访问（Agent不可见）
+- 计算客观收益 G(t) = (S/a)[1 - exp(-at)]
+- 通过信号向Agent发放奖赏
+
+**设计原则：** Agent不能直接读取S,a,E，只能通过此接口接收"奖赏"
+
+**信号：** `reward_distributed(agent_name, room_name, time, gain, effort)`
+
+---
+
+### 5.10 AgentRewardReceiver.gd - Agent奖赏接收器
+
+**职责：** Agent端的奖赏接收器，感知层组件
+
+**核心功能：**
+- 订阅RewardSystem信号
+- 接收并缓存奖赏历史
+- 添加感知噪声（σ=2%）
+- 传递给PerceptionSystem
+
+---
+
+## 六、数据流详细说明
+
+### 6.1 正常决策循环
+
+```
+[系统层] - Agent不可见
+RewardSystem.distribute_reward(agent_name, room_name, time=5)
+    ↓
+内部读取 RoomArea(S=0.8, a=0.3, E=0.2) 【Agent不可访问】
+    ↓
+计算 G(t=5) = (0.8/0.3)[1-exp(-0.3×5)] = 0.72
+    ↓
+发射信号 reward_distributed(agent_name, "食堂", 5, 0.72, 0.2)
+
+[感知层] - 接收信号
+AgentRewardReceiver._on_reward_received()
+    ↓
+添加极小噪声(σ=2%) → 感知gain = 0.71
+    ↓
+PerceptionSystem.add_sample(time=5, gain=0.71)
+    ↓
+贝叶斯更新 → Ŝ=0.74, â=0.32
+
+[效用层]
+UtilitySystem.calculate_optimal_time(Ŝ=0.74, â=0.32, E=0.2, 
+                                     α=0.55, β=0.8, p_base=0.4)
+    ↓
+计算得最优时间 T* = 13秒
+
+[决策层] - MVT驱动
+AIAgent._check_mvt_leave_decision()
+- 当前已停留5秒 < T*(13秒)
+- 但效用开始下降，可能触发离开
+    ↓
+MVT决策：STAY / LEAVE / SWITCH
+    ↓
+CharacterController执行移动/交互
+```
+
+### 6.2 抑郁vs健康Agent差异示例
+
+**相同情境：** 食堂(S=0.8, a=0.3, E=0.2)，停留5秒，客观收益=0.72
+
+| 层面 | 健康Agent | 抑郁Agent |
+|------|----------|----------|
+| **感知** | Ŝ=0.78, â=0.32 | Ŝ=0.65, â=0.40（悲观估计） |
+| **效用计算** | U = 0.72^0.8 - 0.4×0.2 = 0.67 | U = 0.65^0.55 - 0.8×0.2 = 0.31 |
+| **决策倾向** | 效用为正，继续停留 | 效用较低，可能提前离开或回避 |
+
+---
+
+## 七、AutoLoad配置
 
 在Godot项目设置中，以下脚本应配置为AutoLoad：
 
@@ -226,200 +498,82 @@ static func perceive_gain(actual_gain, eta_s, eta_a):
 | script/ai/DialogManager.gd | DialogManager | 对话管理 |
 | script/CharacterManager.gd | CharacterManager | 角色管理 |
 | script/system/RewardSystem.gd | RewardSystem | 奖赏系统 |
-| script/system/DayNightSystem.gd | DayNightSystem | 游戏时间管理系统 |
-| script/system/ScheduleSystem.gd | ScheduleSystem | 课程表与任务管理 |
-| script/system/TaskManager.gd | TaskManager | 任务管理（课程出勤） |
+| script/system/TimelineState.gd | TimelineState | 课程表与行为约束 |
 | script/system/Logger.gd | Logger | 日志系统 |
 
 ---
 
-## 七、文档关联
+## 八、核心参数速查表
+
+### 8.1 情境参数（RoomArea）
+| 参数 | 范围 | 低 | 中 | 高 |
+|------|------|----|----|----|
+| S (initial_reward_rate) | 0.0-1.0 | 0.0-0.4 | 0.4-0.7 | 0.7-1.0 |
+| a (reward_decay_rate) | 0.0-1.0 | 0.0-0.3 | 0.3-0.6 | 0.6-1.0 |
+| E (effort_level) | 0.0-1.0 | 0.0-0.3 | 0.3-0.6 | 0.6-1.0 |
+
+### 8.2 认知机制参数（CharacterPersonality）
+| 参数 | 健康Agent | 抑郁Agent | 功能 |
+|------|----------|----------|------|
+| ρ_base | 0.5-0.6 | 0.3-0.4 | 离开阈值（环境平均奖赏率估计）|
+| η_s | 0.5 | 0.4 | 初始奖赏感知权重 |
+| η_a | 0.5 | 0.7 | 衰减率感知权重 |
+| α | 0.8 | 0.5-0.6 | 收益敏感性 |
+| β_effort | 0.4 | 0.8 | 努力敏感性（核心差异）|
+
+---
+
+## 九、MVT公式实现速查
+
+### 9.1 客观收益函数（RewardSystem.gd）
+```gdscript
+# G(t) = (S/a)[1 - exp(-at)]
+func _calculate_objective_gain(S: float, a: float, time: float) -> float:
+    var gain = (S / a) * (1.0 - exp(-a * time))
+    return clamp(gain, 0.0, 1.0)
+```
+
+### 9.2 主观效用函数（UtilitySystem.gd）
+```gdscript
+# U(G) = G^α - β_effort × E
+static func calculate_utility(gain: float, effort: float, 
+                              alpha: float, beta_effort: float) -> float:
+    var gain_utility = pow(max(gain, 0.0), alpha)
+    var effort_cost = beta_effort * effort
+    return gain_utility - effort_cost
+```
+
+### 9.3 最优停留时间公式（UtilitySystem.gd）
+```gdscript
+# log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
+static func calculate_optimal_time(perceived_S, perceived_a, effort,
+                                   alpha, beta_effort, p_base, eta_s, eta_a):
+    var term1 = log(eta_s * log(perceived_S))
+    var term2 = -log(p_base)
+    var term3 = -beta_effort * effort
+    var term4 = -eta_a * log(perceived_a)
+    var epsilon = randfn(0.0, 0.1)
+    var log_T = term1 + term2 + term3 + term4 + epsilon
+    return clamp(exp(log_T), 1.0, 60.0)
+```
+
+### 9.4 信念更新（PerceptionSystem.gd）
+```gdscript
+# 使用非线性最小二乘拟合 G(t) = (S/a)[1 - exp(-at)]
+# 网格搜索最优 S 和 a，然后贝叶斯更新
+```
+
+---
+
+## 十、文档关联
 
 | 文档 | 用途 |
 |------|------|
 | [PROJECT_OVERVIEW.md](./PROJECT_OVERVIEW.md) | 理论基础和研究设计 |
-| [IMPLEMENTATION_LOGIC.md](./IMPLEMENTATION_LOGIC.md) | 实现逻辑和架构说明 |
-| [本文档](./PROJECT_STRUCTURE.md) | 完整项目结构和脚本清单 |
-| [TODO_Perception_System_Separation_2026-04-05.md](./TODO_Perception_System_Separation_2026-04-05.md) | 感知层分离实施待办 |
+| [本文档](./PROJECT_STRUCTURE.md) | 项目结构、脚本清单与实现逻辑 |
+| [docs/TECHNICAL_DOCUMENTATION.md](./docs/TECHNICAL_DOCUMENTATION.md) | 系统架构与技术实现详情 |
+| [docs/Dialogue_System.md](./docs/Dialogue_System.md) | 对话系统设计 |
 
 ---
 
-## 八、最近变更记录
-
-### 2026-04-05 - 重大更新日
-
-#### 上午：感知层与系统层分离完成
-- ✅ 创建 RewardSystem.gd（系统层奖赏发放）
-- ✅ 创建 AgentRewardReceiver.gd（感知层接收器）
-- ✅ 修改 AIAgent.gd（移除直接RoomArea访问，集成RewardSystem）
-- ✅ 修改 RoomManager.gd（添加内部接口）
-- ✅ 修改 RoomArea.gd（移除直接暴露参数的接口）
-- ✅ 修改 PerceptionSystem.gd（降低感知噪声至2%）
-- ✅ 配置 AutoLoad（RewardSystem设置为单例）
-- ✅ 创建 PROJECT_STRUCTURE.md（项目完整结构）
-- ✅ 创建 TODO_Perception_System_Separation_2026-04-05.md（分离实施待办）
-- ✅ 创建 docs/AUTOLOAD_SETUP.md（AutoLoad配置说明）
-
-#### 下午：动态人设系统实现
-- ✅ 扩展 DynamicPersonality.gd
-  - 新增任务反馈影响（apply_task_feedback）
-  - 新增社交互动影响（apply_social_feedback）
-  - 新增教师评价影响（apply_teacher_feedback）
-  - 新增每日PHQ-9更新（daily_phq9_update）
-  - 新增边界保护机制（_apply_boundary_protection）
-- ✅ 创建 docs/DYNAMIC_PERSONALITY_DESIGN.md（设计文档）
-
-#### 傍晚：每日反思系统实现
-- ✅ 创建 DailyReflectionSystem.gd
-  - 完整的每日反思流程（conduct_daily_reflection）
-  - LLM-based反思分析（_analyze_reflection）
-  - 四项认知参数动态调整（_decide_cognitive_adjustments）
-  - 动态幅度计算（严重程度1-5映射到1%-12%）
-  - 完整的PHQ-9九项评估（_conduct_phq9_assessment）
-  - 个体差异（抑郁Agent负面×1.5，健康Agent有韧性）
-- ✅ 创建 docs/DAILY_REFLECTION_DESIGN.md（设计文档）
-
-#### 晚上：场景重构与角色扩展
-- ✅ 重构 School.tscn 的 RoomArea 结构
-  - 删除错误的独立CollisionShape2D节点
-  - 创建5个符合MVT理论的情境（主教学区、小组讨论区、食堂、走廊、体育馆）
-  - 配置正确的S, a, E参数
-- ✅ 删除不需要的通用角色（Alice, Grace, Jack等8个）
-- ✅ 创建5个特定角色场景文件（StudentXiaoming, StudentXiaohong, TeacherWang, PrincipalLi, LibrarianZhang）
-- ✅ 添加8个新角色
-  - 5个健康学生：Xiaogang, Xiaoli, Xiaojun, Xiaomei, Xiaowei
-  - 1个抑郁风险学生：Xiaoyu
-  - 2个教师：TeacherLi（数学）, TeacherChen（英语）
-- ✅ 更新 CharacterPersonality.gd，添加13个角色的完整人设
-
-#### 深夜：时间系统与课程表
-- ✅ 创建 DayNightSystem.gd
-  - 游戏内时间缩放（1现实分钟=1游戏小时）
-  - 学校时间7:00-17:00，周末休息
-  - 自动触发每日反思（一天结束时）
-- ✅ 创建 ScheduleSystem.gd
-  - 完整的课程表（上午3节课+午休+下午2节课）
-  - 个性化任务分配（根据角色类型调整优先级）
-  - 集成DayNightSystem，上学日自动分配任务
-- ✅ 修改 AIAgent.gd
-  - 优先使用ScheduleSystem的课程表任务
-  - 修复环境描述使用游戏内时间
-  - 改进学校场景描述
-
-#### 凌晨：Bug修复与优化
-- ✅ 修复DayNightSystem访问错误
-  - 移除class_name避免与AutoLoad冲突
-  - 使用get_node_or_null安全获取（解决_ready前调用问题）
-  - 修复is_school_day属性错误（使用is_weekend()判断）
-- ✅ 修复场景描述错误
-  - School.tscn根节点名为Office，添加匹配处理
-  - 使用游戏内时间而非真实时间
-- ✅ 修复任务刷新逻辑
-  - 优先使用ScheduleSystem课程表任务
-  - 周末生成10个默认任务，平时3个
-- ✅ 重构默认任务池
-  - 学生上学日任务池（20个任务）
-  - 学生周末任务池（20个任务）
-  - 教师任务池（按科目定制）
-  - 完全替换办公室任务为学校场景任务
-
-### 2026-04-05 - 晚间更新
-
-#### 任务系统重构
-- ✅ 创建 TaskManager.gd
-  - 强制执行课程出勤（上课时间强制Agent在教室）
-  - 最多5个任务，初始分配3个
-  - 课程任务优先级8（留出9-10给人生大事）
-  - 人设化逃课（抑郁Agent根据beta_effort有概率逃课）
-  - 课堂互动机制（老师提问、学生回答、同桌讨论、小组闲聊）
-  - 闲聊被老师发现的风险（30%概率）
-- ✅ 修改AIAgent任务优先级评估
-  - Agent自主判断渴望值（1-10）
-  - 提供完整的判断标准和示例
-  - 大部分日常任务应该是3-5
-
-#### 角色感知与对话
-- ✅ 添加Agent感知附近角色功能
-  - _check_nearby_characters()函数
-  - 根据性格决定对话概率（抑郁10%，外向40%，内向15%，普通25%）
-  - 距离阈值100px
-- ✅ 修复对话触发机制
-  - 在决策流程中检查附近角色
-  - 自动发起对话
-
-#### 办公室内容清理
-- ✅ 彻底清理所有"员工"和"办公室"残留
-  - AIAgent.gd: 修改"公司员工信息"为"学校师生信息"
-  - ConversationManager.gd: 动态角色描述（教师/学生）
-  - CharacterPersonality.gd: 默认人设改为"学生"
-  - DialogManager.gd: 替换公司相关描述
-
-#### 日志系统
-- ✅ 创建 Logger.gd
-  - 三种日志文件：activity_log.txt, monologue_log.txt, dialogue_log.txt
-  - 按照游戏时间戳记录
-  - 集成到AIAgent和DialogManager
-
----
-
-## 九、系统架构总览
-
-### 9.1 核心系统交互图
-
-```
-DayNightSystem (时间)
-    ↓ day_started信号
-ScheduleSystem (课程表)
-    ↓ 分配任务
-AIAgent (决策)
-    ↓ API调用 / 默认决策
-CharacterController (执行)
-    ↓ 移动/交互
-场景更新
-    ↓
-RewardSystem (奖赏)
-    ↓ 信号
-AgentRewardReceiver (感知)
-    ↓
-PerceptionSystem (贝叶斯更新)
-    ↓
-UtilitySystem (MVT决策)
-    ↓
-AIAgent (新决策)
-```
-
-### 9.2 数据流
-
-1. **时间驱动**: DayNightSystem推进时间，触发信号
-2. **任务分配**: ScheduleSystem根据时间分配课程任务
-3. **决策执行**: AIAgent根据任务和MVT计算做出决策
-4. **感知更新**: 在情境中获得奖赏，更新信念
-5. **每日反思**: 一天结束时自动触发，更新认知参数
-
-### 9.3 本地LLM集成
-
-- **Ollama**: 本地大模型服务
-- **默认模型**: qwen2.5:1.5b（中文优化）
-- **API配置**: APIConfig.gd统一管理
-- **故障回退**: API失败时自动使用默认决策
-
-### 2026-04-07 - MVT公式修正
-
-#### 上午：MVT理论公式实现修正
-- ✅ 修正 UtilitySystem.gd
-  - 重写 `calculate_optimal_time()` 使用理论解析公式：`log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε`
-  - 更新 `get_agent_utility_params()` 返回全部四个MVT核心参数（ρ_base, η_s, η_a, β_effort）
-  - 更新 `get_utility_params_description()` 添加MVT参数描述
-  - 更新 `get_decision_analysis()` 集成MVT建议停留时间
-- ✅ 修正 AIAgent.gd
-  - 实现 `_check_mvt_leave_decision()` 完整MVT离开决策检查
-- ✅ 修正 PerceptionSystem.gd
-  - 重写 `_update_beliefs()` 使用非线性最小二乘拟合理论收益函数 `G(t) = (S/a)[1 - exp(-at)]`
-  - 替代原来的线性近似
-- ✅ 更新项目文档
-  - 更新 README.md 中的MVT公式说明
-  - 更新 PROJECT_STRUCTURE.md 中的实现描述
-
----
-
-*本文档由AI助手百舟楫维护，最后更新：2026-04-07*
+*本文档由AI助手百舟楫维护*
