@@ -1309,8 +1309,8 @@ func _execute_v2_discussion(activity: Activity) -> void:
 func _get_current_room_name() -> String:
 	"""获取当前房间名称"""
 	var room = _get_current_room()
-	if room and room.has("room_name"):
-		return room.room_name
+	if room and room.has("name"):
+		return room.name
 	return "unknown"
 
 # ============================================

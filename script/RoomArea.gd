@@ -3,6 +3,9 @@ extends Area2D
 @export var room_name: String = "未命名房间"
 @export var room_desc: String = "这里是一个房间"
 
+func _ready():
+	add_to_group("room_area")
+
 # ========== 情境参数（基于边际价值定理 MVT）==========
 # 初始收益率 (S): 情境开始时的奖赏水平
 # 取值: 0.0-1.0 (低: 0.0-0.4, 中: 0.4-0.7, 高: 0.7-1.0)
