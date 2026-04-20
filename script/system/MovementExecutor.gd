@@ -287,8 +287,8 @@ static func calculate_target_position_for_room(
 static func _is_in_same_medium_range(room, pos1: Vector2, pos2: Vector2) -> bool:
 	"""检查两个位置是否在同一个中范围"""
 	# 获取房间中心
-	var room_center = room.position if room.has("position") else Vector2.ZERO
-	var room_size = room.size if room.has("size") else Vector2(400, 300)
+	var room_center = room.position if room != null else Vector2.ZERO
+	var room_size = room.size if room != null else Vector2(400, 300)
 	
 	# 简单的象限判断（可根据需要细化）
 	var half_width = room_size.x * 0.5
@@ -311,8 +311,8 @@ static func _get_quadrant(pos: Vector2, center: Vector2, half_w: float, half_h: 
 
 static func _get_medium_range_description(room, pos: Vector2) -> String:
 	"""获取中范围描述"""
-	var room_center = room.position if room.has("position") else Vector2.ZERO
-	var room_size = room.size if room.has("size") else Vector2(400, 300)
+	var room_center = room.position if room != null else Vector2.ZERO
+	var room_size = room.size if room != null else Vector2(400, 300)
 	
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5
@@ -322,8 +322,8 @@ static func _get_medium_range_description(room, pos: Vector2) -> String:
 
 static func _get_medium_range_center_position(room, range_desc: String) -> Vector2:
 	"""获取中范围中心位置"""
-	var room_center = room.position if room.has("position") else Vector2.ZERO
-	var room_size = room.size if room.has("size") else Vector2(400, 300)
+	var room_center = room.position if room != null else Vector2.ZERO
+	var room_size = room.size if room != null else Vector2(400, 300)
 	
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5

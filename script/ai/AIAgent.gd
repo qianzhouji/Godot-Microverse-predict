@@ -1309,7 +1309,7 @@ func _execute_v2_discussion(activity: Activity) -> void:
 func _get_current_room_name() -> String:
 	"""获取当前房间名称"""
 	var room = _get_current_room()
-	if room and room.has("name"):
+	if room != null:
 		return room.name
 	return "unknown"
 
@@ -1518,7 +1518,7 @@ func _get_random_position_in_room(room, max_offset_ratio: float = 0.3) -> Vector
 		return Vector2.ZERO
 
 	var room_pos = room.position
-	var room_size = room.size if room.has("size") else Vector2(200, 100)
+	var room_size = room.size if room != null else Vector2(200, 100)
 
 	# 在中心附近随机偏移(不要离中心太远)
 	var half_width = room_size.x * 0.5
@@ -1918,7 +1918,7 @@ func _get_medium_range_center_position(room, range_desc: String) -> Vector2:
 		return Vector2.ZERO
 
 	var room_pos = room.position
-	var room_size = room.size if room.has("size") else Vector2(200, 100)
+	var room_size = room.size if room != null else Vector2(200, 100)
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5
 
@@ -2628,7 +2628,7 @@ func get_current_medium_range_boundary() -> Dictionary:
 	result.center_position = center_pos
 	
 	# 计算中范围边界
-	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
+	var room_size = current_room.size if current_room != null else Vector2(200, 100)
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5
 	
@@ -2687,7 +2687,7 @@ func get_current_room_boundary() -> Dictionary:
 	result.room_name = current_room.name
 	
 	var room_pos = current_room.position
-	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
+	var room_size = current_room.size if current_room != null else Vector2(200, 100)
 	result.size = room_size
 	
 	var half_width = room_size.x * 0.5
