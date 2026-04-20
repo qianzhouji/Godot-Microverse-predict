@@ -918,8 +918,8 @@ func _get_current_room_name(character: CharacterBody2D) -> String:
 				room_manager.rooms,
 				character.global_position
 			)
-			if room and room.has("room_name"):
-				return room.room_name
+			if room:
+				return room.name
 	return "unknown"
 
 func _get_agent_role(character: CharacterBody2D) -> String:
