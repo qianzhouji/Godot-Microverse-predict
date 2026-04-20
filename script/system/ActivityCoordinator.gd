@@ -67,6 +67,26 @@ func _load_prompt_template() -> void:
 		print("[ActivityCoordinator] 使用内置Prompt模板")
 
 # ============================================
+# 协调日志记录
+# ============================================
+
+func _log_coordination(event_type: String, data: Dictionary) -> void:
+	"""记录协调日志到文件"""
+	var logger = get_node_or_null("/root/Logger")
+	if logger and logger.has_method("_write_log"):
+		var timestamp = _get_real_timestamp()
+		var log_line = "[%s] [%s] %s" % [timestamp, event_type, JSON.stringify(data)]
+		logger._write_log("coordination_log.txt", log_line)
+
+func _get_real_timestamp() -> String:
+	"""获取现实时间戳"""
+	var datetime = Time.get_datetime_dict_from_system()
+	return "%04d-%02d-%02d %02d:%02d:%02d" % [
+		datetime.year, datetime.month, datetime.day,
+		datetime.hour, datetime.minute, datetime.second
+	]
+
+# ============================================
 # 核心协调接口
 # ============================================
 
@@ -80,6 +100,13 @@ func submit_decision(agent_id: String, decision: String) -> void:
 	"""
 	pending_decisions[agent_id] = decision
 	print("[ActivityCoordinator] 收到 %s 的决策: %s" % [agent_id, decision])
+	
+	# 记录接收到的决策
+	_log_coordination("RECEIVE_DECISION", {
+		"agent_id": agent_id,
+		"decision": decision,
+		"pending_count": pending_decisions.size()
+	})
 
 func clear_decisions() -> void:
 	"""清空所有待处理决策"""
@@ -138,8 +165,21 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	# 构建Prompt
 	var prompt = _build_coordination_prompt(input_data)
 	
+	# 记录协调输入（发送到LLM的数据）
+	_log_coordination("COORDINATION_INPUT", {
+		"game_context": game_context,
+		"agent_count": pending_decisions.size(),
+		"agents": input_data.get("agents", [])
+	})
+	
 	# 调用LLM
 	var response = await _call_llm(prompt)
+	
+	# 记录LLM原始响应
+	_log_coordination("LLM_RESPONSE", {
+		"response_length": response.length(),
+		"response": response
+	})
 	
 	if response.is_empty():
 		coordination_failed.emit("LLM调用失败")
@@ -707,6 +747,21 @@ func _distribute_to_agent(agent_id: String, activities: Array[Activity]) -> void
 	var agent_node = _find_agent_node(agent_id)
 	
 	print("[ActivityCoordinator] _distribute_to_agent: agent_id=%s, agent_node=%s" % [agent_id, agent_node])
+	
+	# 记录下发的活动
+	var activities_data = []
+	for activity in activities:
+		activities_data.append({
+			"activity_type": _get_activity_type_name(activity.activity_type),
+			"activity_name": activity.activity_name,
+			"parameters": activity.parameters,
+			"focus_level": activity.focus_level
+		})
+	_log_coordination("DISTRIBUTE_ACTIVITIES", {
+		"agent_id": agent_id,
+		"activity_count": activities.size(),
+		"activities": activities_data
+	})
 	
 	if agent_node and agent_node.has_method("receive_activity_sequence"):
 		agent_node.receive_activity_sequence(activities)

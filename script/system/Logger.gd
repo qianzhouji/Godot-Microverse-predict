@@ -1,12 +1,13 @@
 extends Node
 
 # Logger - 游戏日志系统
-# 按照游戏时间输出五种日志：
+# 按照游戏时间输出六种日志：
 # 1. activity_log.txt - 所有角色的移动和活动
 # 2. monologue_log.txt - 所有角色的任务内心独白
 # 3. dialogue_log.txt - 所有角色之间的对话
 # 4. reflection_log.txt - 每日反思日志（包含PHQ-9评估和认知参数变化）
 # 5. cognitive_params_log.txt - 认知参数变化日志（记录所有角色的认知参数演变）
+# 6. coordination_log.txt - 协调日志（记录ActivityCoordinator接收的请求和下发的命令）
 
 # 日志目录改为桌面，方便查看
 const LOG_DIR = "/Users/yuke/Desktop/Microverse_Logs"
@@ -15,6 +16,7 @@ const MONOLOGUE_LOG = "monologue_log.txt"
 const DIALOGUE_LOG = "dialogue_log.txt"
 const REFLECTION_LOG = "reflection_log.txt"
 const COGNITIVE_PARAMS_LOG = "cognitive_params_log.txt"
+const COORDINATION_LOG = "coordination_log.txt"
 
 func _ready():
 	# 确保日志目录存在（使用桌面路径）
@@ -31,6 +33,7 @@ func _ready():
 	_create_log_file(DIALOGUE_LOG)
 	_create_log_file(REFLECTION_LOG)
 	_create_log_file(COGNITIVE_PARAMS_LOG)
+	_create_log_file(COORDINATION_LOG)
 	
 	print("[Logger] 日志系统初始化完成")
 
