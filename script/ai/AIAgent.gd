@@ -321,7 +321,7 @@ func _perceive() -> Dictionary:
 	# 1. 获取当前子场景
 	var current_room_area = _get_current_room()
 	if current_room_area:
-		perception.current_room = current_room_area.room_name
+		perception.current_room = current_room_area.name
 
 	# 2. 获取同场景其他Agent（包含活动状态）
 	perception.nearby_agents = _get_agents_in_same_room_with_status()
@@ -1684,7 +1684,7 @@ func _execute_start_sports(request: ActionRequest):
 
 	# 验证当前在体育馆
 	var current_room = _get_current_room()
-	if not current_room or current_room.room_name != "体育馆":
+	if not current_room or current_room.name != "体育馆":
 		print("[AIAgent] %s 开始体育活动失败:不在体育馆" % character.name)
 		return
 
@@ -1718,7 +1718,7 @@ func _execute_start_study(request: ActionRequest):
 	# 验证当前在图书馆或自习室
 	var current_room = _get_current_room()
 	var valid_rooms = ["图书馆", "自习室"]
-	if not current_room or not current_room.room_name in valid_rooms:
+	if not current_room or not current_room.name in valid_rooms:
 		print("[AIAgent] %s 开始自习失败:不在图书馆或自习室" % character.name)
 		return
 
@@ -1788,7 +1788,7 @@ func _get_room_by_name(room_name: String):
 	# 遍历所有房间查找匹配的名称
 	for room_id in room_manager.rooms:
 		var room = room_manager.rooms[room_id]
-		if room.name == room_name or room.room_name == room_name:
+		if room.name == room_name:
 			return room
 
 	return null
@@ -1872,7 +1872,7 @@ func _get_medium_range_description(room, pos: Vector2) -> String:
 	if not room:
 		return ""
 
-	var range_type = _get_room_medium_range_type(room.room_name)
+	var range_type = _get_room_medium_range_type(room.name)
 
 	match range_type:
 		MediumRangeType.FOUR_QUADRANT:
@@ -1891,7 +1891,7 @@ func _is_in_same_medium_range(room, pos1: Vector2, pos2: Vector2) -> bool:
 	if not room:
 		return false
 
-	var range_type = _get_room_medium_range_type(room.room_name)
+	var range_type = _get_room_medium_range_type(room.name)
 
 	match range_type:
 		MediumRangeType.FOUR_QUADRANT:
@@ -1922,7 +1922,7 @@ func _get_medium_range_center_position(room, range_desc: String) -> Vector2:
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5
 
-	var range_type = _get_room_medium_range_type(room.room_name)
+	var range_type = _get_room_medium_range_type(room.name)
 
 	match range_type:
 		MediumRangeType.FOUR_QUADRANT:
@@ -2114,11 +2114,11 @@ func generate_scene_description() -> String:
 	var current_room = _get_current_room()
 	if current_room:
 		description += "\n\n【当前场景】"
-		description += "\n你当前所在场景:" + current_room.room_name
-		description += "\n场景功能:" + current_room.room_desc
+		description += "\n你当前所在场景:" + current_room.name
+		description += "\n场景功能:" + current_room.description
 
 		# 添加情境参数(使用感知系统)
-		description += _get_room_situation_params(current_room.room_name)
+		description += _get_room_situation_params(current_room.name)
 
 		# 3. 当前场景内的角色及中范围关系
 		description += _get_characters_in_medium_range_description()
@@ -2138,7 +2138,7 @@ func _get_all_rooms_description() -> String:
 
 	for room_id in room_manager.rooms:
 		var room = room_manager.rooms[room_id]
-		desc += "\n- " + room.room_name + ":" + room.room_desc
+		desc += "\n- " + room.name + ":" + room.description
 
 	return desc
 
@@ -2617,7 +2617,7 @@ func get_current_medium_range_boundary() -> Dictionary:
 	if not current_room:
 		return result
 	
-	result.room_name = current_room.room_name
+	result.room_name = current_room.name
 	
 	var my_pos = character.global_position
 	var medium_range_id = _get_character_medium_range(character)
@@ -2632,7 +2632,7 @@ func get_current_medium_range_boundary() -> Dictionary:
 	var half_width = room_size.x * 0.5
 	var half_height = room_size.y * 0.5
 	
-	var range_type = _get_room_medium_range_type(current_room.room_name)
+	var range_type = _get_room_medium_range_type(current_room.name)
 	match range_type:
 		MediumRangeType.FOUR_QUADRANT:
 			# 4象限：每个象限是房间的四分之一
@@ -2684,7 +2684,7 @@ func get_current_room_boundary() -> Dictionary:
 	if not current_room:
 		return result
 	
-	result.room_name = current_room.room_name
+	result.room_name = current_room.name
 	
 	var room_pos = current_room.position
 	var room_size = current_room.size if current_room.has("size") else Vector2(200, 100)
@@ -2721,5 +2721,5 @@ func _get_character_room(char_node: CharacterBody2D) -> String:
 	
 	var char_room = _get_current_room_at_position(char_node.global_position)
 	if char_room:
-		return char_room.room_name
+		return char_room.name
 	return ""
