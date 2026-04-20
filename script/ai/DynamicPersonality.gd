@@ -65,6 +65,9 @@ static func update_trait(character: Node, trait_name: String, delta: float, reas
 		print("[DynamicPersonality] %s 的 %s 从 %.2f 变为 %.2f" % [
 			character.name, trait_name, old_value, new_value
 		])
+		
+		# 输出到认知参数日志
+		_log_cognitive_params_change(character, trait_name, old_value, new_value, reason)
 
 
 
@@ -308,6 +311,34 @@ static func _apply_boundary_protection(character: Node, trait_name: String, new_
 	var max_deviation = 0.2  # 最大偏离20%
 	
 	return clamp(new_value, baseline - max_deviation, baseline + max_deviation)
+
+# ============================================
+# 日志输出
+# ============================================
+
+static func _log_cognitive_params_change(character: Node, trait_name: String, 
+										 old_value: float, new_value: float, reason: String) -> void:
+	"""将认知参数变化输出到日志文件"""
+	var logger = _get_logger()
+	if logger:
+		var traits = get_dynamic_traits(character)
+		var change_reason = "%s: %s→%s" % [trait_name, _format_percent(old_value), _format_percent(new_value)]
+		if not reason.is_empty():
+			change_reason += " | %s" % reason
+		logger.log_cognitive_params(character.name, traits, change_reason)
+
+static func _get_logger() -> Node:
+	"""获取Logger节点"""
+	var tree = Engine.get_main_loop()
+	if tree:
+		var root = tree.get_root()
+		if root:
+			return root.get_node_or_null("/root/Logger")
+	return null
+
+static func _format_percent(value: float) -> String:
+	"""格式化百分比显示"""
+	return "%.0f%%" % (value * 100)
 
 # 获取PHQ-9等级描述
 static func get_phq9_level_description(depression_level: float) -> String:
