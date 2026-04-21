@@ -115,8 +115,10 @@ func _trigger_click():
 			var pending_count = ActivityCoordinator.instance.get_pending_count()
 			print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
 			# 如果所有Agent都提交了，提前结束等待
-			if pending_count >= 12:  # 假设有12个Agent
-				print("[TimingSystem] 所有Agent已提交，提前结束等待")
+			# 动态获取场景中的Agent数量
+			var expected_agents = get_tree().get_nodes_in_group("character").size()
+			if pending_count >= expected_agents:
+				print("[TimingSystem] 所有Agent已提交（%d/%d），提前结束等待" % [pending_count, expected_agents])
 				break
 		
 		# V2: 执行协调
