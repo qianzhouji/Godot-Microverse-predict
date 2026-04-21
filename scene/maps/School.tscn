@@ -11,21 +11,21 @@
 [ext_resource type="Texture2D" uid="uid://crb614s5ph1hm" path="res://asset/maps/interiors/Generic_Home_1_Layer_1_32x32.png" id="9_rryi1"]
 [ext_resource type="Script" uid="uid://msfgxiljxg7n" path="res://script/CharacterManager.gd" id="15_y022p"]
 [ext_resource type="Script" uid="uid://jukfjtge0p5v" path="res://script/CameraController.gd" id="16_tgr77"]
-[ext_resource type="PackedScene" uid="uid://cc4gikv7oney0" path="res://scene/characters/StudentXiaojun.tscn" id="23_74cc2"]
-[ext_resource type="PackedScene" uid="uid://0bokr5rf120" path="res://scene/characters/StudentXiaoli.tscn" id="24_0bb36"]
-[ext_resource type="PackedScene" uid="uid://4y5hs10soeb0" path="res://scene/characters/StudentXiaomei.tscn" id="25_45tuo"]
+
+
+
 [ext_resource type="PackedScene" uid="uid://c2yyfakwg86js" path="res://scene/ui/GlobalSettingsUI.tscn" id="26_ik20s"]
-[ext_resource type="PackedScene" uid="uid://c4rbhon3olad0" path="res://scene/characters/LibrarianZhang.tscn" id="26_xtwin"]
+
 [ext_resource type="PackedScene" uid="uid://bqhqxqhqhqhqh" path="res://scene/ui/GodUI.tscn" id="27_ik20s"]
-[ext_resource type="PackedScene" uid="uid://b8eb8aba75ab4" path="res://scene/characters/StudentXiaowei.tscn" id="27_w86wa"]
-[ext_resource type="PackedScene" uid="uid://b4r2dtvems800" path="res://scene/characters/StudentXiaoyu.tscn" id="28_wm13h"]
-[ext_resource type="PackedScene" uid="uid://851x1oi3vxwr" path="res://scene/characters/TeacherChen.tscn" id="29_pu4hk"]
+
+
+
 [ext_resource type="PackedScene" uid="uid://drfh1ftqs7id" path="res://scene/characters/StudentXiaohong.tscn" id="29_vmdq2"]
 [ext_resource type="PackedScene" uid="uid://eyhk4gwqs6md" path="res://scene/characters/StudentXiaoming.tscn" id="30_74cc2"]
 [ext_resource type="Script" uid="uid://bipg4phjpbujy" path="res://script/RoomArea.gd" id="30_yhhlg"]
-[ext_resource type="PackedScene" uid="uid://dae543b3f33c4" path="res://scene/characters/TeacherWang.tscn" id="31_0bb36"]
+
 [ext_resource type="Script" uid="uid://dwbuqa6u6pc8y" path="res://script/RoomManager.gd" id="31_8h615"]
-[ext_resource type="PackedScene" uid="uid://bch0myyyaia8" path="res://scene/characters/PrincipalLi.tscn" id="32_45tuo"]
+
 [ext_resource type="PackedScene" uid="uid://b2467tya6y44r" path="res://scene/characters/StudentXiaogang.tscn" id="33_sepw8"]
 [ext_resource type="Script" uid="uid://csgy7tvwdfwdl" path="res://script/system/TimingSystem.gd" id="34_timing"]
 [ext_resource type="Script" uid="uid://cb5sb6pw1rka7" path="res://script/system/TimelineState.gd" id="35_timeline"]
@@ -9488,38 +9488,13 @@ script = ExtResource("15_y022p")
 [node name="StudentXiaohong" parent="Characters" unique_id=1822526265 instance=ExtResource("29_vmdq2")]
 position = Vector2(1116, 359)
 
-[node name="StudentXiaojun" parent="Characters" unique_id=1067827764 instance=ExtResource("23_74cc2")]
-position = Vector2(905, 368)
 
-[node name="StudentXiaoli" parent="Characters" unique_id=1505178434 instance=ExtResource("24_0bb36")]
-position = Vector2(415, 559)
-
-[node name="StudentXiaomei" parent="Characters" unique_id=930171912 instance=ExtResource("25_45tuo")]
-position = Vector2(425, 367)
-
-[node name="LibrarianZhang" parent="Characters" unique_id=1476039324 instance=ExtResource("26_xtwin")]
-position = Vector2(1004, 528)
-
-[node name="StudentXiaowei" parent="Characters" unique_id=908182857 instance=ExtResource("27_w86wa")]
-position = Vector2(999, 72)
-
-[node name="StudentXiaoyu" parent="Characters" unique_id=1418520012 instance=ExtResource("28_wm13h")]
-position = Vector2(175, 173)
-
-[node name="TeacherChen" parent="Characters" unique_id=571938560 instance=ExtResource("29_pu4hk")]
-position = Vector2(89, 361)
 
 [node name="StudentXiaoming" parent="Characters" unique_id=803814461 instance=ExtResource("30_74cc2")]
 position = Vector2(242, 86)
 
-[node name="TeacherWang" parent="Characters" unique_id=834850083 instance=ExtResource("31_0bb36")]
-position = Vector2(677, 97)
-
 [node name="StudentXiaogang" parent="Characters" unique_id=1087300961 instance=ExtResource("33_sepw8")]
 position = Vector2(1021, 226)
-
-[node name="PrincipalLi" parent="Characters" unique_id=46818008 instance=ExtResource("32_45tuo")]
-position = Vector2(168, 550)
 
 [node name="SettingsLayer" parent="." unique_id=386943111 instance=ExtResource("26_ik20s")]
 
