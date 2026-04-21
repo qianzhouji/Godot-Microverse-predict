@@ -111,6 +111,9 @@ func _ready():
 	if logger:
 		print("[AIAgent] %s 已连接到日志系统" % character.name)
 
+	# 添加到ai_agents组，用于其他Agent查找
+	add_to_group("ai_agents")
+	
 	print("[AIAgent] %s 初始化完成" % character.name)
 
 # ============================================
