@@ -83,27 +83,26 @@ static func get_formatted_current_time() -> String:
 # 计算MVT累积收益 G(t) = (S/a)[1 - exp(-at)]
 # 参数:
 #   S: 初始收益率 (0-1)
-#   a: 衰减率 (/秒)
+#   a: 衰减率 (/分钟) - RoomArea中配置的单位
 #   time_minutes: 停留时间（分钟）
 # 返回: 累积收益 (0-1)
 static func calculate_mvt_gain(S: float, a: float, time_minutes: float) -> float:
 	if a < 0.001:
 		a = 0.001
 	
-	# 将分钟转换为秒（因为a的单位是/秒）
-	var time_seconds = to_seconds(time_minutes)
-	
-	var gain = (S / a) * (1.0 - exp(-a * time_seconds))
+	# a的单位是/分钟，直接使用分钟计算，避免单位转换错误
+	var gain = (S / a) * (1.0 - exp(-a * time_minutes))
 	return clamp(gain, 0.0, 1.0)
 
 # 计算MVT瞬时收益 g(t) = S * exp(-at)
 # 用于判断是否应该离开当前情境（MVT离开规则）
+# 注意：a的单位是/分钟，与time_minutes保持一致
 static func calculate_mvt_instantaneous_gain(S: float, a: float, time_minutes: float) -> float:
 	if a < 0.001:
 		a = 0.001
 	
-	var time_seconds = to_seconds(time_minutes)
-	return S * exp(-a * time_seconds)
+	# a的单位是/分钟，直接使用分钟计算
+	return S * exp(-a * time_minutes)
 
 # ============================================
 # 时间段检查

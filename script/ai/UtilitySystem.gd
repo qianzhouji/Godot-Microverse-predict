@@ -45,11 +45,11 @@ static func calculate_optimal_time(perceived_S: float, perceived_a: float,
 	if eta_a <= 0.01:
 		eta_a = 0.01
 	
-	# 理论公式：log(T) = log[ηS · log(S)] − log(ρbase) − βeffort · effort − ηa · log(a) + ε
-	# 注意：原公式中的减号，这里分解为各项
+	# 理论公式：log(T) = log[ηS · S] − log(ρbase) − βeffort · effort − ηa · log(a) + ε
+	# 修正：原公式中的 S 而非 log(S)，避免负数问题
 	
-	# 项1: log[ηS · log(S)]
-	var term1 = log(eta_s * log(perceived_S))
+	# 项1: log[ηS · S]
+	var term1 = log(eta_s * perceived_S)
 	
 	# 项2: − log(ρbase)
 	var term2 = -log(p_base)
