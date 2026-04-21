@@ -228,8 +228,15 @@ func _perform_activity_update_async():
 	# 1. 获取当前活动信息
 	var activity_info = ActivityManager.instance.get_activity_info(character.name)
 	if not activity_info.has_activity:
-		# 活动已结束，回到空闲状态
-		_perform_v2_cognitive_cycle()
+		# 活动已结束，检查是否有缓存的下一步活动
+		if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
+			print("[AIAgent] %s 当前活动结束，执行缓存的下一步活动 [%d/%d]" % [
+				character.name, current_activity_index, activity_cache.size()
+			])
+			_execute_next_cached_activity()
+		else:
+			# 没有缓存活动，进入认知循环
+			_perform_v2_cognitive_cycle()
 		return
 	
 	# 2. 体验阶段：接收累积奖赏（ActivityManager已在Click时触发RewardSystem）
