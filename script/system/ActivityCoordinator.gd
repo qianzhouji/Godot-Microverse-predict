@@ -307,6 +307,13 @@ func _build_coordination_prompt(input_data: Dictionary) -> String:
 	var prompt = coordinator_prompt_template + "\n\n"
 	
 	prompt += "## 当前协调任务\n\n"
+	prompt += "【对话系统测试模式】当前测试对话系统，请优先促进角色间的对话交互！\n\n"
+	prompt += "对话促进规则：\n"
+	prompt += "1. 如果Agent表达了对话意愿（如'想和XX聊天'），即使对方没有明确回应，也尝试协调双方到同一位置进行对话\n"
+	prompt += "2. 优先分配NORMAL_DIALOGUE和GROUP_DISCUSSION活动，而非让角色独处\n"
+	prompt += "3. 将多个Agent协调到同一区域，创造对话机会\n"
+	prompt += "4. 食堂、走廊等场景优先安排群体对话\n\n"
+	
 	prompt += "请根据以下输入，为每个Agent分配活动序列：\n\n"
 	prompt += "```json\n"
 	prompt += JSON.stringify(input_data, "\t")
