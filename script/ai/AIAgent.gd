@@ -1011,6 +1011,8 @@ func _execute_v2_activity(activity: Activity) -> void:
 			_execute_v2_sports(activity)
 		Activity.ActivityType.GROUP_DISCUSSION:
 			_execute_v2_discussion(activity)
+		Activity.ActivityType.INITIATE_DIALOGUE:
+			_execute_v2_initiate_dialogue(activity)
 		_:
 			print("[AIAgent] %s 未知活动类型: %s" % [character.name, activity.activity_type])
 
@@ -1316,6 +1318,48 @@ func _execute_v2_discussion(activity: Activity) -> void:
 			{"topic": topic, "members": members, "focus_level": focus},
 			5  # HIGH importance - 小组讨论是重要社交活动
 		)
+
+func _execute_v2_initiate_dialogue(activity: Activity) -> void:
+	"""执行发起对话 - 【对话测试模式】启动普通对话"""
+	var range_type = activity.parameters.get("range_type", 1)  # 默认NORMAL
+	var initial_message = activity.parameters.get("initial_message", "")
+	var topic = activity.parameters.get("topic", "")
+	var focus = activity.focus_level
+	
+	var range_name = "普通对话"
+	if range_type == 0:
+		range_name = "悄悄话"
+	elif range_type == 2:
+		range_name = "广播"
+	
+	print("[AIAgent] %s 开始%s，话题: %s，专注度: %d%%" % [
+		character.name, range_name, topic, focus
+	])
+	
+	# 【对话测试模式】启动实际对话系统
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var current_click = _get_current_click()
+		var current_time = _get_current_game_time()
+		
+		# 启动对话
+		var dialogue_id = dialogue_manager.start_dialogue(
+			character, range_type, topic, "", "", current_click, current_time
+		)
+		
+		if not dialogue_id.is_empty():
+			print("[AIAgent] %s 成功启动%s，对话ID: %s" % [character.name, range_name, dialogue_id])
+			current_state = AgentState.IN_DIALOGUE
+			current_activity = range_name
+		else:
+			print("[AIAgent] %s 启动%s失败" % [character.name, range_name])
+	else:
+		print("[AIAgent] %s DialogueManager未找到，无法启动对话" % character.name)
+	
+	# V2: 记录对话日志
+	if logger:
+		var room_name = _get_current_room_name()
+		logger.log_activity(character.name, "发起%s: %s" % [range_name, topic], room_name)
 
 func _get_current_room_name() -> String:
 	"""获取当前房间显示名称（用于RewardSystem查找）"""
