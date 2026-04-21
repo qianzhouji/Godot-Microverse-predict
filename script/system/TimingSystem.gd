@@ -6,7 +6,7 @@ static var instance: TimingSystem
 
 # 时间配置
 const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
-const REAL_SECONDS_PER_CLICK: float = 120.0  # 120现实秒（2分钟）= 1个Click（游戏5分钟）
+const REAL_SECONDS_PER_CLICK: float = 60.0  # 【对话测试模式】60现实秒（1分钟）= 1个Click（游戏5分钟）
 # 时间比例：现实2分钟 = 游戏5分钟，即1现实秒 = 2.5游戏秒
 
 # 状态
