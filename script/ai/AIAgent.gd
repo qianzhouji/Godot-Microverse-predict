@@ -1270,20 +1270,34 @@ func _execute_v2_sports(activity: Activity) -> void:
 		)
 
 func _execute_v2_discussion(activity: Activity) -> void:
-	"""执行小组讨论"""
+	"""执行小组讨论 - 【对话测试模式】启动实际对话系统"""
 	var topic = activity.parameters.get("topic", "")
 	var members = activity.parameters.get("members", [])
 	var focus = activity.focus_level
 	
-	# V2: 记录讨论信息接收
-	if information_receiver:
-		# 模拟讨论内容
-		var discussion_content = "关于%s的讨论..." % topic
-		information_receiver.receive_discussion(members, discussion_content, float(focus) / 100.0, topic)
-	
 	print("[AIAgent] %s 开始小组讨论，话题: %s，成员: %s，专注度: %d%%" % [
 		character.name, topic, ", ".join(members), focus
 	])
+	
+	# 【对话测试模式】启动实际对话系统
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager:
+		var current_click = _get_current_click()
+		var current_time = _get_current_game_time()
+		
+		# 使用NORMAL范围（中范围）启动群组对话
+		var dialogue_id = dialogue_manager.start_dialogue(
+			character, 1, topic, "", "", current_click, current_time  # 1 = NORMAL
+		)
+		
+		if not dialogue_id.is_empty():
+			print("[AIAgent] %s 成功启动小组对话，对话ID: %s" % [character.name, dialogue_id])
+			current_state = AgentState.IN_DIALOGUE
+			current_activity = "小组讨论"
+		else:
+			print("[AIAgent] %s 启动小组对话失败" % character.name)
+	else:
+		print("[AIAgent] %s DialogueManager未找到，无法启动小组讨论" % character.name)
 	
 	# V2: 记录讨论日志
 	if logger:
@@ -1302,19 +1316,6 @@ func _execute_v2_discussion(activity: Activity) -> void:
 			{"topic": topic, "members": members, "focus_level": focus},
 			5  # HIGH importance - 小组讨论是重要社交活动
 		)
-		# 记录与所有成员的社交互动
-		for member in members:
-			if member != character.name:
-				MemorySystem.instance.record_interaction(
-					character.name,
-					member,
-					"GROUP_DISCUSSION",
-					game_time,
-					_get_current_room_name(),
-					topic,
-					10.0,  # duration
-					0.08   # emotional_impact
-				)
 
 func _get_current_room_name() -> String:
 	"""获取当前房间显示名称（用于RewardSystem查找）"""
