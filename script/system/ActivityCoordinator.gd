@@ -158,44 +158,9 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 		print("[ActivityCoordinator]   %s: %s" % [agent_id, display_decision.replace("\n", " ")])
 	print("[ActivityCoordinator] ===== 决策内容结束 =====")
 	
-	# 构建输入数据
-	var input_data = _build_coordination_input(game_context)
-	
-	# 构建Prompt
-	var prompt = _build_coordination_prompt(input_data)
-	
-	# 记录协调输入
-	_log_coordination("COORDINATION_INPUT", {
-		"game_context": game_context,
-		"agent_count": pending_decisions.size(),
-		"agents": input_data.get("agents", [])
-	})
-	
-	# 调用LLM
-	var response = await _call_llm(prompt)
-	
-	# 记录LLM原始响应
-	_log_coordination("LLM_RESPONSE", {
-		"response_length": response.length(),
-		"response": response
-	})
-	
-	if response.is_empty():
-		coordination_failed.emit("LLM调用失败")
-		is_coordinating = false
-		return {}
-	
-	# 打印完整LLM响应
-	print("[ActivityCoordinator] ===== LLM完整响应 =====")
-	if response.length() > 500:
-		print("[ActivityCoordinator] 响应前500字符:\n%s" % response.substr(0, 500))
-		print("[ActivityCoordinator] ... (截断)")
-	else:
-		print("[ActivityCoordinator] 完整响应:\n%s" % response)
-	print("[ActivityCoordinator] ===== 响应结束 =====")
-	
-	# 解析响应
-	var results = _parse_coordination_response(response)
+	# 【对话测试模式】直接分配对话活动，忽略角色决策
+	print("[ActivityCoordinator] 【对话测试模式】直接为所有Agent分配对话活动")
+	var results = _assign_dialogue_activities_directly()
 	
 	# 打印协调结果调试信息
 	print("[ActivityCoordinator] ===== 协调结果摘要 =====")
