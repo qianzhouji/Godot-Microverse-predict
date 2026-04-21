@@ -48,10 +48,10 @@
     "QA_TEACHER",
     "SELF_STUDY",
     "SPORTS",
-    "GROUP_DISCUSSION"
+
   ],
   "scene_constraints": {
-    "教室A": ["LISTEN", "QA_TEACHER", "GROUP_DISCUSSION"],
+    "教室A": ["LISTEN", "QA_TEACHER"],
     "图书馆": ["SELF_STUDY"],
     "体育馆": ["SPORTS"]
   }
@@ -78,7 +78,7 @@
 | QA_TEACHER | 提问/回答 | 仅限上课 | 30/65/100 | 课堂互动 |
 | SELF_STUDY | 自习 | 图书馆/自习室 | 30/65/100 | 自主学习 |
 | SPORTS | 体育活动 | 体育馆 | 30/65/100 | 体育运动 |
-| GROUP_DISCUSSION | 小组讨论 | 教室/讨论室 | 30/65/100 | 多人讨论 |
+
 
 ---
 
@@ -189,7 +189,7 @@ LLM 拥有每个 Agent 的当前坐标 (`current_position`)，必须据此计算
 - "听课/上课" → LISTEN(当前老师)
 - "自习/学习" → SELF_STUDY(科目)
 - "运动/打球" → SPORTS(运动类型)
-- "小组讨论" → GROUP_DISCUSSION(主题,成员)
+
 
 ### 对话促进规则（测试模式）
 
@@ -206,7 +206,7 @@ LLM 拥有每个 Agent 的当前坐标 (`current_position`)，必须据此计算
 
 3. **对话场景优先**：
    - 食堂、体育馆、走廊等场景优先安排对话而非独处
-   - 将多个Agent协调到同一区域进行GROUP_DISCUSSION
+   - 将多个Agent协调到同一区域进行对话
 
 4. **简化约束**：
    - 暂时放宽"双向奔赴"限制，允许单向对话尝试

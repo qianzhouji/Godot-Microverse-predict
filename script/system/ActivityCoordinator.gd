@@ -182,7 +182,7 @@ func _assign_dialogue_activities_directly() -> Dictionary:
 	
 	策略：
 	1. 将所有Agent移动到同一区域（食堂中心）
-	2. 分配GROUP_DISCUSSION活动
+	2. 分配NORMAL_DIALOGUE活动
 	"""
 	var results = {}
 	
@@ -209,18 +209,13 @@ func _assign_dialogue_activities_directly() -> Dictionary:
 		move_activity.activity_id = "%s_move_%d" % [agent_id, Time.get_unix_time_from_system()]
 		activities.append(move_activity)
 		
-		# Step 2: 参与群体讨论
-		var other_members: Array[String] = []
-		for other_id in agent_ids:
-			if other_id != agent_id:
-				other_members.append(other_id)
-		
-		var discussion_activity = Activity.create_group_discussion("日常闲聊", other_members, Activity.FocusLevel.MEDIUM)
-		discussion_activity.activity_id = "%s_discussion_%d" % [agent_id, Time.get_unix_time_from_system()]
-		activities.append(discussion_activity)
+		# Step 2: 开始普通对话（NORMAL范围）
+		var dialogue_activity = Activity.create_initiate_dialogue(1, "大家好，最近怎么样？", "日常闲聊")  # 1 = NORMAL
+		dialogue_activity.activity_id = "%s_dialogue_%d" % [agent_id, Time.get_unix_time_from_system()]
+		activities.append(dialogue_activity)
 		
 		results[agent_id] = activities
-		print("[ActivityCoordinator] 【直接分配】%s: MOVE_TO(%.0f,%.0f) -> GROUP_DISCUSSION" % [agent_id, target_pos.x, target_pos.y])
+		print("[ActivityCoordinator] 【直接分配】%s: MOVE_TO(%.0f,%.0f) -> NORMAL_DIALOGUE" % [agent_id, target_pos.x, target_pos.y])
 	
 	return results
 
@@ -285,7 +280,6 @@ func _get_available_activities() -> Array[String]:
 		"QA_TEACHER",
 		"SELF_STUDY",
 		"SPORTS",
-		"GROUP_DISCUSSION"
 	]
 
 func _get_scene_constraints() -> Dictionary:
@@ -293,12 +287,11 @@ func _get_scene_constraints() -> Dictionary:
 	if ActivityManager.instance:
 		return ActivityManager.instance.scene_activity_map
 	return {
-		"classroom": ["LISTEN", "QA_TEACHER", "GROUP_DISCUSSION"],
+		"classroom": ["LISTEN", "QA_TEACHER"],
 		"library": ["SELF_STUDY"],
 		"study_room": ["SELF_STUDY"],
 		"gym": ["SPORTS"],
-		"playground": ["SPORTS"],
-		"discussion_room": ["GROUP_DISCUSSION"]
+		"playground": ["SPORTS"]
 	}
 
 # ============================================
@@ -313,7 +306,7 @@ func _build_coordination_prompt(input_data: Dictionary) -> String:
 	prompt += "【对话系统测试模式】当前测试对话系统，请优先促进角色间的对话交互！\n\n"
 	prompt += "对话促进规则：\n"
 	prompt += "1. 如果Agent表达了对话意愿（如'想和XX聊天'），即使对方没有明确回应，也尝试协调双方到同一位置进行对话\n"
-	prompt += "2. 优先分配NORMAL_DIALOGUE和GROUP_DISCUSSION活动，而非让角色独处\n"
+	prompt += "2. 优先分配NORMAL_DIALOGUE活动，而非让角色独处\n"
 	prompt += "3. 将多个Agent协调到同一区域，创造对话机会\n"
 	prompt += "4. 食堂、走廊等场景优先安排群体对话\n\n"
 	
@@ -332,7 +325,7 @@ func _get_builtin_prompt() -> String:
 
 你的任务：
 1. 理解每个角色的自然语言决策
-2. 将意图映射为具体活动（MOVE_TO, NORMAL_DIALOGUE, WHISPER, LISTEN, QA_TEACHER, SELF_STUDY, SPORTS, GROUP_DISCUSSION）
+2. 将意图映射为具体活动（MOVE_TO, NORMAL_DIALOGUE, WHISPER, LISTEN, QA_TEACHER, SELF_STUDY, SPORTS）
 3. 检查场景约束
 4. 为每个角色分配最多3步的活动序列
 
@@ -617,16 +610,6 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 			var sports_focus = _int_to_focus_level(focus_level)
 			activity = Activity.create_sports(sport_type, intensity, sports_focus)
 		
-		Activity.ActivityType.GROUP_DISCUSSION:
-			var topic = parameters.get("topic", "")
-			var members_raw = parameters.get("members", [])
-			# 转换为Array[String]
-			var members: Array[String] = []
-			for m in members_raw:
-				if m is String:
-					members.append(m)
-			var discussion_focus = _int_to_focus_level(focus_level)
-			activity = Activity.create_group_discussion(topic, members, discussion_focus)
 	
 	if activity:
 		activity.activity_id = "%s_step%d_%d" % [agent_id, step_data.get("step", 1), Time.get_unix_time_from_system()]
@@ -644,7 +627,7 @@ func _string_to_activity_type(type_str: String) -> Activity.ActivityType:
 		"QA_TEACHER": return Activity.ActivityType.QA_TEACHER
 		"SELF_STUDY": return Activity.ActivityType.SELF_STUDY
 		"SPORTS": return Activity.ActivityType.SPORTS
-		"GROUP_DISCUSSION": return Activity.ActivityType.GROUP_DISCUSSION
+
 		"NORMAL_DIALOGUE": return Activity.ActivityType.NORMAL_DIALOGUE
 		"WHISPER": return Activity.ActivityType.WHISPER
 		_: return Activity.ActivityType.MOVE_TO
@@ -667,7 +650,7 @@ func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
 		Activity.ActivityType.QA_TEACHER: return "QA"
 		Activity.ActivityType.SELF_STUDY: return "SELF_STUDY"
 		Activity.ActivityType.SPORTS: return "SPORTS"
-		Activity.ActivityType.GROUP_DISCUSSION: return "GROUP_DISCUSSION"
+
 		Activity.ActivityType.INITIATE_DIALOGUE: return "INITIATE_DIALOGUE"
 		Activity.ActivityType.JOIN_DIALOGUE: return "JOIN_DIALOGUE"
 		Activity.ActivityType.LEAVE_DIALOGUE: return "LEAVE_DIALOGUE"
