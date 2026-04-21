@@ -1546,28 +1546,15 @@ func _get_current_room_at_position(pos: Vector2):
 		return null
 	return room_manager.get_current_room(room_manager.rooms, pos)
 
-# 2. 开始对话（使用群组对话系统，中范围150px）
+# 2. 开始对话（使用群组对话系统，中范围NORMAL）
 func _execute_start_dialogue(request: ActionRequest):
 	print("[AIAgent] %s 开始对话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "对话"
 	activity_start_time = Time.get_unix_time_from_system()
 
-	# 获取目标Agent
-	var target_agent = _find_agent_by_id(request.target_id)
-	if not target_agent:
-		print("[AIAgent] %s 开始对话失败:目标不存在" % character.name)
-		current_state = AgentState.IDLE
-		return
-
-	# 记录对话对象，用于感知系统显示
-	set_meta("dialogue_partner", request.target_id)
-
-	# 同时设置对方的对话对象
-	if target_agent.has_method("set_meta"):
-		target_agent.set_meta("dialogue_partner", character.name)
-
 	# 使用新的DialogueManager启动对话（中范围）
+	# 注意：新系统是基于范围的广播式对话，不需要特定目标
 	var dialogue_manager = get_node_or_null("/root/DialogueManager")
 	if dialogue_manager:
 		var current_click = _get_current_click()
@@ -1576,40 +1563,25 @@ func _execute_start_dialogue(request: ActionRequest):
 			character, 1, "", "", "", current_click, current_time  # 1 = NORMAL
 		)
 		if not dialogue_id.is_empty():
-			print("[AIAgent] %s 成功向 %s 发起对话（中范围）" % [character.name, request.target_id])
+			print("[AIAgent] %s 成功发起对话（中范围），对话ID: %s" % [character.name, dialogue_id])
 		else:
-			print("[AIAgent] %s 向 %s 发起对话失败" % [character.name, request.target_id])
+			print("[AIAgent] %s 发起对话失败" % character.name)
 			current_state = AgentState.IDLE
 			current_activity = ""
-			remove_meta("dialogue_partner")
 	else:
 		print("[AIAgent] %s DialogueManager未找到，无法启动对话" % character.name)
 		current_state = AgentState.IDLE
 		current_activity = ""
-		remove_meta("dialogue_partner")
 
-# 3. 开始悄悄话(私密对话，使用群组对话系统，小范围30px)
+# 3. 开始悄悄话(私密对话，使用群组对话系统，小范围WHISPER)
 func _execute_start_whisper(request: ActionRequest):
 	print("[AIAgent] %s 开始悄悄话" % character.name)
 	current_state = AgentState.IN_DIALOGUE
 	current_activity = "悄悄话"
 	activity_start_time = Time.get_unix_time_from_system()
 
-	# 获取目标Agent
-	var target_agent = _find_agent_by_id(request.target_id)
-	if not target_agent:
-		print("[AIAgent] %s 开始悄悄话失败:目标不存在" % character.name)
-		current_state = AgentState.IDLE
-		return
-
-	# 记录悄悄话对象，用于感知系统显示
-	set_meta("whisper_partner", request.target_id)
-
-	# 同时设置对方的悄悄话对象
-	if target_agent.has_method("set_meta"):
-		target_agent.set_meta("whisper_partner", character.name)
-
 	# 使用新的DialogueManager启动悄悄话（小范围）
+	# 注意：新系统是基于范围的广播式对话，不需要特定目标
 	var dialogue_manager = get_node_or_null("/root/DialogueManager")
 	if dialogue_manager:
 		var current_click = _get_current_click()
@@ -1618,9 +1590,9 @@ func _execute_start_whisper(request: ActionRequest):
 			character, 0, "", "", "", current_click, current_time  # 0 = WHISPER
 		)
 		if not dialogue_id.is_empty():
-			print("[AIAgent] %s 成功向 %s 发起悄悄话（小范围）" % [character.name, request.target_id])
+			print("[AIAgent] %s 成功发起悄悄话（小范围），对话ID: %s" % [character.name, dialogue_id])
 		else:
-			print("[AIAgent] %s 向 %s 发起悄悄话失败" % [character.name, request.target_id])
+			print("[AIAgent] %s 发起悄悄话失败" % character.name)
 			current_state = AgentState.IDLE
 			current_activity = ""
 			remove_meta("whisper_partner")
