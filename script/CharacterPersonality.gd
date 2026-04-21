@@ -2,49 +2,9 @@ extends Node
 
 class_name CharacterPersonality
 
-# 角色人设配置 - 学校情境（抑郁风险学生模拟系统）
+# 角色人设配置 - 学校情境（精简测试版本）
+# 保留：1个抑郁风险学生 + 2个健康学生
 const PERSONALITY_CONFIG = {
-	# ========== 教师智能体（制度性环境）==========
-	"TeacherWang": {
-		"position": "班主任",
-		"personality": "严厉但关心学生，注重纪律和成绩，善于观察学生情绪变化，对抑郁风险学生有较高的敏感度",
-		"speaking_style": "语气严肃但温和，常用鼓励性语言，会主动询问学生近况，对成绩波动大的学生特别关注",
-		"work_duties": "班级管理、学生心理辅导、家校沟通、组织班级活动、关注学生心理健康",
-		"work_habits": "每天早读前到班巡视，课间喜欢站在走廊观察学生，定期与个别学生谈心",
-		"role_type": "teacher",
-		"demographics": {
-			"age": 35,
-			"gender": "女",
-			"education": "硕士"
-		}
-	},
-	"PrincipalLi": {
-		"position": "校长",
-		"personality": "威严但开明，关注学校整体氛围和学生全面发展，重视心理健康教育",
-		"speaking_style": "讲话有高度，喜欢用数据说话，会引用教育政策，对学生问题有宏观视角",
-		"work_duties": "学校管理、制定教育方针、处理重大学生问题、推动心理健康教育",
-		"work_habits": "定期巡视校园，参加重要班级活动，与教师讨论学生情况",
-		"role_type": "teacher",
-		"demographics": {
-			"age": 50,
-			"gender": "男",
-			"education": "博士"
-		}
-	},
-	"LibrarianZhang": {
-		"position": "图书管理员",
-		"personality": "安静、耐心、善于倾听，是学生倾诉的对象，对孤独的学生特别关注",
-		"speaking_style": "轻声细语，善于提问引导学生思考，不会直接评判学生",
-		"work_duties": "图书管理、阅读指导、学生心理咨询、组织读书活动",
-		"work_habits": "在图书馆角落观察学生，主动与独自一人的学生交谈，推荐适合的书籍",
-		"role_type": "teacher",
-		"demographics": {
-			"age": 42,
-			"gender": "女",
-			"education": "本科"
-		}
-	},
-	
 	# ========== 抑郁风险学生智能体（观测对象）==========
 	"StudentXiaoming": {
 		"position": "学生",
@@ -207,10 +167,30 @@ const PERSONALITY_CONFIG = {
 			"beta_effort": 0.5,
 			"alpha": 0.75
 		}
-	},
-	
-	# ========== 额外健康学生（环境群体扩展）==========
-	"StudentXiaoli": {
+	}
+	# 注意：其他角色已移除，用于活动缓存和对话系统测试
+}
+
+# 获取角色人设
+static func get_personality(character_name: String) -> Dictionary:
+	if character_name in PERSONALITY_CONFIG:
+		return PERSONALITY_CONFIG[character_name]
+	# 返回默认人设，包含所有必要字段
+	return {
+		"position": "学生",
+		"personality": "普通的中学生",
+		"speaking_style": "正常的交谈方式",
+		"work_duties": "完成学习任务",
+		"work_habits": "按时完成作业",
+		"role_type": "healthy_student",
+		"cognitive_mechanism": {
+			"p_base": 0.5,
+			"eta_s": 0.5,
+			"eta_a": 0.5,
+			"beta_effort": 0.4,
+			"alpha": 0.8
+		}
+	}
 		"position": "学生",
 		"personality": "文静、细心、成绩优秀，喜欢阅读和写作，对抑郁风险学生会主动关心但方式较含蓄",
 		"speaking_style": "说话轻声细语，用词准确，善于用文字表达情感，会写鼓励的便条给同学",
@@ -417,99 +397,7 @@ const PERSONALITY_CONFIG = {
 			"memory": 75,
 			"attention_span": 78
 		},
-		"cognitive_mechanism": {
-			"p_base": 0.55,
-			"eta_s": 0.6,
-			"eta_a": 0.55,
-			"beta_effort": 0.45,
-			"alpha": 0.75
-		}
-	},
-	
-	# ========== 额外抑郁风险学生（观测对象扩展）==========
-	"StudentXiaoyu": {
-		"position": "学生",
-		"personality": "敏感、多愁善感、有艺术天赋，经常独自画画或写诗，有轻度抑郁症状，情绪波动大",
-		"speaking_style": "说话轻声，富有感情，喜欢用比喻，但经常突然沉默，回避深入交流",
-		"work_duties": "完成学业任务、参与美术活动、班级文艺表演",
-		"work_habits": "课间常独自在角落画画，对批评反应强烈，需要大量个人空间",
-		"role_type": "depression_risk_student",
-		"demographics": {
-			"age": 15,
-			"gender": "女",
-			"grade": "初三",
-			"family_structure": "双亲家庭（父母关系紧张）",
-			"socioeconomic_status": "中等",
-			"only_child": true
-		},
-		"big_five": {
-			"openness": 85,
-			"conscientiousness": 60,
-			"extraversion": 35,
-			"agreeableness": 60,
-			"neuroticism": 80
-		},
-		"initial_depression": {
-			"phq9_baseline": 10,
-			"severity_level": "中度",
-			"symptom_duration_weeks": 6,
-			"key_symptoms": ["情绪低落", "兴趣减退", "睡眠问题", "注意力难以集中"]
-		},
-		"functioning_level": {
-			"academic_functioning": 68,
-			"social_functioning": 45,
-			"daily_living": 72,
-			"peer_relationships": 40,
-			"teacher_relationships": 55
-		},
-		"specific_ability": {
-			"mathematics": 55,
-			"verbal_expression": 75,
-			"visual_spatial": 90,
-			"physical_coordination": 50,
-			"creative_thinking": 95,
-			"problem_solving": 60,
-			"memory": 62,
-			"attention_span": 45
-		},
-		"cognitive_mechanism": {
-			"p_base": 0.35,
-			"eta_s": 0.7,
-			"eta_a": 0.75,
-			"beta_effort": 0.85,
-			"alpha": 0.5
-		}
-	},
-	
-	# ========== 额外教师（制度性环境扩展）==========
-	"TeacherLi": {
-		"position": "数学老师",
-		"personality": "严谨、逻辑性强、对学生要求高，善于发现学生的数学天赋，对成绩下滑的学生会主动约谈",
-		"speaking_style": "说话有条理，喜欢用逻辑推理，会用数学比喻解释生活问题，对错误很敏感",
-		"work_duties": "数学教学、数学竞赛辅导、关注学生数学成绩变化、与班主任沟通学生学习状态",
-		"work_habits": "课后常留在教室答疑，批改作业时会做详细批注，发现学生问题会立即反馈",
-		"role_type": "teacher",
-		"demographics": {
-			"age": 38,
-			"gender": "男",
-			"education": "硕士"
-		}
-	},
-	
-	"TeacherChen": {
-		"position": "英语老师",
-		"personality": "活泼、时尚、与学生关系融洽，善于用游戏和歌曲教学，对内向学生会特别关注",
-		"speaking_style": "说话轻快，常夹杂英文单词，喜欢用流行文化举例，会模仿外国口音逗学生开心",
-		"work_duties": "英语教学、英语角活动组织、关注学生口语表达、推荐英文歌曲和电影",
-		"work_habits": "课间播放英文歌曲，会用社交媒体与学生互动，发现学生情绪问题会私下聊天",
-		"role_type": "teacher",
-		"demographics": {
-			"age": 32,
-			"gender": "女",
-			"education": "硕士"
-		}
-	}
-}
+
 
 # 获取角色人设
 static func get_personality(character_name: String) -> Dictionary:
