@@ -5,7 +5,8 @@
 | 活动 | 说明 |
 |------|------|
 | MOVE_TO | 移动到指定位置，参数：target_location {x, y} |
-| NORMAL_DIALOGUE | 发起/加入普通对话，参数：topic |
+| INITIATE_DIALOGUE | 发起对话，参数：range_type (0=悄悄话, 1=普通对话, 2=广播), topic |
+| JOIN_DIALOGUE | 加入已有对话，参数：dialogue_id |
 
 ## 输出格式
 
@@ -23,8 +24,8 @@
         },
         {
           "step": 2,
-          "activity_type": "NORMAL_DIALOGUE",
-          "parameters": {"topic": "日常闲聊"},
+          "activity_type": "INITIATE_DIALOGUE",
+          "parameters": {"range_type": 1, "topic": "日常闲聊"},
           "reason": "发起对话"
         }
       ]
@@ -38,8 +39,10 @@
 **核心任务：让所有角色聚在一起对话**
 
 1. 如果角色不在一起 → 安排他们移动到同一位置（食堂中心约600,400）
-2. 安排一个角色发起对话（NORMAL_DIALOGUE）
-3. 如果其他角色没有发起对话 → 安排他们加入对话
+2. 安排**一个**角色发起对话（INITIATE_DIALOGUE，range_type=1普通对话）
+3. 安排**其他**角色加入对话（JOIN_DIALOGUE）
+
+**注意：** 只有一个角色发起对话，其他角色都加入这个对话！
 
 **坐标分配：** 围绕中心点(600,400)分布，半径50-80px
 
