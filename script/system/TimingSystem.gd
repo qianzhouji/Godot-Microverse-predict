@@ -105,9 +105,9 @@ func _trigger_click():
 		print("[TimingSystem] click_triggered信号已发射")
 		
 		# V2: 等待Agent提交决策
-		# 最大等待时间：6秒(延迟) + 30秒(LLM超时) + 缓冲 = 40秒
+		# 【对话测试模式】缩短等待时间到15秒
 		print("[TimingSystem] 等待Agent提交决策...")
-		var max_wait = 40.0  # 最大等待40秒
+		var max_wait = 15.0  # 【对话测试模式】最大等待15秒
 		var waited = 0.0
 		while waited < max_wait:
 			await get_tree().create_timer(1.0).timeout
