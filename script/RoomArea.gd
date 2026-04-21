@@ -100,12 +100,12 @@ func _get_objective_params_internal() -> Dictionary:
 # 计算客观收益（系统层内部使用）
 # G(t) = (S/a)[1 - exp(-at)]
 # ⚠️ 警告：此函数仅供系统层组件调用
-func _calculate_objective_gain_internal(time: float) -> float:
+func _calculate_objective_gain_internal(time_minutes: float) -> float:
 	"""
 	计算指定时间的客观收益（系统层内部使用）
 	
 	参数:
-		time: 停留时间
+		time_minutes: 停留时间（游戏时间，分钟）
 	
 	返回:
 		客观收益值（0-1）
@@ -113,9 +113,5 @@ func _calculate_objective_gain_internal(time: float) -> float:
 	⚠️ 警告：此函数仅供系统层组件调用
 	Agent不应直接调用此函数
 	"""
-	var a = reward_decay_rate
-	if a < 0.001:
-		a = 0.001
-	
-	var gain = (initial_reward_rate / a) * (1.0 - exp(-a * time))
-	return clamp(gain, 0.0, 1.0)
+	# 使用TimeUtils统一计算
+	return TimeUtils.calculate_mvt_gain(initial_reward_rate, reward_decay_rate, time_minutes)

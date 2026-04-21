@@ -41,15 +41,15 @@ func distribute_reward(agent_name: String, room_name: String, time_in_room: floa
 	var a = room_data.a  # 收益衰减率（Agent不可见）
 	var E = room_data.E  # 努力成本（Agent不可见）
 	
-	# 2. 计算客观收益 G(t) = (S/a)[1 - exp(-at)]
+	# 2. 计算客观收益（TimeUtils内部会处理分钟到秒的转换）
 	var actual_gain = _calculate_objective_gain(S, a, time_in_room)
 	
 	# 3. 发放奖赏（通过信号通知，Agent通过接收器订阅）
 	# Agent只能通过接收器获取此数值，不能直接读取S,a,E
 	reward_distributed.emit(agent_name, room_name, time_in_room, actual_gain, E)
 	
-	print("[RewardSystem] 向 %s 发放奖赏: %.3f (房间: %s, 时间: %.1fs)" % 
-		  [agent_name, actual_gain, room_name, time_in_room])
+	print("[RewardSystem] 向 %s 发放奖赏: %.3f (房间: %s, 时间: %.1f分钟, S=%.2f, a=%.2f)" % 
+		  [agent_name, actual_gain, room_name, time_in_room, S, a])
 	
 	return {
 		"gain": actual_gain,
@@ -124,16 +124,10 @@ func _fallback_get_room_params(room_name: String) -> Dictionary:
 
 # 计算客观收益
 # G(t) = (S/a)[1 - exp(-at)]
-func _calculate_objective_gain(S: float, a: float, time: float) -> float:
-	# 避免除零
-	if a < 0.001:
-		a = 0.001
-	
-	# 计算累积收益
-	var gain = (S / a) * (1.0 - exp(-a * time))
-	
-	# 确保在合理范围内
-	return clamp(gain, 0.0, 1.0)
+# time参数：游戏时间（分钟），内部会转换为秒
+func _calculate_objective_gain(S: float, a: float, time_minutes: float) -> float:
+	# 使用TimeUtils统一计算
+	return TimeUtils.calculate_mvt_gain(S, a, time_minutes)
 
 # ============================================
 # 工具函数

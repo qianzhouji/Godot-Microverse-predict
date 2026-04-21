@@ -1307,10 +1307,11 @@ func _execute_v2_discussion(activity: Activity) -> void:
 				)
 
 func _get_current_room_name() -> String:
-	"""获取当前房间名称"""
+	"""获取当前房间显示名称（用于RewardSystem查找）"""
 	var room = _get_current_room()
 	if room != null:
-		return room.name
+		# 使用 room_name（显示名称，如"图书馆"）而不是 name（节点名，如"RoomArea1"）
+		return room.room_name
 	return "unknown"
 
 # ============================================
@@ -2563,11 +2564,11 @@ func _get_current_click() -> int:
 	return 0
 
 func _get_current_game_time() -> float:
-	"""获取当前游戏时间（从TimingSystem）"""
-	var timing_system = get_node_or_null("/root/TimingSystem")
-	if timing_system and timing_system.has_method("get_game_time"):
-		return timing_system.get_game_time()
-	return 0.0
+	"""获取当前游戏时间（分钟）
+	
+	使用TimeUtils统一获取，确保全项目时间逻辑一致
+	"""
+	return TimeUtils.get_game_time_minutes()
 
 func _clean_dialogue_content(content: String) -> String:
 	"""清理生成的对话内容"""

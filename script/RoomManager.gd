@@ -24,7 +24,7 @@ func _init_rooms():
 			size = shape.extents * 2
 		else:
 			size = Vector2(100, 100)
-		var room_data = RoomData.new(room_name, position, size, room_desc)
+		var room_data = RoomData.new(area.name, position, size, room_desc, room_name)
 		rooms[area.name] = room_data
 		#print("房间：", room_name, " 位置：", position, " 大小：", size)
 # 获取角色当前所在的房间
@@ -74,15 +74,23 @@ func get_room_objective_params_internal(room_name: String) -> Dictionary:
 	"""
 	# 查找RoomArea节点
 	var room_areas = get_tree().get_nodes_in_group("room_area")
+	print("[RoomManager] 查找房间: %s, 可用房间数: %d" % [room_name, room_areas.size()])
+	
+	# 打印所有可用房间名（用于调试）
+	var available_rooms = []
 	for area in room_areas:
+		available_rooms.append(area.room_name)
 		if area.room_name == room_name:
+			print("[RoomManager] 找到房间: %s (S=%.2f, a=%.2f, E=%.2f)" % [
+				room_name, area.initial_reward_rate, area.reward_decay_rate, area.effort_level
+			])
 			return {
 				"S": area.initial_reward_rate,   # 初始收益率 (Agent不可见)
 				"a": area.reward_decay_rate,      # 收益衰减率 (Agent不可见)
 				"E": area.effort_level            # 努力成本 (Agent不可见)
 			}
 	
-	push_warning("[RoomManager] 未找到房间: %s" % room_name)
+	push_warning("[RoomManager] 未找到房间: %s, 可用房间: %s" % [room_name, ", ".join(available_rooms)])
 	return {}
 
 # 获取所有房间的客观参数（用于调试）

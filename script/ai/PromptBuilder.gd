@@ -43,11 +43,15 @@ static func build_natural_decision_prompt(agent: AIAgent, perception: Dictionary
     # 认知计算参数
     variables["cognitive_parameters"] = _build_cognitive_parameters(personality)
     
-    # 当前状态
-    variables["current_time"] = TimingSystem.instance.format_time(TimingSystem.instance.current_game_time)
+    # 当前状态（使用TimeUtils统一获取）
+    variables["current_time"] = TimeUtils.get_formatted_current_time()
     variables["current_room"] = perception.get("current_room", "未知")
-    variables["current_period"] = TimelineState.instance.current_period
+    variables["current_period"] = TimeUtils.get_current_period()
     variables["behavior_constraints"] = _build_behavior_constraints()
+    
+    # 故事背景和社会规则
+    variables["story_background"] = _build_story_background()
+    variables["social_rules"] = _build_social_rules()
     
     # 周围环境信息
     variables["environment_info"] = _build_environment_info(perception)
@@ -90,6 +94,8 @@ static func build_dialogue_reply_prompt(agent: AIAgent, dialogue_context: Dictio
     variables["role_description"] = _get_role_description(personality)
     variables["agent_name"] = agent_name
     variables["basic_info"] = _build_basic_info(personality)
+    variables["story_background"] = _build_story_background()
+    variables["social_rules"] = _build_social_rules()
     variables["big_five_traits"] = _build_big_five_traits(personality)
     variables["mood_status"] = _build_mood_status(agent)
     variables["dialogue_initiator"] = dialogue_context.get("initiator", "")
@@ -210,6 +216,36 @@ static func _build_cognitive_parameters(personality: Dictionary) -> String:
 static func _build_behavior_constraints() -> String:
     var constraints = TimelineState.instance.get_constraints()
     return constraints.get("description", "无特殊约束")
+
+static func _build_story_background() -> String:
+    # 获取当前场景的故事背景
+    # 先初始化背景管理器（如果未初始化）
+    BackgroundStoryManager.initialize("School")
+    
+    # 使用 generate_background_prompt 获取完整的背景信息
+    var background_prompt = BackgroundStoryManager.generate_background_prompt()
+    
+    if background_prompt.is_empty():
+        return "【学校名称】阳光中学\n\n【学校简介】一所普通的初中学校。"
+    
+    return background_prompt
+
+static func _build_social_rules() -> String:
+    # 获取当前场景的社会规则
+    # 先初始化背景管理器（如果未初始化）
+    BackgroundStoryManager.initialize("School")
+    
+    # 使用 get_all_rules 获取社会规则列表
+    var rules = BackgroundStoryManager.get_all_rules()
+    
+    if rules.is_empty():
+        return "【校规校纪】\n1. 遵守校规校纪"
+    
+    var rules_text = ["【校规校纪】"]
+    for i in range(rules.size()):
+        rules_text.append("%d. %s" % [i + 1, rules[i]])
+    
+    return "\n".join(rules_text)
 
 static func _build_perceived_params(agent: AIAgent, room_name: String) -> String:
     if room_name.is_empty():

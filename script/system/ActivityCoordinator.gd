@@ -908,11 +908,11 @@ func _get_current_click() -> int:
 	return 0
 
 func _get_current_game_time() -> float:
-	"""获取当前游戏时间（从TimingSystem）"""
-	var timing_system = get_node_or_null("/root/TimingSystem")
-	if timing_system and timing_system.has_method("get_game_time"):
-		return timing_system.get_game_time()
-	return 0.0
+	"""获取当前游戏时间（分钟）
+	
+	使用TimeUtils统一获取，确保全项目时间逻辑一致
+	"""
+	return TimeUtils.get_game_time_minutes()
 
 func get_assigned_activities(agent_id: String) -> Array[Activity]:
 	"""获取分配给指定Agent的活动序列"""

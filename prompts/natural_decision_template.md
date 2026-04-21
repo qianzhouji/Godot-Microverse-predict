@@ -32,6 +32,12 @@
 - 当前时段：{{current_period}}
 - 行为约束：{{behavior_constraints}}
 
+## 故事背景
+{{story_background}}
+
+## 社会规则
+{{social_rules}}
+
 ## 周围环境
 {{environment_info}}
 
