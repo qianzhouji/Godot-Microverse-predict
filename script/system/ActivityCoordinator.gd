@@ -123,7 +123,7 @@ func get_pending_count() -> int:
 
 func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	"""
-	执行协调 - 调用LLM分配活动
+	执行协调 - 【对话测试模式】直接分配对话任务
 	
 	参数:
 		game_context: 游戏上下文 {current_time, current_location, period}
@@ -131,7 +131,7 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	返回:
 		协调结果字典
 	"""
-	print("[ActivityCoordinator] execute_coordination被调用")
+	print("[ActivityCoordinator] execute_coordination被调用【对话测试模式 - 直接分配】")
 	print("[ActivityCoordinator] pending_decisions数量: %d" % pending_decisions.size())
 	print("[ActivityCoordinator] pending_decisions内容: %s" % str(pending_decisions.keys()))
 	
@@ -146,58 +146,10 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	is_coordinating = true
 	coordination_started.emit(pending_decisions.size())
 	
-	print("[ActivityCoordinator] 开始协调 %d 个Agent..." % pending_decisions.size())
+	print("[ActivityCoordinator] 【对话测试模式】直接为 %d 个Agent分配对话任务..." % pending_decisions.size())
 	
-	# 打印所有Agent的决策内容
-	print("[ActivityCoordinator] ===== 所有Agent决策内容 =====")
-	for agent_id in pending_decisions.keys():
-		var decision = pending_decisions[agent_id]
-		# 截断过长的决策文本
-		var display_decision = decision
-		if display_decision.length() > 200:
-			display_decision = display_decision.substr(0, 200) + "..."
-		print("[ActivityCoordinator]   %s: %s" % [agent_id, display_decision.replace("\n", " ")])
-	print("[ActivityCoordinator] ===== 决策内容结束 =====")
-	
-	# 构建输入数据
-	var input_data = _build_coordination_input(game_context)
-	
-	# 构建Prompt
-	var prompt = _build_coordination_prompt(input_data)
-	
-	# 记录协调输入（发送到LLM的数据）
-	_log_coordination("COORDINATION_INPUT", {
-		"game_context": game_context,
-		"agent_count": pending_decisions.size(),
-		"agents": input_data.get("agents", [])
-	})
-	
-	# 调用LLM
-	var response = await _call_llm(prompt)
-	
-	# 记录LLM原始响应
-	_log_coordination("LLM_RESPONSE", {
-		"response_length": response.length(),
-		"response": response
-	})
-	
-	if response.is_empty():
-		coordination_failed.emit("LLM调用失败")
-		is_coordinating = false
-		return {}
-	
-	# 打印完整LLM响应用于调试
-	print("[ActivityCoordinator] ===== LLM完整响应 =====")
-	print("[ActivityCoordinator] 响应长度: %d" % response.length())
-	if response.length() > 500:
-		print("[ActivityCoordinator] 响应前500字符:\n%s" % response.substr(0, 500))
-		print("[ActivityCoordinator] ... (截断)")
-	else:
-		print("[ActivityCoordinator] 完整响应:\n%s" % response)
-	print("[ActivityCoordinator] ===== 响应结束 =====")
-	
-	# 解析响应
-	var results = _parse_coordination_response(response)
+	# 【对话测试模式】直接分配对话任务，不调用LLM
+	var results = _assign_dialogue_activities_directly()
 	
 	# 打印协调结果调试信息
 	print("[ActivityCoordinator] ===== 协调结果摘要 =====")
@@ -218,6 +170,57 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	
 	is_coordinating = false
 	pending_decisions.clear()
+	
+	return results
+
+# ============================================
+# 【对话测试模式】直接分配对话活动
+# ============================================
+func _assign_dialogue_activities_directly() -> Dictionary:
+	"""
+	【对话测试模式】直接为所有Agent分配对话活动
+	
+	策略：
+	1. 将所有Agent移动到同一区域（食堂中心）
+	2. 分配GROUP_DISCUSSION活动
+	"""
+	var results = {}
+	
+	# 获取所有Agent ID
+	var agent_ids = pending_decisions.keys()
+	if agent_ids.size() == 0:
+		return results
+	
+	# 选择一个中心位置（食堂中心）
+	var center_position = Vector2(600, 400)
+	
+	# 为每个Agent分配活动
+	for i in range(agent_ids.size()):
+		var agent_id = agent_ids[i]
+		var activities: Array[Activity] = []
+		
+		# 计算该Agent的目标位置（围绕中心点分布）
+		var angle = (2.0 * PI * i) / agent_ids.size()
+		var radius = 80.0
+		var target_pos = center_position + Vector2(cos(angle) * radius, sin(angle) * radius)
+		
+		# Step 1: 移动到集合点
+		var move_activity = Activity.create_move_to(target_pos, "食堂")
+		move_activity.activity_id = "%s_move_%d" % [agent_id, Time.get_unix_time_from_system()]
+		activities.append(move_activity)
+		
+		# Step 2: 参与群体讨论
+		var other_members: Array[String] = []
+		for other_id in agent_ids:
+			if other_id != agent_id:
+				other_members.append(other_id)
+		
+		var discussion_activity = Activity.create_group_discussion("日常闲聊", other_members, Activity.FocusLevel.MEDIUM)
+		discussion_activity.activity_id = "%s_discussion_%d" % [agent_id, Time.get_unix_time_from_system()]
+		activities.append(discussion_activity)
+		
+		results[agent_id] = activities
+		print("[ActivityCoordinator] 【直接分配】%s: MOVE_TO(%.0f,%.0f) -> GROUP_DISCUSSION" % [agent_id, target_pos.x, target_pos.y])
 	
 	return results
 
