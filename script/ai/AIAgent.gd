@@ -191,6 +191,14 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 		return
 
 	print("[AIAgent] %s 收到Click #%d" % [character.name, click_num])
+	
+	# 【硬编码Demo模式】检查是否使用Demo控制器
+	if HardcodedDemoController.instance and HardcodedDemoController.instance.is_running():
+		print("[AIAgent] %s Demo模式：等待硬编码分配" % character.name)
+		# 在Demo模式下，TimingSystem会直接调用receive_activity_sequence
+		# 这里只需要等待活动被分配
+		return
+	
 	print("[AIAgent] %s activity_cache.size()=%d, current_activity_index=%d" % [character.name, activity_cache.size(), current_activity_index])
 	print("[AIAgent] %s ActivityManager.instance=%s" % [character.name, ActivityManager.instance])
 	if ActivityManager.instance:
@@ -964,6 +972,19 @@ func receive_activity_sequence(activities: Array[Activity]) -> void:
 		logger.log_activity(character.name, "接收活动序列: %s" % activities_str)
 
 # ============================================
+# Demo模式：执行当前缓存的活动（由TimingSystem调用）
+# ============================================
+func execute_demo_activity() -> void:
+	"""Demo模式：立即执行缓存的活动"""
+	if activity_cache.size() > 0 and current_activity_index < activity_cache.size():
+		print("[AIAgent] %s Demo模式：执行活动 [%d/%d]" % [
+			character.name, current_activity_index + 1, activity_cache.size()
+		])
+		_execute_next_cached_activity()
+	else:
+		print("[AIAgent] %s Demo模式：无活动可执行" % character.name)
+
+# ============================================
 # V2: 执行缓存的下一个活动
 # ============================================
 func _execute_next_cached_activity() -> void:
@@ -1013,6 +1034,8 @@ func _execute_v2_activity(activity: Activity) -> void:
 			_execute_v2_discussion(activity)
 		Activity.ActivityType.INITIATE_DIALOGUE:
 			_execute_v2_initiate_dialogue(activity)
+		Activity.ActivityType.JOIN_DIALOGUE:
+			_execute_v2_join_dialogue(activity)
 		_:
 			print("[AIAgent] %s 未知活动类型: %s" % [character.name, activity.activity_type])
 
@@ -1360,6 +1383,40 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 	if logger:
 		var room_name = _get_current_room_name()
 		logger.log_activity(character.name, "发起%s: %s" % [range_name, topic], room_name)
+
+# ============================================
+# V2: 执行加入对话
+# ============================================
+func _execute_v2_join_dialogue(activity: Activity) -> void:
+	"""执行加入对话"""
+	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	
+	if dialogue_id.is_empty():
+		print("[AIAgent] %s 加入对话失败：未提供对话ID" % character.name)
+		return
+	
+	print("[AIAgent] %s 尝试加入对话，ID: %s" % [character.name, dialogue_id])
+	
+	# 获取对话管理器
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if not dialogue_manager:
+		print("[AIAgent] %s DialogueManager未找到" % character.name)
+		return
+	
+	# 加入对话
+	var success = dialogue_manager.join_dialogue(character, dialogue_id)
+	
+	if success:
+		print("[AIAgent] %s 成功加入对话 %s" % [character.name, dialogue_id])
+		current_state = AgentState.IN_DIALOGUE
+		current_activity = "加入对话"
+		
+		# V2: 记录日志
+		if logger:
+			var room_name = _get_current_room_name()
+			logger.log_activity(character.name, "加入对话: %s" % dialogue_id, room_name)
+	else:
+		print("[AIAgent] %s 加入对话 %s 失败" % [character.name, dialogue_id])
 
 func _get_current_room_name() -> String:
 	"""获取当前房间显示名称（用于RewardSystem查找）"""

@@ -95,46 +95,78 @@ func _trigger_click():
 	# 1. 批准并执行所有待处理请求
 	_execute_pending_requests()
 	
-	# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
-	# V2: 等待所有Agent提交决策，然后执行协调
-	print("[TimingSystem] ActivityCoordinator.instance = %s" % ActivityCoordinator.instance)
-	if ActivityCoordinator.instance:
-		print("[TimingSystem] 开始触发Agent决策收集...")
-		# 先触发Agent决策收集
+		# 【硬编码Demo模式】使用HardcodedDemoController替代LLM协调
+	if HardcodedDemoController.instance and HardcodedDemoController.instance.is_running():
+		print("[TimingSystem] 使用硬编码Demo控制器")
+		
+		# 触发Agent准备（让Agent进入等待状态）
 		click_triggered.emit(current_game_time, current_day, click_count)
-		print("[TimingSystem] click_triggered信号已发射")
 		
-		# V2: 等待Agent提交决策
-		# 【对话测试模式】缩短等待时间到15秒
-		print("[TimingSystem] 等待Agent提交决策...")
-		var max_wait = 15.0  # 【对话测试模式】最大等待15秒
-		var waited = 0.0
-		while waited < max_wait:
-			await get_tree().create_timer(1.0).timeout
-			waited += 1.0
-			var pending_count = ActivityCoordinator.instance.get_pending_count()
-			print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
-			# 如果所有Agent都提交了，提前结束等待
-			# 动态获取场景中的Agent数量
-			var expected_agents = get_tree().get_nodes_in_group("character").size()
-			if pending_count >= expected_agents:
-				print("[TimingSystem] 所有Agent已提交（%d/%d），提前结束等待" % [pending_count, expected_agents])
-				break
+		# 等待一小段时间让Agent准备好
+		await get_tree().create_timer(0.5).timeout
 		
-		# V2: 执行协调
-		var game_context = {
-			"current_time": format_time(current_game_time),
-			"current_location": "学校",
-			"period": _get_current_period()
-		}
-		print("[TimingSystem] 开始执行协调...")
-		var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
+		# 执行硬编码的Click逻辑
+		var demo_assignments = HardcodedDemoController.instance.execute_hardcoded_click(click_count, current_game_time)
 		
-		if not coordination_results.is_empty():
-			print("[TimingSystem] 协调完成，%d 个Agent收到活动分配" % coordination_results.size())
+		# 将分配的活动下发给Agent
+		if not demo_assignments.is_empty():
+			print("[TimingSystem] Demo分配 %d 个角色活动" % demo_assignments.size())
+			for agent_id in demo_assignments.keys():
+				var activities = demo_assignments[agent_id]
+				var agent = _get_agent(agent_id)
+				if agent and agent.has_method("receive_activity_sequence"):
+					agent.receive_activity_sequence(activities)
+					print("[TimingSystem] 已分配 %d 个活动给 %s" % [activities.size(), agent_id])
+			
+			# 等待一下让Agent接收活动
+			await get_tree().create_timer(0.5).timeout
+			
+			# 触发Agent执行活动
+			for agent_id in demo_assignments.keys():
+				var agent = _get_agent(agent_id)
+				if agent and agent.has_method("execute_demo_activity"):
+					agent.execute_demo_activity()
 	else:
-		# V1: 直接触发Agent决策
-		click_triggered.emit(current_game_time, current_day, click_count)
+		# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
+		# V2: 等待所有Agent提交决策，然后执行协调
+		print("[TimingSystem] ActivityCoordinator.instance = %s" % ActivityCoordinator.instance)
+		if ActivityCoordinator.instance:
+			print("[TimingSystem] 开始触发Agent决策收集...")
+			# 先触发Agent决策收集
+			click_triggered.emit(current_game_time, current_day, click_count)
+			print("[TimingSystem] click_triggered信号已发射")
+			
+			# V2: 等待Agent提交决策
+			# 【对话测试模式】缩短等待时间到15秒
+			print("[TimingSystem] 等待Agent提交决策...")
+			var max_wait = 15.0  # 【对话测试模式】最大等待15秒
+			var waited = 0.0
+			while waited < max_wait:
+				await get_tree().create_timer(1.0).timeout
+				waited += 1.0
+				var pending_count = ActivityCoordinator.instance.get_pending_count()
+				print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
+				# 如果所有Agent都提交了，提前结束等待
+				# 动态获取场景中的Agent数量
+				var expected_agents = get_tree().get_nodes_in_group("character").size()
+				if pending_count >= expected_agents:
+					print("[TimingSystem] 所有Agent已提交（%d/%d），提前结束等待" % [pending_count, expected_agents])
+					break
+			
+			# V2: 执行协调
+			var game_context = {
+				"current_time": format_time(current_game_time),
+				"current_location": "学校",
+				"period": _get_current_period()
+			}
+			print("[TimingSystem] 开始执行协调...")
+			var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
+			
+			if not coordination_results.is_empty():
+				print("[TimingSystem] 协调完成，%d 个Agent收到活动分配" % coordination_results.size())
+		else:
+			# V1: 直接触发Agent决策
+			click_triggered.emit(current_game_time, current_day, click_count)
 	
 	after_click.emit(current_game_time)
 	
