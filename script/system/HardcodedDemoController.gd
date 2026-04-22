@@ -22,7 +22,7 @@ var is_demo_running: bool = false
 
 # 教室中心位置（硬编码）
 const CLASSROOM_CENTER: Vector2 = Vector2(400, 300)
-const DIALOGUE_RANGE_TYPE: int = 1  # 1 = NORMAL普通对话
+const DIALOGUE_RANGE_TYPE: int = 1  # 1 = NORMAL普通对话 (范围200px，中范围)
 
 # 信号
 signal demo_step_completed(step: int, description: String)
@@ -125,7 +125,7 @@ func _click2_initiate_dialogue() -> Dictionary:
 			activity.step_index = 0
 			
 			assignments[agent_id] = [activity]
-			print("[HardcodedDemoController]   %s -> INITIATE_DIALOGUE (topic: 日常闲聊)" % agent_id)
+			print("[HardcodedDemoController]   %s -> INITIATE_DIALOGUE (范围: 普通对话, topic: 日常闲聊)" % agent_id)
 		else:
 			# 其他角色保持空闲（等待下一Click加入）
 			print("[HardcodedDemoController]   %s -> IDLE (等待加入对话)" % agent_id)
