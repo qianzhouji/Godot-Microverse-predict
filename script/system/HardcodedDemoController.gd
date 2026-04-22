@@ -97,10 +97,10 @@ func _click1_move_to_classroom() -> Dictionary:
 		# 为每个角色分配移动到教室中心的活动
 		var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_classroom_%s" % agent_id)
 		activity.parameters = {
-			"target_location": {
-				"x": CLASSROOM_CENTER.x + randf_range(-30, 30),
-				"y": CLASSROOM_CENTER.y + randf_range(-30, 30)
-			}
+			"target_location": Vector2(
+				CLASSROOM_CENTER.x + randf_range(-30, 30),
+				CLASSROOM_CENTER.y + randf_range(-30, 30)
+			)
 		}
 		activity.step_index = 0
 		
