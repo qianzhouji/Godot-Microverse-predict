@@ -104,7 +104,9 @@ func _click1_move_to_classroom() -> Dictionary:
 		}
 		activity.step_index = 0
 		
-		assignments[agent_id] = [activity]
+		# 创建类型化的Array[Activity]
+		var activity_array: Array[Activity] = [activity]
+		assignments[agent_id] = activity_array
 		print("[HardcodedDemoController]   %s -> MOVE_TO (%s)" % [agent_id, activity.parameters.target_location])
 	
 	demo_step_completed.emit(1, "所有角色移动到教室")
@@ -126,7 +128,9 @@ func _click2_initiate_dialogue() -> Dictionary:
 			}
 			activity.step_index = 0
 			
-			assignments[agent_id] = [activity]
+			# 创建类型化的Array[Activity]
+			var activity_array: Array[Activity] = [activity]
+			assignments[agent_id] = activity_array
 			print("[HardcodedDemoController]   %s -> INITIATE_DIALOGUE (范围: 普通对话, topic: 日常闲聊)" % agent_id)
 		else:
 			# 其他角色保持空闲（等待下一Click加入）
@@ -158,7 +162,9 @@ func _click3_join_dialogue() -> Dictionary:
 				}
 				activity.step_index = 0
 				
-				assignments[agent_id] = [activity]
+				# 创建类型化的Array[Activity]
+				var activity_array: Array[Activity] = [activity]
+				assignments[agent_id] = activity_array
 				print("[HardcodedDemoController]   %s -> JOIN_DIALOGUE (id: %s)" % [agent_id, dialogue_id])
 			else:
 				print("[HardcodedDemoController]   %s -> 未找到对话ID，保持空闲" % agent_id)
