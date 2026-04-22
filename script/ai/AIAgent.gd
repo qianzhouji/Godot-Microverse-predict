@@ -1374,6 +1374,10 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 			print("[AIAgent] %s 成功启动%s，对话ID: %s" % [character.name, range_name, dialogue_id])
 			current_state = AgentState.IN_DIALOGUE
 			current_activity = range_name
+			
+			# 【Demo模式】通知Demo控制器记录对话ID
+			if HardcodedDemoController.instance and character.name == "StudentXiaoming":
+				HardcodedDemoController.instance.set_xiaoming_dialogue_id(dialogue_id)
 		else:
 			print("[AIAgent] %s 启动%s失败" % [character.name, range_name])
 	else:
@@ -1403,8 +1407,9 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 		print("[AIAgent] %s DialogueManager未找到" % character.name)
 		return
 	
-	# 加入对话
-	var success = dialogue_manager.join_dialogue(character, dialogue_id)
+	# 加入对话（需要传入current_click参数）
+	var current_click = _get_current_click()
+	var success = dialogue_manager.join_dialogue(character, dialogue_id, current_click)
 	
 	if success:
 		print("[AIAgent] %s 成功加入对话 %s" % [character.name, dialogue_id])

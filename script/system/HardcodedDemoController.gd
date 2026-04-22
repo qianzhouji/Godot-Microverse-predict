@@ -185,11 +185,24 @@ func _click_continue() -> Dictionary:
 	print("[HardcodedDemoController] [Click %d] 保持当前状态" % current_click)
 	return {}
 
+# 存储小明的对话ID（由_initiate_dialogue成功时设置）
+var _xiaoming_dialogue_id: String = ""
+
+# 设置小明的对话ID（由AIAgent在发起对话成功后调用）
+func set_xiaoming_dialogue_id(dialogue_id: String) -> void:
+	_xiaoming_dialogue_id = dialogue_id
+	print("[HardcodedDemoController] 记录小明的对话ID: %s" % dialogue_id)
+
 # 获取小明的对话ID
 func _get_xiaoming_dialogue_id() -> String:
-	var dialog_manager = get_node_or_null("/root/DialogueManager")
+	# 优先使用记录的对话ID
+	if not _xiaoming_dialogue_id.is_empty():
+		return _xiaoming_dialogue_id
+	
+	# 备用：尝试从DialogManager查找
+	var dialog_manager = get_node_or_null("/root/DialogManager")
 	if not dialog_manager:
-		print("[HardcodedDemoController] 警告: DialogueManager未找到")
+		print("[HardcodedDemoController] 警告: DialogManager未找到")
 		return ""
 	
 	# 获取小明的角色节点
@@ -198,13 +211,12 @@ func _get_xiaoming_dialogue_id() -> String:
 		print("[HardcodedDemoController] 警告: 未找到StudentXiaoming")
 		return ""
 	
-	# 获取角色当前参与的对话ID
-	# 这里需要根据实际的DialogueManager API调整
-	if dialog_manager.has_method("get_character_dialogue_id"):
-		return dialog_manager.get_character_dialogue_id(xiaoming)
+	# 从小明的metadata中获取对话ID
+	if xiaoming.has_meta("current_dialogue_id"):
+		return xiaoming.get_meta("current_dialogue_id")
 	
-	# 备用方案：使用硬编码的对话ID
-	return "dialogue_xiaoming_click2"
+	print("[HardcodedDemoController] 警告: 小明没有current_dialogue_id metadata")
+	return ""
 
 # 获取Agent角色节点
 func _get_agent(agent_id: String) -> CharacterBody2D:
