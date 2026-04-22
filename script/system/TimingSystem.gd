@@ -179,6 +179,11 @@ func _trigger_click():
 			# V1: 直接触发Agent决策
 			click_triggered.emit(current_game_time, current_day, click_count)
 	
+	# 触发对话系统更新（选择发言者、生成内容）
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager and dialogue_manager.has_method("on_click_tick"):
+		dialogue_manager.on_click_tick(click_count, current_game_time)
+	
 	after_click.emit(current_game_time)
 	
 	print("[TimingSystem] ===== CLICK END =====\n")
