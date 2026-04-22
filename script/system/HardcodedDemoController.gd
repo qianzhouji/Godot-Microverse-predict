@@ -197,25 +197,27 @@ func set_xiaoming_dialogue_id(dialogue_id: String) -> void:
 func _get_xiaoming_dialogue_id() -> String:
 	# 优先使用记录的对话ID
 	if not _xiaoming_dialogue_id.is_empty():
+		print("[HardcodedDemoController] 使用记录的对话ID: %s" % _xiaoming_dialogue_id)
 		return _xiaoming_dialogue_id
 	
-	# 备用：尝试从DialogManager查找
-	var dialog_manager = get_node_or_null("/root/DialogManager")
-	if not dialog_manager:
-		print("[HardcodedDemoController] 警告: DialogManager未找到")
-		return ""
+	print("[HardcodedDemoController] 尝试获取对话ID...")
+	print("[HardcodedDemoController]   _xiaoming_dialogue_id为空")
 	
 	# 获取小明的角色节点
 	var xiaoming = _get_agent("StudentXiaoming")
 	if not xiaoming:
 		print("[HardcodedDemoController] 警告: 未找到StudentXiaoming")
 		return ""
+	print("[HardcodedDemoController]   找到小明: %s" % xiaoming.name)
 	
 	# 从小明的metadata中获取对话ID
 	if xiaoming.has_meta("current_dialogue_id"):
-		return xiaoming.get_meta("current_dialogue_id")
+		var dialogue_id = xiaoming.get_meta("current_dialogue_id")
+		print("[HardcodedDemoController]   从metadata获取对话ID: %s" % dialogue_id)
+		return dialogue_id
 	
 	print("[HardcodedDemoController] 警告: 小明没有current_dialogue_id metadata")
+	print("[HardcodedDemoController]   小明的metadata: %s" % xiaoming.get_meta_list())
 	return ""
 
 # 获取Agent角色节点

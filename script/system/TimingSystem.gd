@@ -113,19 +113,30 @@ func _trigger_click():
 			print("[TimingSystem] Demo分配 %d 个角色活动" % demo_assignments.size())
 			for agent_id in demo_assignments.keys():
 				var activities = demo_assignments[agent_id]
+				print("[TimingSystem] 尝试查找Agent: %s" % agent_id)
 				var agent = _get_agent(agent_id)
-				if agent and agent.has_method("receive_activity_sequence"):
-					agent.receive_activity_sequence(activities)
-					print("[TimingSystem] 已分配 %d 个活动给 %s" % [activities.size(), agent_id])
+				if agent:
+					print("[TimingSystem] 找到Agent %s，准备分配 %d 个活动" % [agent_id, activities.size()])
+					if agent.has_method("receive_activity_sequence"):
+						agent.receive_activity_sequence(activities)
+						print("[TimingSystem] 已分配 %d 个活动给 %s" % [activities.size(), agent_id])
+					else:
+						print("[TimingSystem] 警告: Agent %s 没有receive_activity_sequence方法" % agent_id)
+				else:
+					print("[TimingSystem] 警告: 未找到Agent %s" % agent_id)
 			
 			# 等待一下让Agent接收活动
 			await get_tree().create_timer(0.5).timeout
 			
 			# 触发Agent执行活动
+			print("[TimingSystem] 触发Agent执行活动...")
 			for agent_id in demo_assignments.keys():
 				var agent = _get_agent(agent_id)
 				if agent and agent.has_method("execute_demo_activity"):
+					print("[TimingSystem] 触发 %s 执行活动" % agent_id)
 					agent.execute_demo_activity()
+				else:
+					print("[TimingSystem] 警告: 无法触发 %s 执行活动" % agent_id)
 	else:
 		# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
 		# V2: 等待所有Agent提交决策，然后执行协调
@@ -257,7 +268,16 @@ func _get_agent(agent_id: String):
 	# TODO: 集成AgentManager
 	var agents = get_tree().get_nodes_in_group("ai_agents")
 	for agent in agents:
+		# AIAgent的name可能不是角色名，需要检查character.name
 		if agent.name == agent_id:
+			return agent
+		# 检查agent是否有character引用
+		if agent.has_method("get_character"):
+			var char_node = agent.get_character()
+			if char_node and char_node.name == agent_id:
+				return agent
+		# 直接检查agent.get_parent().name（AIAgent的父节点是CharacterBody2D）
+		if agent.get_parent() and agent.get_parent().name == agent_id:
 			return agent
 	return null
 
