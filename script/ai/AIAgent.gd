@@ -1363,6 +1363,7 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 	# 【对话测试模式】启动实际对话系统
 	# 注意：AutoLoad名是DialogManager（不是DialogueManager）
 	var dialogue_manager = get_node_or_null("/root/DialogManager")
+	print("[AIAgent] %s 尝试获取DialogManager: %s" % [character.name, dialogue_manager])
 	if dialogue_manager:
 		var current_click = _get_current_click()
 		var current_time = _get_current_game_time()
