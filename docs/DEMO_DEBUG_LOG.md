@@ -147,18 +147,27 @@ grep "DialogueManager" script/ai/AIAgent.gd  # 检查代码中的路径
 
 ---
 
-## 当前状态
+## 测试结果
 
-**待验证**: 修复DialogManager路径后，需要重新运行测试验证：
-1. Click 2是否能成功启动对话
-2. Click 3是否能正确获取对话ID并加入
-3. 对话系统是否正常工作
+**2026-04-22 22:10** - ✅ **测试成功！**
 
-**已知问题**: 
-- HardcodedDemoController中 `_get_xiaoming_dialogue_id` 方法依赖两种机制：
-  1. 通过 `set_xiaoming_dialogue_id()` 记录（需要_initiate_dialogue成功调用）
-  2. 通过角色metadata获取（需要DialogManager正确设置）
-- 两种机制都依赖于DialogManager被正确访问
+Click 2:
+```
+[AIAgent] StudentXiaoming 尝试获取DialogManager: DialogueManager:<Node#44761613804>
+[DialogueManager] 普通对话开始: dlg_StudentXiaoming_485
+[AIAgent] StudentXiaoming 成功启动普通对话，对话ID: dlg_StudentXiaoming_485
+[HardcodedDemoController] 记录小明的对话ID: dlg_StudentXiaoming_485
+```
+
+Click 3:
+```
+[AIAgent] StudentXiaohong 成功加入对话 dlg_StudentXiaoming_485
+[AIAgent] StudentXiaogang 成功加入对话 dlg_StudentXiaoming_485
+[SpeakerQueueManager] 添加参与者: StudentXiaohong
+[SpeakerQueueManager] 添加参与者: StudentXiaogang
+```
+
+**所有Click均成功执行！**
 
 ---
 
@@ -177,6 +186,11 @@ grep "DialogueManager" script/ai/AIAgent.gd  # 检查代码中的路径
 ## 相关提交
 
 ```
+bf3d609 修复AIAgent中dialog_service引用错误（手动编辑版）
+4e44499 修复：移除DialogueManager的class_name避免与AutoLoad冲突
+10b59b2 修复：统一使用DialogueManager命名
+a6547ac 添加调试日志：打印DialogManager获取结果
+1f881d2 添加对话系统Demo调试日志
 05c723d 添加硬编码Demo控制器
 5247855 更新Demo控制器注释
 72dd7f9 修复：移除class_name避免与AutoLoad冲突
