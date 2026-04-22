@@ -1,5 +1,6 @@
 extends Node
-class_name HardcodedDemoController
+# 注意：不使用class_name，因为此脚本已配置为AutoLoad
+# 通过HardcodedDemoController.instance访问单例
 
 # ============================================
 # 硬编码Demo控制器
@@ -7,7 +8,7 @@ class_name HardcodedDemoController
 # ============================================
 
 # 单例
-static var instance: HardcodedDemoController
+static var instance: Node
 
 # Demo配置
 const DEMO_MODE: bool = true  # 启用硬编码模式
@@ -29,6 +30,7 @@ signal demo_step_completed(step: int, description: String)
 
 func _init():
 	instance = self
+	print("[HardcodedDemoController] _init called, instance set")
 
 func _ready():
 	print("[HardcodedDemoController] 硬编码Demo控制器初始化完成")
