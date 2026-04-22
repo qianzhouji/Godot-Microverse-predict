@@ -135,7 +135,7 @@ func _check_dialogue_state():
 	if not dialog_manager:
 		return
 	
-	# 检查自己是否还在对话中（使用DialogueManager的方法）
+	# 检查自己是否还在对话中
 	if not dialog_manager.is_character_in_dialogue(character):
 		# 对话已结束（可能被对方结束或超时）
 		if current_state == AgentState.IN_DIALOGUE:
@@ -373,21 +373,18 @@ func _get_dialogue_info() -> Dictionary:
 		return result
 	
 	# 简化处理：只检查自己是否在当前对话中
-	# 获取当前对话ID
 	var current_dialogue_id = get_meta("current_dialogue_id") if has_meta("current_dialogue_id") else ""
 	if current_dialogue_id.is_empty():
 		return result
 	
-
-t# 获取对话内容
-tvar dialogue_content = dialog_manager.get_dialogue_content(current_dialogue_id, character, 3)
-tif not dialogue_content.is_empty():
-ttresult.contents.append({
-ttt"dialogue_id": current_dialogue_id,
-ttt"content": dialogue_content
-tt})
-t
-treturn result
+	# 获取对话内容
+	var dialogue_content = dialog_manager.get_dialogue_content(current_dialogue_id, character, 3)
+	if not dialogue_content.is_empty():
+		result.contents.append({
+			"dialogue_id": current_dialogue_id,
+			"content": dialogue_content
+		})
+	
 	return result
 
 # ============================================
