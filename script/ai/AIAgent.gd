@@ -1305,7 +1305,8 @@ func _execute_v2_discussion(activity: Activity) -> void:
 	])
 	
 	# 【对话测试模式】启动实际对话系统
-	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	# 注意：AutoLoad名是DialogManager（不是DialogueManager）
+	var dialogue_manager = get_node_or_null("/root/DialogManager")
 	if dialogue_manager:
 		var current_click = _get_current_click()
 		var current_time = _get_current_game_time()
@@ -1360,7 +1361,8 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 	])
 	
 	# 【对话测试模式】启动实际对话系统
-	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	# 注意：AutoLoad名是DialogManager（不是DialogueManager）
+	var dialogue_manager = get_node_or_null("/root/DialogManager")
 	if dialogue_manager:
 		var current_click = _get_current_click()
 		var current_time = _get_current_game_time()
@@ -1401,8 +1403,8 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 	
 	print("[AIAgent] %s 尝试加入对话，ID: %s" % [character.name, dialogue_id])
 	
-	# 获取对话管理器
-	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	# 获取对话管理器（AutoLoad名是DialogManager）
+	var dialogue_manager = get_node_or_null("/root/DialogManager")
 	if not dialogue_manager:
 		print("[AIAgent] %s DialogueManager未找到" % character.name)
 		return
@@ -1662,7 +1664,8 @@ func _execute_start_dialogue(request: ActionRequest):
 
 	# 使用新的DialogueManager启动对话（中范围）
 	# 注意：新系统是基于范围的广播式对话，不需要特定目标
-	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	# AutoLoad名是DialogManager（不是DialogueManager）
+	var dialogue_manager = get_node_or_null("/root/DialogManager")
 	if dialogue_manager:
 		var current_click = _get_current_click()
 		var current_time = _get_current_game_time()
@@ -1689,7 +1692,8 @@ func _execute_start_whisper(request: ActionRequest):
 
 	# 使用新的DialogueManager启动悄悄话（小范围）
 	# 注意：新系统是基于范围的广播式对话，不需要特定目标
-	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	# AutoLoad名是DialogManager（不是DialogueManager）
+	var dialogue_manager = get_node_or_null("/root/DialogManager")
 	if dialogue_manager:
 		var current_click = _get_current_click()
 		var current_time = _get_current_game_time()
@@ -1725,7 +1729,8 @@ func _execute_join_dialogue(request: ActionRequest):
 		return
 
 	# 使用新的DialogueManager加入对话
-	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	# AutoLoad名是DialogManager（不是DialogueManager）
+	var dialogue_manager = get_node_or_null("/root/DialogManager")
 	if dialogue_manager:
 		var target_dialogue_id = dialogue_manager.get_character_dialogue(target_agent)
 		if not target_dialogue_id.is_empty():
