@@ -575,24 +575,26 @@ func on_click_tick(current_click: int, current_time: float):
 		var dialogue_data = active_dialogues[dialogue_id]
 		
 		# 检查超时 (45分钟游戏时间)
-		var elapsed_minutes = (current_time - dialogue_data.start_time) / 60.0
+		# current_time和start_time都是游戏分钟，直接相减即可
+		var elapsed_minutes = current_time - dialogue_data.start_time
 		if elapsed_minutes >= DIALOGUE_TIMEOUT_MINUTES:
 			to_end.append(dialogue_id)
 			_end_dialogue(dialogue_id, EndReason.TIMEOUT)
 			continue
 		
-		# 检查全员沉默
-		if dialogue_data.last_message_click < current_click - 1:
-			# 上一个Click没有新消息
-			dialogue_data.silence_rounds += 1
-			
-			if dialogue_data.silence_rounds >= 1:
-				# 全员沉默1个Click，结束对话
-				to_end.append(dialogue_id)
-				_end_dialogue(dialogue_id, EndReason.SILENCE)
-				continue
-		else:
-			dialogue_data.silence_rounds = 0
+		# 检查全员沉默（跳过对话创建的第一个Click）
+		if current_click > dialogue_data.start_click + 1:
+			if dialogue_data.last_message_click < current_click - 1:
+				# 上一个Click没有新消息
+				dialogue_data.silence_rounds += 1
+				
+				if dialogue_data.silence_rounds >= 2:
+					# 全员沉默2个Click，结束对话
+					to_end.append(dialogue_id)
+					_end_dialogue(dialogue_id, EndReason.SILENCE)
+					continue
+			else:
+				dialogue_data.silence_rounds = 0
 		
 		# 选择下一位发言者并准备生成内容
 		_select_and_queue_speaker(dialogue_id, current_click)
