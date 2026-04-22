@@ -132,11 +132,11 @@ func _process(delta: float):
 # ============================================
 func _check_dialogue_state():
 	var dialog_manager = get_node_or_null("/root/DialogueManager")
-	if not dialog_manager or not dialog_manager.dialog_service:
+	if not dialog_manager:
 		return
 	
-	# 检查自己是否还在对话中
-	if not dialog_manager.dialog_service.is_character_in_conversation(character):
+	# 检查自己是否还在对话中（使用DialogueManager的方法）
+	if not dialog_manager.is_character_in_dialogue(character):
 		# 对话已结束（可能被对方结束或超时）
 		if current_state == AgentState.IN_DIALOGUE:
 			print("[AIAgent] %s 检测到对话已结束，恢复空闲状态" % character.name)
@@ -369,39 +369,25 @@ func _get_dialogue_info() -> Dictionary:
 	}
 	
 	var dialog_manager = get_node_or_null("/root/DialogueManager")
-	if not dialog_manager or not dialog_manager.dialog_service:
+	if not dialog_manager:
 		return result
 	
-	# 获取活跃对话信息
-	var active_conversations = dialog_manager.dialog_service.get_active_conversations_info()
+	# 简化处理：只检查自己是否在当前对话中
+	# 获取当前对话ID
+	var current_dialogue_id = get_meta("current_dialogue_id") if has_meta("current_dialogue_id") else ""
+	if current_dialogue_id.is_empty():
+		return result
 	
-	for conv_info in active_conversations:
-		var speaker_name = conv_info.get("speaker", "")
-		var listener_name = conv_info.get("listener", "")
-		
-		# 添加对话行为（全场景可见）
-		result.behaviors.append({
-			"type": "DIALOGUE",
-			"participants": [speaker_name, listener_name],
-			"location": "unknown"  # 可以通过角色位置获取
-		})
-		
-		# 如果自己是参与者，可以听到内容
-		if speaker_name == character.name or listener_name == character.name:
-			# 获取自己的 ChatHistory
-			if character.has_node("ChatHistory"):
-				var chat_history = character.get_node("ChatHistory")
-				var recent = chat_history.get_recent_conversation_with(
-					speaker_name if listener_name == character.name else listener_name, 
-					1
-				)
-				if recent != "":
-					result.contents.append({
-						"type": "DIALOGUE",
-						"content": recent,
-						"participants": [speaker_name, listener_name]
-					})
-	
+
+t# 获取对话内容
+tvar dialogue_content = dialog_manager.get_dialogue_content(current_dialogue_id, character, 3)
+tif not dialogue_content.is_empty():
+ttresult.contents.append({
+ttt"dialogue_id": current_dialogue_id,
+ttt"content": dialogue_content
+tt})
+t
+treturn result
 	return result
 
 # ============================================
