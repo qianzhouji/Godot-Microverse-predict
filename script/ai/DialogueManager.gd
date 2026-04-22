@@ -1,5 +1,6 @@
 extends Node
-class_name DialogueManager
+# 注意：此脚本配置为AutoLoad，不使用class_name
+# 通过DialogueManager单例访问
 
 # ============================================
 # DialogueManager - 统一对话管理器
