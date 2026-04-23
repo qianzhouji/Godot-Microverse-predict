@@ -207,48 +207,59 @@ func _handle_class_time(click_num: int, schedule_info: Dictionary) -> Dictionary
 	var assignments: Dictionary = {}
 	var location = _get_location_vector(schedule_info.location)
 	
-	for agent_id in demo_agents:
-		var trait = agent_traits[agent_id]
-		
-		# Click 2-3: 移动到教室
-		if click_num == 2 or click_num == 3:
-			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_class_%s_%d" % [agent_id, click_num])
-			activity.parameters = {
-				"target_location": Vector2(
-					location.x + randf_range(-50, 50),
-					location.y + randf_range(-30, 30)
-				)
-			}
-			activity.step_index = 0
-			assignments[agent_id] = [activity] as Array[Activity]
-			print("[HardcodedDemoController]   %s -> 移动到教室" % agent_id)
-		
-		# 抑郁风险学生可能走神
-		elif trait.depression_risk and randf() < 0.3:
-			# 小明有30%概率走神（低专注度听讲）
-			var activity = Activity.new(Activity.ActivityType.LISTEN, "listen_distracted_%s" % agent_id)
-			activity.parameters = {"target_teacher": "TeacherWang", "focus_level": "low"}
-			activity.step_index = 0
-			assignments[agent_id] = [activity] as Array[Activity]
-			print("[HardcodedDemoController]   %s -> 听讲（走神中）" % agent_id)
-		
-		# 小红积极举手问答
-		elif agent_id == "StudentXiaohong" and randf() < 0.2:
-			var activity = Activity.new(Activity.ActivityType.QA_TEACHER, "qa_%s" % agent_id)
-			activity.parameters = {"question": "老师，这个问题我不太明白", "is_answer": false}
-			activity.step_index = 0
-			assignments[agent_id] = [activity] as Array[Activity]
-			print("[HardcodedDemoController]   %s -> 向老师提问" % agent_id)
-		
-		# 默认：正常听讲
-		else:
-			var activity = Activity.new(Activity.ActivityType.LISTEN, "listen_%s_%d" % [agent_id, click_num])
-			activity.parameters = {"target_teacher": "TeacherWang", "focus_level": "high"}
-			activity.step_index = 0
-			assignments[agent_id] = [activity] as Array[Activity]
-			print("[HardcodedDemoController]   %s -> 认真听讲" % agent_id)
+	# 处理每个角色的活动
+	assignments.merge(_handle_class_for_agent(demo_agents[0], click_num, location))
+	assignments.merge(_handle_class_for_agent(demo_agents[1], click_num, location))
+	assignments.merge(_handle_class_for_agent(demo_agents[2], click_num, location))
 	
 	return assignments
+
+func _handle_class_for_agent(agent_id: String, click_num: int, location: Vector2) -> Dictionary:
+	var assignments: Dictionary = {}
+	var trait = agent_traits[agent_id]
+	
+	# Click 2-3: 移动到教室
+	if click_num == 2 or click_num == 3:
+		var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_class_%s_%d" % [agent_id, click_num])
+		activity.parameters = {
+			"target_location": Vector2(
+				location.x + randf_range(-50, 50),
+				location.y + randf_range(-30, 30)
+			)
+		}
+		activity.step_index = 0
+		assignments[agent_id] = [activity] as Array[Activity]
+		print("[HardcodedDemoController]   %s -> 移动到教室" % agent_id)
+	
+	# 抑郁风险学生可能走神
+	elif _is_depression_risk(agent_id) and randf() < 0.3:
+		var activity = Activity.new(Activity.ActivityType.LISTEN, "listen_distracted_%s" % agent_id)
+		activity.parameters = {"target_teacher": "TeacherWang", "focus_level": "low"}
+		activity.step_index = 0
+		assignments[agent_id] = [activity] as Array[Activity]
+		print("[HardcodedDemoController]   %s -> 听讲（走神中）" % agent_id)
+	
+	# 小红积极举手问答
+	elif agent_id == "StudentXiaohong" and randf() < 0.2:
+		var activity = Activity.new(Activity.ActivityType.QA_TEACHER, "qa_%s" % agent_id)
+		activity.parameters = {"question": "老师，这个问题我不太明白", "is_answer": false}
+		activity.step_index = 0
+		assignments[agent_id] = [activity] as Array[Activity]
+		print("[HardcodedDemoController]   %s -> 向老师提问" % agent_id)
+	
+	# 默认：正常听讲
+	else:
+		var activity = Activity.new(Activity.ActivityType.LISTEN, "listen_%s_%d" % [agent_id, click_num])
+		activity.parameters = {"target_teacher": "TeacherWang", "focus_level": "high"}
+		activity.step_index = 0
+		assignments[agent_id] = [activity] as Array[Activity]
+		print("[HardcodedDemoController]   %s -> 认真听讲" % agent_id)
+	
+	return assignments
+
+func _is_depression_risk(agent_id: String) -> bool:
+	var trait = agent_traits[agent_id]
+	return trait.depression_risk
 
 # 小组讨论时间：移动到讨论区，发起/加入讨论
 func _handle_discussion_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
