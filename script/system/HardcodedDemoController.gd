@@ -121,16 +121,32 @@ func _start_demo():
 	print("\n[HardcodedDemoController] ========== 全天社交活动Demo开始 ==========")
 	print("[HardcodedDemoController] 角色列表: %s" % demo_agents)
 	print("[HardcodedDemoController] 角色属性:")
-	for agent_id in demo_agents:
-		var trait = agent_traits[agent_id]
-		var risk_str: String
-		if trait.depression_risk:
-			risk_str = "抑郁风险"
-		else:
-			risk_str = "健康"
-		print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, trait.personality, trait.phq9, risk_str])
+	_print_agent_traits()
 	print("[HardcodedDemoController] 课程表: 班主任课 → 英语课 → 小组讨论 → 午休 → 数学课 → 体育活动 → 放学")
 	print("[HardcodedDemoController] ==========================================\n")
+
+# 打印角色属性（辅助函数，避免复杂的for循环语法问题）
+func _print_agent_traits():
+	var agent_id = demo_agents[0]
+	var trait = agent_traits[agent_id]
+	var risk_str = "抑郁风险"
+	if not trait.depression_risk:
+		risk_str = "健康"
+	print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, trait.personality, trait.phq9, risk_str])
+	
+	agent_id = demo_agents[1]
+	trait = agent_traits[agent_id]
+	risk_str = "抑郁风险"
+	if not trait.depression_risk:
+		risk_str = "健康"
+	print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, trait.personality, trait.phq9, risk_str])
+	
+	agent_id = demo_agents[2]
+	trait = agent_traits[agent_id]
+	risk_str = "抑郁风险"
+	if not trait.depression_risk:
+		risk_str = "健康"
+	print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, trait.personality, trait.phq9, risk_str])
 
 # ============================================
 # 主入口：由TimingSystem调用
