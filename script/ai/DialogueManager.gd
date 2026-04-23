@@ -302,6 +302,13 @@ func start_dialogue(initiator: CharacterBody2D, range_type: int, topic: String =
 		dialogue_data.get_range_name(), dialogue_id, room_name, medium_range_id, topic
 	])
 	
+	# 记录对话开始到日志
+	var logger = get_node_or_null("/root/Logger")
+	if logger:
+		var participant_names: Array[String] = [initiator.name]
+		logger.log_conversation_start(initiator.name, "群聊", room_name)
+		logger.log_dialogue("系统", "群聊", "=== %s 发起%s，主题：%s ===" % [initiator.name, dialogue_data.get_range_name(), topic], room_name)
+	
 	dialogue_started.emit(dialogue_id, initiator.name, range_type, room_name)
 	
 	return dialogue_id
@@ -359,6 +366,15 @@ func join_dialogue(character: CharacterBody2D, dialogue_id: String, current_clic
 		print("[DialogueManager] %s 加入对话 %s" % [character.name, dialogue_id])
 		participant_joined.emit(dialogue_id, character.name)
 		
+		# 记录加入对话到日志
+		var logger = get_node_or_null("/root/Logger")
+		if logger:
+			var participant_names: Array[String] = []
+			for p in dialogue_data.participants.keys():
+				if is_instance_valid(p):
+					participant_names.append(p.name)
+			logger.log_dialogue("系统", "群聊", "=== %s 加入对话，当前参与者：%s ===" % [character.name, ", ".join(participant_names)], dialogue_data.room_name)
+		
 		return true
 	
 	return false
@@ -415,6 +431,17 @@ func _end_dialogue(dialogue_id: String, reason: int):
 	print("[DialogueManager] 对话结束: %s (原因: %s, 持续时间: %.1f分钟)" % [
 		dialogue_id, reason_str, duration_minutes
 	])
+	
+	# 记录对话结束到日志
+	var logger = get_node_or_null("/root/Logger")
+	if logger:
+		var participant_names: Array[String] = []
+		for p in dialogue_data.participants.keys():
+			if is_instance_valid(p):
+				participant_names.append(p.name)
+		var participants_str = ", ".join(participant_names)
+		logger.log_dialogue("系统", "群聊", "=== 对话结束（%s），参与者：%s，持续时间：%.1f分钟 ===" % [reason_str, participants_str, duration_minutes], dialogue_data.room_name)
+		logger.log_conversation_end(participants_str, "群聊")
 	
 	dialogue_ended.emit(dialogue_id, reason_str, duration_minutes)
 	
@@ -548,6 +575,17 @@ func add_message(dialogue_id: String, speaker: CharacterBody2D, content: String,
 	
 	print("[DialogueManager] [%s] %s: %s" % [dialogue_id, speaker.name, content.substr(0, 50)])
 	message_added.emit(dialogue_id, speaker.name, content)
+	
+	# 记录到日志系统
+	var logger = get_node_or_null("/root/Logger")
+	if logger:
+		# 获取其他参与者作为listener
+		var listeners: Array[String] = []
+		for p in dialogue_data.participants.keys():
+			if p != speaker and is_instance_valid(p):
+				listeners.append(p.name)
+		var listener_str = ", ".join(listeners) if listeners.size() > 0 else "群聊"
+		logger.log_dialogue(speaker.name, listener_str, content, dialogue_data.room_name)
 	
 	return true
 
