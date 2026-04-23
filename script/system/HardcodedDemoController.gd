@@ -132,9 +132,9 @@ func _print_agent_traits():
 	_print_single_agent_trait(demo_agents[2])
 
 func _print_single_agent_trait(agent_id: String):
-	var trait = agent_traits[agent_id]
-	var risk_str = _get_risk_string(trait.depression_risk)
-	print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, trait.personality, trait.phq9, risk_str])
+	var agent_trait = agent_traits[agent_id]
+	var risk_str = _get_risk_string(agent_trait.depression_risk)
+	print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, agent_trait.personality, agent_trait.phq9, risk_str])
 
 func _get_risk_string(is_depression_risk: bool) -> String:
 	if is_depression_risk:
@@ -216,7 +216,7 @@ func _handle_class_time(click_num: int, schedule_info: Dictionary) -> Dictionary
 
 func _handle_class_for_agent(agent_id: String, click_num: int, location: Vector2) -> Dictionary:
 	var assignments: Dictionary = {}
-	var trait = agent_traits[agent_id]
+	var agent_trait = agent_traits[agent_id]
 	
 	# Click 2-3: 移动到教室
 	if click_num == 2 or click_num == 3:
@@ -258,8 +258,8 @@ func _handle_class_for_agent(agent_id: String, click_num: int, location: Vector2
 	return assignments
 
 func _is_depression_risk(agent_id: String) -> bool:
-	var trait = agent_traits[agent_id]
-	return trait.depression_risk
+	var agent_trait = agent_traits[agent_id]
+	return agent_trait.depression_risk
 
 # 小组讨论时间：移动到讨论区，发起/加入讨论
 func _handle_discussion_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
@@ -374,10 +374,10 @@ func _handle_activity_time(click_num: int, schedule_info: Dictionary) -> Diction
 		17:
 			# 体育活动（运动为主，对话在下一个Click）
 			for agent_id in demo_agents:
-				var trait = agent_traits[agent_id]
+				var agent_trait = agent_traits[agent_id]
 				
 				# 抑郁风险学生可能选择旁观
-				if trait.depression_risk and randf() < 0.4:
+				if agent_trait.depression_risk and randf() < 0.4:
 					print("[HardcodedDemoController]   %s -> 旁观体育活动" % agent_id)
 					# 不分配活动，保持空闲/旁观状态
 				else:
