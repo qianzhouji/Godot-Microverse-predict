@@ -123,7 +123,11 @@ func _start_demo():
 	print("[HardcodedDemoController] 角色属性:")
 	for agent_id in demo_agents:
 		var trait = agent_traits[agent_id]
-		var risk_str = "抑郁风险" if trait.depression_risk else "健康"
+		var risk_str: String
+		if trait.depression_risk:
+			risk_str = "抑郁风险"
+		else:
+			risk_str = "健康"
 		print("[HardcodedDemoController]   - %s: %s (PHQ-9: %d, %s)" % [agent_id, trait.personality, trait.phq9, risk_str])
 	print("[HardcodedDemoController] 课程表: 班主任课 → 英语课 → 小组讨论 → 午休 → 数学课 → 体育活动 → 放学")
 	print("[HardcodedDemoController] ==========================================\n")
@@ -359,7 +363,7 @@ func _handle_activity_time(click_num: int, schedule_info: Dictionary) -> Diction
 				else:
 					var activity = Activity.new(Activity.ActivityType.SPORTS, "sports_%s" % agent_id)
 					activity.parameters = {
-						"sport_type": "篮球" if randf() < 0.5 else "羽毛球",
+						"sport_type": _get_random_sport(),
 						"intensity": 0.7
 					}
 					activity.step_index = 0
@@ -669,6 +673,13 @@ func _handle_end_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
 # ============================================
 # 辅助函数
 # ============================================
+
+# 获取随机运动类型
+func _get_random_sport() -> String:
+	if randf() < 0.5:
+		return "篮球"
+	else:
+		return "羽毛球"
 
 # 获取位置向量
 func _get_location_vector(location_name: String) -> Vector2:
