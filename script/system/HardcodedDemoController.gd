@@ -299,56 +299,6 @@ func _handle_discussion_time(click_num: int, schedule_info: Dictionary) -> Dicti
 	
 	return assignments
 
-# 午休时间：移动到食堂，自由社交
-func _handle_break_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
-	print("[HardcodedDemoController] [午休时间] 食堂社交")
-	
-	var assignments: Dictionary = {}
-	var location = _get_location_vector(schedule_info.location)
-	
-	match click_num:
-		7:
-			# 所有人移动到食堂
-			for agent_id in demo_agents:
-				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_cafeteria_%s" % agent_id)
-				activity.parameters = {
-					"target_location": Vector2(
-						location.x + randf_range(-60, 60),
-						location.y + randf_range(-40, 40)
-					)
-				}
-				activity.step_index = 0
-				assignments[agent_id] = [activity] as Array[Activity]
-				print("[HardcodedDemoController]   %s -> 移动到食堂" % agent_id)
-		
-		8:
-			# 小红发起午餐对话（普通对话范围）
-			var xiaohong_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "lunch_chat_initiator")
-			xiaohong_activity.parameters = {
-				"range_type": RANGE_NORMAL,
-				"topic": "午餐闲聊：周末计划"
-			}
-			xiaohong_activity.step_index = 0
-			assignments["StudentXiaohong"] = [xiaohong_activity] as Array[Activity]
-			print("[HardcodedDemoController]   StudentXiaohong -> 发起午餐对话")
-			_store_initiator_dialogue_id("StudentXiaohong")
-		
-		9:
-			# 其他人加入午餐对话
-			var dialogue_id = _get_agent_dialogue_id("StudentXiaohong")
-			if dialogue_id != "":
-				for agent_id in demo_agents:
-					if agent_id != "StudentXiaohong":
-						var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_lunch_%s" % agent_id)
-						activity.parameters = {"dialogue_id": dialogue_id}
-						activity.step_index = 0
-						assignments[agent_id] = [activity] as Array[Activity]
-						print("[HardcodedDemoController]   %s -> 加入午餐对话" % agent_id)
-			else:
-				print("[HardcodedDemoController]   未找到午餐对话ID")
-	
-	return assignments
-
 # 体育活动时间：移动到体育馆，进行活动
 func _handle_activity_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
 	print("[HardcodedDemoController] [体育活动] 体育馆")
