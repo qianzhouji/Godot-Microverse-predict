@@ -148,7 +148,7 @@ func execute_hardcoded_click(click_num: int, game_time: float) -> Dictionary:
 	current_click = click_num
 	
 	# 获取当前课程信息
-	var schedule_info = SCHEDULE.get(click_num, {"time": "未知", "period": "自由时间", "type": "free"})
+	var schedule_info = SCHEDULE.get(click_num, {"time": "未知", "period": "自由时间", "location": "CLASSROOM_MAIN", "type": "free"})
 	print("\n[HardcodedDemoController] ===== CLICK #%d | %s | %s =====" % [click_num, schedule_info.time, schedule_info.period])
 	
 	var assignments: Dictionary = {}
