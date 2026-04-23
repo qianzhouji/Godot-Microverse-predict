@@ -54,25 +54,47 @@ var is_demo_running: bool = false
 # 课程表时间线（游戏时间8:00-17:30，共约22个Click）
 # 每个Click = 5分钟游戏时间
 const SCHEDULE: Dictionary = {
-	# 上午课程
-	1: {"time": "8:00", "period": "班主任课", "location": "CLASSROOM_MAIN", "type": "class"},
+	# ========== 上午课程 ==========
+	# 早到教室，课前闲聊
+	1: {"time": "8:00", "period": "课前闲聊", "location": "CLASSROOM_MAIN", "type": "free_chat"},
 	2: {"time": "8:05", "period": "班主任课", "location": "CLASSROOM_MAIN", "type": "class"},
-	3: {"time": "8:55", "period": "英语课", "location": "CLASSROOM_MAIN", "type": "class"},
-	4: {"time": "9:00", "period": "英语课", "location": "CLASSROOM_MAIN", "type": "class"},
-	5: {"time": "9:50", "period": "小组讨论", "location": "CLASSROOM_GROUP", "type": "discussion"},
-	6: {"time": "9:55", "period": "小组讨论", "location": "CLASSROOM_GROUP", "type": "discussion"},
-	# 午休
-	7: {"time": "10:45", "period": "午休", "location": "CAFETERIA", "type": "break"},
-	8: {"time": "10:50", "period": "午休", "location": "CAFETERIA", "type": "break"},
-	9: {"time": "11:40", "period": "午休", "location": "CAFETERIA", "type": "break"},
-	# 下午课程
-	10: {"time": "11:45", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
-	11: {"time": "11:50", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
-	12: {"time": "12:40", "period": "体育活动", "location": "GYM", "type": "activity"},
-	13: {"time": "12:45", "period": "体育活动", "location": "GYM", "type": "activity"},
-	# 放学
-	14: {"time": "13:35", "period": "放学", "location": "LIBRARY", "type": "free"},
-	15: {"time": "13:40", "period": "放学", "location": "LIBRARY", "type": "free"},
+	3: {"time": "8:10", "period": "班主任课", "location": "CLASSROOM_MAIN", "type": "class"},
+	# 课间休息，走廊对话
+	4: {"time": "8:55", "period": "课间休息", "location": "CLASSROOM_MAIN", "type": "break_chat"},
+	# 英语课
+	5: {"time": "9:00", "period": "英语课", "location": "CLASSROOM_MAIN", "type": "class"},
+	6: {"time": "9:05", "period": "英语课", "location": "CLASSROOM_MAIN", "type": "class"},
+	# 小组讨论
+	7: {"time": "9:50", "period": "小组讨论", "location": "CLASSROOM_GROUP", "type": "discussion"},
+	8: {"time": "9:55", "period": "小组讨论", "location": "CLASSROOM_GROUP", "type": "discussion"},
+	
+	# ========== 午休 ==========
+	# 去食堂路上
+	9: {"time": "10:45", "period": "去食堂", "location": "CAFETERIA", "type": "transition"},
+	# 午餐社交 - 多轮对话
+	10: {"time": "10:50", "period": "午餐对话1", "location": "CAFETERIA", "type": "break"},
+	11: {"time": "10:55", "period": "午餐对话2", "location": "CAFETERIA", "type": "break_chat"},
+	12: {"time": "11:40", "period": "午餐对话3", "location": "CAFETERIA", "type": "break"},
+	
+	# ========== 下午课程 ==========
+	# 数学课
+	13: {"time": "11:45", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
+	14: {"time": "11:50", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
+	# 课间
+	15: {"time": "12:35", "period": "课间闲聊", "location": "CLASSROOM_MAIN", "type": "break_chat"},
+	# 体育活动
+	16: {"time": "12:40", "period": "体育活动", "location": "GYM", "type": "activity"},
+	17: {"time": "12:45", "period": "体育活动", "location": "GYM", "type": "activity_chat"},
+	
+	# ========== 放学 ==========
+	# 去图书馆
+	18: {"time": "13:35", "period": "去图书馆", "location": "LIBRARY", "type": "transition"},
+	# 图书馆社交
+	19: {"time": "13:40", "period": "图书馆对话1", "location": "LIBRARY", "type": "free"},
+	20: {"time": "13:45", "period": "图书馆对话2", "location": "LIBRARY", "type": "free_chat"},
+	# 告别
+	21: {"time": "14:30", "period": "告别", "location": "LIBRARY", "type": "farewell"},
+	22: {"time": "14:35", "period": "回家", "location": "LIBRARY", "type": "end"},
 }
 
 # 信号
@@ -126,10 +148,22 @@ func execute_hardcoded_click(click_num: int, game_time: float) -> Dictionary:
 			assignments = _handle_discussion_time(click_num, schedule_info)
 		"break":
 			assignments = _handle_break_time(click_num, schedule_info)
+		"break_chat":
+			assignments = _handle_break_chat_time(click_num, schedule_info)
 		"activity":
 			assignments = _handle_activity_time(click_num, schedule_info)
+		"activity_chat":
+			assignments = _handle_activity_chat_time(click_num, schedule_info)
 		"free":
 			assignments = _handle_free_time(click_num, schedule_info)
+		"free_chat":
+			assignments = _handle_free_chat_time(click_num, schedule_info)
+		"transition":
+			assignments = _handle_transition_time(click_num, schedule_info)
+		"farewell":
+			assignments = _handle_farewell_time(click_num, schedule_info)
+		"end":
+			assignments = _handle_end_time(click_num, schedule_info)
 		_:
 			assignments = _handle_free_time(click_num, schedule_info)
 	
@@ -143,7 +177,7 @@ func execute_hardcoded_click(click_num: int, game_time: float) -> Dictionary:
 				print("[HardcodedDemoController]     * %s" % act.get_type_string())
 	
 	# 检查是否完成全天
-	if click_num >= 15:
+	if click_num >= 22:
 		print("\n[HardcodedDemoController] ===== 全天活动结束 =====")
 		day_completed.emit()
 	
@@ -163,8 +197,8 @@ func _handle_class_time(click_num: int, schedule_info: Dictionary) -> Dictionary
 	for agent_id in demo_agents:
 		var trait = agent_traits[agent_id]
 		
-		# Click 1-2: 移动到教室
-		if click_num <= 2:
+		# Click 2-3: 移动到教室
+		if click_num == 2 or click_num == 3:
 			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_class_%s_%d" % [agent_id, click_num])
 			activity.parameters = {
 				"target_location": Vector2(
@@ -210,42 +244,34 @@ func _handle_discussion_time(click_num: int, schedule_info: Dictionary) -> Dicti
 	var assignments: Dictionary = {}
 	var location = _get_location_vector(schedule_info.location)
 	
-	# Click 5: 移动到讨论区
-	if click_num == 5:
-		for agent_id in demo_agents:
-			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_discussion_%s" % agent_id)
-			activity.parameters = {
-				"target_location": Vector2(
-					location.x + randf_range(-40, 40),
-					location.y + randf_range(-40, 40)
-				)
+	match click_num:
+		7:
+			# 移动到讨论区
+			for agent_id in demo_agents:
+				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_discussion_%s" % agent_id)
+				activity.parameters = {
+					"target_location": Vector2(
+						location.x + randf_range(-40, 40),
+						location.y + randf_range(-40, 40)
+					)
+				}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 移动到讨论区" % agent_id)
+		
+		8:
+			# 小刚发起讨论
+			var xiaogang_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "discussion_initiator")
+			xiaogang_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "英语小组讨论：如何提高口语"
 			}
-			activity.step_index = 0
-			assignments[agent_id] = [activity] as Array[Activity]
-			print("[HardcodedDemoController]   %s -> 移动到讨论区" % agent_id)
-		return assignments
-	
-	# Click 6: 小刚发起讨论，其他人加入
-	if click_num == 6:
-		# 小刚发起小组讨论
-		var xiaogang_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "discussion_initiator")
-		xiaogang_activity.parameters = {
-			"range_type": RANGE_NORMAL,
-			"topic": "英语小组讨论：如何提高口语"
-		}
-		xiaogang_activity.step_index = 0
-		assignments["StudentXiaogang"] = [xiaogang_activity] as Array[Activity]
-		print("[HardcodedDemoController]   StudentXiaogang -> 发起小组讨论")
+			xiaogang_activity.step_index = 0
+			assignments["StudentXiaogang"] = [xiaogang_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaogang -> 发起小组讨论")
+			_store_initiator_dialogue_id("StudentXiaogang")
 		
-		# 记录小刚的对话ID供后续使用
-		_store_initiator_dialogue_id("StudentXiaogang")
-		
-		# 其他人准备加入
-		for agent_id in demo_agents:
-			if agent_id != "StudentXiaogang":
-				print("[HardcodedDemoController]   %s -> 等待加入讨论" % agent_id)
-		
-		return assignments
+		# Click 9是去食堂的过渡，小组讨论自然结束
 	
 	return assignments
 
@@ -307,7 +333,7 @@ func _handle_activity_time(click_num: int, schedule_info: Dictionary) -> Diction
 	var location = _get_location_vector(schedule_info.location)
 	
 	match click_num:
-		12:
+		16:
 			# 移动到体育馆
 			for agent_id in demo_agents:
 				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_gym_%s" % agent_id)
@@ -321,8 +347,8 @@ func _handle_activity_time(click_num: int, schedule_info: Dictionary) -> Diction
 				assignments[agent_id] = [activity] as Array[Activity]
 				print("[HardcodedDemoController]   %s -> 移动到体育馆" % agent_id)
 		
-		13:
-			# 体育活动
+		17:
+			# 体育活动（运动为主，对话在下一个Click）
 			for agent_id in demo_agents:
 				var trait = agent_traits[agent_id]
 				
@@ -350,19 +376,17 @@ func _handle_free_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
 	var location = _get_location_vector(schedule_info.location)
 	
 	match click_num:
-		14:
-			# 移动到图书馆
-			for agent_id in demo_agents:
-				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_library_%s" % agent_id)
-				activity.parameters = {
-					"target_location": Vector2(
-						location.x + randf_range(-50, 50),
-						location.y + randf_range(-30, 30)
-					)
-				}
-				activity.step_index = 0
-				assignments[agent_id] = [activity] as Array[Activity]
-				print("[HardcodedDemoController]   %s -> 移动到图书馆" % agent_id)
+		19:
+			# 图书馆第一轮对话：小明发起（虽然内向但尝试主动）
+			var xiaoming_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "library_chat1_xiaoming")
+			xiaoming_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "图书馆对话：最近的学习困扰"
+			}
+			xiaoming_activity.step_index = 0
+			assignments["StudentXiaoming"] = [xiaoming_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaoming -> 发起图书馆对话（学习困扰）")
+			_store_initiator_dialogue_id("StudentXiaoming")
 		
 		15:
 			# 自由活动：小明自习，小红小刚聊天
@@ -395,6 +419,250 @@ func _handle_free_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
 				xiaohong_activity.step_index = 0
 				assignments["StudentXiaohong"] = [xiaohong_activity] as Array[Activity]
 				print("[HardcodedDemoController]   StudentXiaohong -> 加入悄悄话")
+	
+	return assignments
+
+# ============================================
+# 新增：课前闲聊时间（Click 1）
+# ============================================
+func _handle_free_chat_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [课前闲聊] 教室里的早到聊天")
+	
+	var assignments: Dictionary = {}
+	var location = _get_location_vector(schedule_info.location)
+	
+	match click_num:
+		1:
+			# 所有人移动到教室
+			for agent_id in demo_agents:
+				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_class_early_%s" % agent_id)
+				activity.parameters = {
+					"target_location": Vector2(
+						location.x + randf_range(-60, 60),
+						location.y + randf_range(-40, 40)
+					)
+				}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 早到教室" % agent_id)
+		
+		4:
+			# 课间休息：小明和小刚聊天（朋友间对话）
+			var xiaoming_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "break_chat_xiaoming")
+			xiaoming_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "课间闲聊：昨晚的作业"
+			}
+			xiaoming_activity.step_index = 0
+			assignments["StudentXiaoming"] = [xiaoming_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaoming -> 发起课间对话")
+			_store_initiator_dialogue_id("StudentXiaoming")
+		
+		11:
+			# 午餐第二轮对话：小刚发起关于兴趣的话题
+			var xiaogang_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "lunch_chat2_xiaogang")
+			xiaogang_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "午餐话题：最喜欢的电影"
+			}
+			xiaogang_activity.step_index = 0
+			assignments["StudentXiaogang"] = [xiaogang_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaogang -> 发起午餐对话2")
+			_store_initiator_dialogue_id("StudentXiaogang")
+		
+		15:
+			# 课间闲聊：小红分享趣事
+			var xiaohong_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "break_chat2_xiaohong")
+			xiaohong_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "课间分享：周末的有趣经历"
+			}
+			xiaohong_activity.step_index = 0
+			assignments["StudentXiaohong"] = [xiaohong_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaohong -> 发起课间分享")
+			_store_initiator_dialogue_id("StudentXiaohong")
+		
+		20:
+			# 图书馆第二轮对话：三人一起讨论学习
+			var xiaogang_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "library_chat2_xiaogang")
+			xiaogang_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "图书馆讨论：一起复习考试"
+			}
+			xiaogang_activity.step_index = 0
+			assignments["StudentXiaogang"] = [xiaogang_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaogang -> 发起图书馆讨论")
+			_store_initiator_dialogue_id("StudentXiaogang")
+	
+	return assignments
+
+# ============================================
+# 新增：课间对话时间（Click 4）
+# ============================================
+func _handle_break_chat_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [课间对话] 加入对话")
+	
+	var assignments: Dictionary = {}
+	
+	# 加入小明的课间对话
+	var dialogue_id = _get_agent_dialogue_id("StudentXiaoming")
+	if dialogue_id != "":
+		for agent_id in demo_agents:
+			if agent_id != "StudentXiaoming":
+				var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_break_chat_%s" % agent_id)
+				activity.parameters = {"dialogue_id": dialogue_id}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 加入课间对话" % agent_id)
+	else:
+		print("[HardcodedDemoController]   未找到课间对话ID")
+	
+	return assignments
+
+# ============================================
+# 新增：午休多轮对话（Click 10-12）
+# ============================================
+func _handle_break_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [午休时间] 食堂社交 - 多轮对话")
+	
+	var assignments: Dictionary = {}
+	var location = _get_location_vector(schedule_info.location)
+	
+	match click_num:
+		9:
+			# 所有人移动到食堂
+			for agent_id in demo_agents:
+				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_cafeteria_%s" % agent_id)
+				activity.parameters = {
+					"target_location": Vector2(
+						location.x + randf_range(-60, 60),
+						location.y + randf_range(-40, 40)
+					)
+				}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 移动到食堂" % agent_id)
+		
+		10:
+			# 午餐第一轮对话：小红发起（周末计划）
+			var xiaohong_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "lunch_chat1_xiaohong")
+			xiaohong_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "午餐闲聊：周末计划"
+			}
+			xiaohong_activity.step_index = 0
+			assignments["StudentXiaohong"] = [xiaohong_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaohong -> 发起午餐对话1（周末计划）")
+			_store_initiator_dialogue_id("StudentXiaohong")
+		
+		12:
+			# 午餐第三轮对话：小明分享（虽然内向但被朋友带动）
+			var xiaoming_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "lunch_chat3_xiaoming")
+			xiaoming_activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "午餐分享：最近看的一本书"
+			}
+			xiaoming_activity.step_index = 0
+			assignments["StudentXiaoming"] = [xiaoming_activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaoming -> 发起午餐对话3（书籍分享）")
+			_store_initiator_dialogue_id("StudentXiaoming")
+	
+	return assignments
+
+# ============================================
+# 新增：加入午餐对话（Click 11）
+# ============================================
+func _handle_transition_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [场景过渡] 加入对话")
+	
+	var assignments: Dictionary = {}
+	var location = _get_location_vector(schedule_info.location)
+	
+	match click_num:
+		9:
+			# 去食堂的路上（移动）
+			for agent_id in demo_agents:
+				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "walk_to_cafeteria_%s" % agent_id)
+				activity.parameters = {
+					"target_location": Vector2(
+						location.x + randf_range(-40, 40),
+						location.y + randf_range(-30, 30)
+					)
+				}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 走向食堂" % agent_id)
+		
+		18:
+			# 去图书馆的路上
+			for agent_id in demo_agents:
+				var activity = Activity.new(Activity.ActivityType.MOVE_TO, "walk_to_library_%s" % agent_id)
+				activity.parameters = {
+					"target_location": Vector2(
+						location.x + randf_range(-50, 50),
+						location.y + randf_range(-30, 30)
+					)
+				}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 走向图书馆" % agent_id)
+	
+	return assignments
+
+# ============================================
+# 新增：体育活动对话（Click 17）
+# ============================================
+func _handle_activity_chat_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [体育活动] 边运动边聊天")
+	
+	var assignments: Dictionary = {}
+	
+	# 小红发起体育活动的轻松对话
+	var xiaohong_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "gym_chat_xiaohong")
+	xiaohong_activity.parameters = {
+		"range_type": RANGE_NORMAL,
+		"topic": "运动闲聊：最喜欢的体育明星"
+	}
+	xiaohong_activity.step_index = 0
+	assignments["StudentXiaohong"] = [xiaohong_activity] as Array[Activity]
+	print("[HardcodedDemoController]   StudentXiaohong -> 发起运动闲聊")
+	_store_initiator_dialogue_id("StudentXiaohong")
+	
+	return assignments
+
+# ============================================
+# 新增：告别时间（Click 21）
+# ============================================
+func _handle_farewell_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [告别时间] 放学告别")
+	
+	var assignments: Dictionary = {}
+	
+	# 小刚发起告别对话
+	var xiaogang_activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "farewell_xiaogang")
+	xiaogang_activity.parameters = {
+		"range_type": RANGE_NORMAL,
+		"topic": "告别：明天见"
+	}
+	xiaogang_activity.step_index = 0
+	assignments["StudentXiaogang"] = [xiaogang_activity] as Array[Activity]
+	print("[HardcodedDemoController]   StudentXiaogang -> 发起告别")
+	_store_initiator_dialogue_id("StudentXiaogang")
+	
+	return assignments
+
+# ============================================
+# 新增：结束时间（Click 22）
+# ============================================
+func _handle_end_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [结束] 各自回家")
+	
+	var assignments: Dictionary = {}
+	
+	# 所有人离开当前场景（模拟回家）
+	for agent_id in demo_agents:
+		print("[HardcodedDemoController]   %s -> 回家" % agent_id)
+		# 不分配具体活动，让Agent保持空闲状态
 	
 	return assignments
 
