@@ -445,7 +445,9 @@ func _handle_dialogue_continue(click_num: int, schedule_info: Dictionary) -> Dic
 	
 	# Click 17: 9:20 小组讨论继续
 	if click_num == 17:
-
+		# 所有人在对话中，系统自动管理发言队列
+		print("[HardcodedDemoController]   小组讨论继续进行")
+	
 	return assignments
 
 # 结束时间
