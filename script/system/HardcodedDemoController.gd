@@ -99,6 +99,61 @@ const SCHEDULE: Dictionary = {
 	24: {"time": "9:55", "period": "午餐对话3加入", "location": "CAFETERIA", "type": "dialogue_join"},
 	# 10:00 结束
 	25: {"time": "10:00", "period": "上午结束", "location": "CAFETERIA", "type": "end"},
+	
+	# ========== 10:00-12:30 下午活动 ==========
+	# 10:05 休息
+	26: {"time": "10:05", "period": "休息", "location": "CAFETERIA", "type": "idle"},
+	# 10:10 去教室
+	27: {"time": "10:10", "period": "去教室", "location": "CLASSROOM_MAIN", "type": "move"},
+	# 10:15 数学课
+	28: {"time": "10:15", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
+	29: {"time": "10:20", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
+	30: {"time": "10:25", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
+	31: {"time": "10:30", "period": "数学课", "location": "CLASSROOM_MAIN", "type": "class"},
+	# 10:35 课间对话 - 小刚发起
+	32: {"time": "10:35", "period": "课间对话发起", "location": "CLASSROOM_MAIN", "type": "dialogue_initiate"},
+	# 10:40 课间对话 - 其他人加入
+	33: {"time": "10:40", "period": "课间对话加入", "location": "CLASSROOM_MAIN", "type": "dialogue_join"},
+	# 10:45 物理课
+	34: {"time": "10:45", "period": "物理课", "location": "CLASSROOM_MAIN", "type": "class"},
+	35: {"time": "10:50", "period": "物理课", "location": "CLASSROOM_MAIN", "type": "class"},
+	36: {"time": "10:55", "period": "物理课", "location": "CLASSROOM_MAIN", "type": "class"},
+	37: {"time": "11:00", "period": "物理课", "location": "CLASSROOM_MAIN", "type": "class"},
+	# 11:05 去体育馆
+	38: {"time": "11:05", "period": "去体育馆", "location": "GYM", "type": "move"},
+	# 11:10 体育课 - 自由活动
+	39: {"time": "11:10", "period": "体育课", "location": "GYM", "type": "activity"},
+	# 11:15 运动对话 - 小红发起
+	40: {"time": "11:15", "period": "运动对话发起", "location": "GYM", "type": "dialogue_initiate"},
+	# 11:20 运动对话 - 其他人加入
+	41: {"time": "11:20", "period": "运动对话加入", "location": "GYM", "type": "dialogue_join"},
+	# 11:25 继续运动
+	42: {"time": "11:25", "period": "体育课继续", "location": "GYM", "type": "activity"},
+	# 11:30 去图书馆
+	43: {"time": "11:30", "period": "去图书馆", "location": "LIBRARY", "type": "move"},
+	# 11:35 图书馆自习
+	44: {"time": "11:35", "period": "图书馆自习", "location": "LIBRARY", "type": "study"},
+	# 11:40 图书馆对话 - 小明发起
+	45: {"time": "11:40", "period": "图书馆对话发起", "location": "LIBRARY", "type": "dialogue_initiate"},
+	# 11:45 图书馆对话 - 其他人加入
+	46: {"time": "11:45", "period": "图书馆对话加入", "location": "LIBRARY", "type": "dialogue_join"},
+	# 11:50 继续自习
+	47: {"time": "11:50", "period": "图书馆自习", "location": "LIBRARY", "type": "study"},
+	48: {"time": "11:55", "period": "图书馆自习", "location": "LIBRARY", "type": "study"},
+	# 12:00 午餐时间 - 去食堂
+	49: {"time": "12:00", "period": "去食堂", "location": "CAFETERIA", "type": "move"},
+	# 12:05 午餐对话 - 小红发起
+	50: {"time": "12:05", "period": "午餐对话发起", "location": "CAFETERIA", "type": "dialogue_initiate"},
+	# 12:10 午餐对话 - 其他人加入
+	51: {"time": "12:10", "period": "午餐对话加入", "location": "CAFETERIA", "type": "dialogue_join"},
+	# 12:15 午餐继续
+	52: {"time": "12:15", "period": "午餐继续", "location": "CAFETERIA", "type": "idle"},
+	# 12:20 告别对话 - 小刚发起
+	53: {"time": "12:20", "period": "告别对话发起", "location": "CAFETERIA", "type": "dialogue_initiate"},
+	# 12:25 告别对话 - 其他人加入
+	54: {"time": "12:25", "period": "告别对话加入", "location": "CAFETERIA", "type": "dialogue_join"},
+	# 12:30 放学回家
+	55: {"time": "12:30", "period": "放学回家", "location": "CAFETERIA", "type": "end"},
 }
 
 # 信号
@@ -169,6 +224,12 @@ func execute_hardcoded_click(click_num: int, game_time: float) -> Dictionary:
 			assignments = _handle_dialogue_join(click_num, schedule_info)
 		"dialogue_continue":
 			assignments = _handle_dialogue_continue(click_num, schedule_info)
+		"activity":
+			assignments = _handle_activity_time(click_num, schedule_info)
+		"study":
+			assignments = _handle_study_time(click_num, schedule_info)
+		"idle":
+			assignments = {}
 		"end":
 			assignments = _handle_end_time(click_num, schedule_info)
 		_:
@@ -184,7 +245,7 @@ func execute_hardcoded_click(click_num: int, game_time: float) -> Dictionary:
 				print("[HardcodedDemoController]     * %s" % act.get_type_string())
 	
 	# 检查是否完成全天
-	if click_num >= 22:
+	if click_num >= 55:
 		print("\n[HardcodedDemoController] ===== 全天活动结束 =====")
 		day_completed.emit()
 	
@@ -231,6 +292,62 @@ func _handle_move_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
 	
 	# Click 18: 去食堂
 	elif click_num == 18:
+		for agent_id in demo_agents:
+			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_cafeteria_%s" % agent_id)
+			activity.parameters = {
+				"target_location": Vector2(
+					location.x + randf_range(-60, 60),
+					location.y + randf_range(-40, 40)
+				)
+			}
+			activity.step_index = 0
+			assignments[agent_id] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   %s -> 移动到食堂" % agent_id)
+	
+	# Click 27: 去教室（10:10）
+	elif click_num == 27:
+		for agent_id in demo_agents:
+			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_class_%s" % agent_id)
+			activity.parameters = {
+				"target_location": Vector2(
+					location.x + randf_range(-50, 50),
+					location.y + randf_range(-30, 30)
+				)
+			}
+			activity.step_index = 0
+			assignments[agent_id] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   %s -> 移动到教室" % agent_id)
+	
+	# Click 38: 去体育馆（11:05）
+	elif click_num == 38:
+		for agent_id in demo_agents:
+			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_gym_%s" % agent_id)
+			activity.parameters = {
+				"target_location": Vector2(
+					location.x + randf_range(-80, 80),
+					location.y + randf_range(-50, 50)
+				)
+			}
+			activity.step_index = 0
+			assignments[agent_id] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   %s -> 移动到体育馆" % agent_id)
+	
+	# Click 43: 去图书馆（11:30）
+	elif click_num == 43:
+		for agent_id in demo_agents:
+			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_library_%s" % agent_id)
+			activity.parameters = {
+				"target_location": Vector2(
+					location.x + randf_range(-50, 50),
+					location.y + randf_range(-30, 30)
+				)
+			}
+			activity.step_index = 0
+			assignments[agent_id] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   %s -> 移动到图书馆" % agent_id)
+	
+	# Click 49: 去食堂（12:00）
+	elif click_num == 49:
 		for agent_id in demo_agents:
 			var activity = Activity.new(Activity.ActivityType.MOVE_TO, "move_to_cafeteria_%s" % agent_id)
 			activity.parameters = {
@@ -359,6 +476,66 @@ func _handle_dialogue_initiate(click_num: int, schedule_info: Dictionary) -> Dic
 			assignments["StudentXiaoming"] = [activity] as Array[Activity]
 			print("[HardcodedDemoController]   StudentXiaoming -> 发起午餐对话3")
 			_store_initiator_dialogue_id("StudentXiaoming")
+		
+		32:
+			# 10:35 课间对话 - 小刚发起
+			var activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "break_chat_2")
+			activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "课间闲聊：下节课的准备"
+			}
+			activity.step_index = 0
+			assignments["StudentXiaogang"] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaogang -> 发起课间对话2")
+			_store_initiator_dialogue_id("StudentXiaogang")
+		
+		40:
+			# 11:15 运动对话 - 小红发起
+			var activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "gym_chat")
+			activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "运动闲聊：最喜欢的体育明星"
+			}
+			activity.step_index = 0
+			assignments["StudentXiaohong"] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaohong -> 发起运动对话")
+			_store_initiator_dialogue_id("StudentXiaohong")
+		
+		45:
+			# 11:40 图书馆对话 - 小明发起
+			var activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "library_chat")
+			activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "图书馆对话：最近的学习困扰"
+			}
+			activity.step_index = 0
+			assignments["StudentXiaoming"] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaoming -> 发起图书馆对话")
+			_store_initiator_dialogue_id("StudentXiaoming")
+		
+		50:
+			# 12:05 午餐对话 - 小红发起
+			var activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "lunch_chat_4")
+			activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "午餐闲聊：暑假计划"
+			}
+			activity.step_index = 0
+			assignments["StudentXiaohong"] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaohong -> 发起午餐对话4")
+			_store_initiator_dialogue_id("StudentXiaohong")
+		
+		53:
+			# 12:20 告别对话 - 小刚发起
+			var activity = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE, "farewell_chat")
+			activity.parameters = {
+				"range_type": RANGE_NORMAL,
+				"topic": "告别：明天见"
+			}
+			activity.step_index = 0
+			assignments["StudentXiaogang"] = [activity] as Array[Activity]
+			print("[HardcodedDemoController]   StudentXiaogang -> 发起告别对话")
+			_store_initiator_dialogue_id("StudentXiaogang")
 	
 	return assignments
 
@@ -434,6 +611,61 @@ func _handle_dialogue_join(click_num: int, schedule_info: Dictionary) -> Diction
 					activity.step_index = 0
 					assignments[agent_id] = [activity] as Array[Activity]
 					print("[HardcodedDemoController]   %s -> 加入午餐对话3" % agent_id)
+		
+		33:
+			# 10:40 加入课间对话2（小刚发起的）
+			var dialogue_id = _get_agent_dialogue_id("StudentXiaogang")
+			if dialogue_id != "":
+				for agent_id in ["StudentXiaoming", "StudentXiaohong"]:
+					var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_break2_%s" % agent_id)
+					activity.parameters = {"dialogue_id": dialogue_id}
+					activity.step_index = 0
+					assignments[agent_id] = [activity] as Array[Activity]
+					print("[HardcodedDemoController]   %s -> 加入课间对话2" % agent_id)
+		
+		41:
+			# 11:20 加入运动对话（小红发起的）
+			var dialogue_id = _get_agent_dialogue_id("StudentXiaohong")
+			if dialogue_id != "":
+				for agent_id in ["StudentXiaoming", "StudentXiaogang"]:
+					var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_gym_%s" % agent_id)
+					activity.parameters = {"dialogue_id": dialogue_id}
+					activity.step_index = 0
+					assignments[agent_id] = [activity] as Array[Activity]
+					print("[HardcodedDemoController]   %s -> 加入运动对话" % agent_id)
+		
+		46:
+			# 11:45 加入图书馆对话（小明发起的）
+			var dialogue_id = _get_agent_dialogue_id("StudentXiaoming")
+			if dialogue_id != "":
+				for agent_id in ["StudentXiaogang", "StudentXiaohong"]:
+					var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_library_%s" % agent_id)
+					activity.parameters = {"dialogue_id": dialogue_id}
+					activity.step_index = 0
+					assignments[agent_id] = [activity] as Array[Activity]
+					print("[HardcodedDemoController]   %s -> 加入图书馆对话" % agent_id)
+		
+		51:
+			# 12:10 加入午餐对话4（小红发起的）
+			var dialogue_id = _get_agent_dialogue_id("StudentXiaohong")
+			if dialogue_id != "":
+				for agent_id in ["StudentXiaoming", "StudentXiaogang"]:
+					var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_lunch4_%s" % agent_id)
+					activity.parameters = {"dialogue_id": dialogue_id}
+					activity.step_index = 0
+					assignments[agent_id] = [activity] as Array[Activity]
+					print("[HardcodedDemoController]   %s -> 加入午餐对话4" % agent_id)
+		
+		54:
+			# 12:25 加入告别对话（小刚发起的）
+			var dialogue_id = _get_agent_dialogue_id("StudentXiaogang")
+			if dialogue_id != "":
+				for agent_id in ["StudentXiaoming", "StudentXiaohong"]:
+					var activity = Activity.new(Activity.ActivityType.JOIN_DIALOGUE, "join_farewell_%s" % agent_id)
+					activity.parameters = {"dialogue_id": dialogue_id}
+					activity.step_index = 0
+					assignments[agent_id] = [activity] as Array[Activity]
+					print("[HardcodedDemoController]   %s -> 加入告别对话" % agent_id)
 	
 	return assignments
 
@@ -459,6 +691,66 @@ func _handle_end_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
 	# 10:00 上午结束
 	if click_num == 25:
 		print("[HardcodedDemoController]   上午活动结束")
+	
+	# 12:30 放学回家
+	if click_num == 55:
+		print("[HardcodedDemoController]   放学回家")
+	
+	return assignments
+
+# ============================================
+# 10:00-12:30 新增处理函数
+# ============================================
+
+# 体育活动时间
+func _handle_activity_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [体育活动] %s" % schedule_info.period)
+	
+	var assignments: Dictionary = {}
+	
+	# Click 39, 42: 体育课自由活动
+	if click_num == 39 or click_num == 42:
+		for agent_id in demo_agents:
+			var agent_trait = agent_traits[agent_id]
+			
+			# 抑郁风险学生可能选择旁观
+			if agent_trait.depression_risk and randf() < 0.4:
+				print("[HardcodedDemoController]   %s -> 旁观体育活动" % agent_id)
+			else:
+				var activity = Activity.new(Activity.ActivityType.SPORTS, "sports_%s_%d" % [agent_id, click_num])
+				activity.parameters = {
+					"sport_type": _get_random_sport(),
+					"intensity": 0.7
+				}
+				activity.step_index = 0
+				assignments[agent_id] = [activity] as Array[Activity]
+				print("[HardcodedDemoController]   %s -> 参与体育活动" % agent_id)
+	
+	return assignments
+
+# 自习时间
+func _handle_study_time(click_num: int, schedule_info: Dictionary) -> Dictionary:
+	print("[HardcodedDemoController] [自习时间] %s" % schedule_info.period)
+	
+	var assignments: Dictionary = {}
+	var location = _get_location_vector(schedule_info.location)
+	
+	for agent_id in demo_agents:
+		var agent_trait = agent_traits[agent_id]
+		
+		# 抑郁风险学生可能更难专注
+		var focus_level = "high"
+		if agent_trait.depression_risk and randf() < 0.3:
+			focus_level = "low"
+		
+		var activity = Activity.new(Activity.ActivityType.SELF_STUDY, "study_%s_%d" % [agent_id, click_num])
+		activity.parameters = {
+			"subject": "数学",
+			"focus_level": focus_level
+		}
+		activity.step_index = 0
+		assignments[agent_id] = [activity] as Array[Activity]
+		print("[HardcodedDemoController]   %s -> 自习（专注度：%s）" % [agent_id, focus_level])
 	
 	return assignments
 
