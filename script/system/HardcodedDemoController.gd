@@ -178,7 +178,7 @@ func _start_demo():
 	is_demo_running = true
 	current_click = 0
 	print("\n[HardcodedDemoController] ========== 全天社交活动Demo开始 ==========")
-	print("[HardcodedDemoController] 角色列表: %s" % demo_agents)
+	print("[HardcodedDemoController] 角色列表: %s" % str(demo_agents))
 	print("[HardcodedDemoController] 角色属性:")
 	_print_agent_traits()
 	print("[HardcodedDemoController] 课程表: 班主任课 → 英语课 → 小组讨论 → 午休 → 数学课 → 体育活动 → 放学")
@@ -801,14 +801,27 @@ func _store_initiator_dialogue_id(agent_id: String) -> void:
 func _get_agent_dialogue_id(agent_id: String) -> String:
 	# 优先使用记录的对话ID
 	if _agent_dialogue_ids.has(agent_id):
-		return _agent_dialogue_ids[agent_id]
+		var stored_dialogue_id = _agent_dialogue_ids[agent_id]
+		if _is_dialogue_active(stored_dialogue_id):
+			return stored_dialogue_id
+		_agent_dialogue_ids.erase(agent_id)
 	
 	# 从角色metadata获取
 	var agent = _get_agent(agent_id)
 	if agent and agent.has_meta("current_dialogue_id"):
-		return agent.get_meta("current_dialogue_id")
+		var metadata_dialogue_id = agent.get_meta("current_dialogue_id")
+		if _is_dialogue_active(metadata_dialogue_id):
+			return metadata_dialogue_id
 	
 	return ""
+
+func _is_dialogue_active(dialogue_id: String) -> bool:
+	if dialogue_id.is_empty():
+		return false
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager and dialogue_manager.has_method("has_active_dialogue"):
+		return dialogue_manager.has_active_dialogue(dialogue_id)
+	return false
 
 # 兼容旧接口
 func set_xiaoming_dialogue_id(dialogue_id: String) -> void:

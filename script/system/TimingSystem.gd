@@ -251,6 +251,9 @@ func format_time(minutes: float) -> String:
 	var m = int(fmod(minutes, 60))
 	return "%02d:%02d" % [h, m]
 
+func get_current_click() -> int:
+	return click_count
+
 # 获取当前时段类型
 func get_current_period() -> String:
 	var hour = current_game_time / 60.0

@@ -474,6 +474,7 @@ static func build_dialogue_response_prompt(agent: AIAgent,
 	prompt += "- 可以回应其他人的观点\n"
 	prompt += "- 对话长度控制在1-3句话，50字以内\n"
 	prompt += "- 只返回你要说的话，不要加任何前缀或解释\n"
+	prompt += "- 不要写成旁白或剧本格式，不要使用“你对大家说”“他说”“她说”\n"
 	prompt += "- 不要重复之前说过的话\n"
 	
 	return prompt

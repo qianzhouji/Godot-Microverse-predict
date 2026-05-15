@@ -444,7 +444,7 @@ func _connect_to_timing_system() -> void:
 	# 等待一帧确保 TimingSystem 已初始化
 	await get_tree().process_frame
 	
-	var timing_system = get_node_or_null("/root/TimingSystem")
+	var timing_system = TimingSystem.instance
 	if timing_system:
 		# 监听 Click 触发信号
 		timing_system.click_triggered.connect(_on_click_triggered)
