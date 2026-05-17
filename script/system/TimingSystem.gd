@@ -156,6 +156,9 @@ func _trigger_click():
 				waited += 1.0
 				var pending_count = ActivityCoordinator.instance.get_pending_count()
 				print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
+				if waited >= 1.0 and pending_count == 0 and not _any_agent_waiting_for_decision():
+					print("[TimingSystem] 本Click没有Agent提交新决策，跳过协调等待")
+					break
 				# 如果所有Agent都提交了，提前结束等待
 				# 动态获取场景中的Agent数量
 				var expected_agents = get_tree().get_nodes_in_group("character").size()
@@ -292,3 +295,9 @@ func _get_agent(agent_id: String):
 func _get_all_agents() -> Array:
 	# TODO: 集成AgentManager
 	return get_tree().get_nodes_in_group("ai_agents")
+
+func _any_agent_waiting_for_decision() -> bool:
+	for agent in _get_all_agents():
+		if agent.has_method("is_waiting_for_decision_result") and agent.is_waiting_for_decision_result():
+			return true
+	return false

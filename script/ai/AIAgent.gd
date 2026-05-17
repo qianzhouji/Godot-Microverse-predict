@@ -46,6 +46,7 @@ var movement_executor: MovementExecutor = null # 移动执行器
 # 自然语言决策
 # ============================================
 var last_natural_decision: String = ""         # 上次自然语言决策
+var is_decision_in_progress: bool = false      # 当前Click是否还在等待LLM决策
 
 # ============================================
 # 信息接收系统
@@ -306,8 +307,10 @@ func _perform_v2_cognitive_cycle():
 
 	# 3. V2: 自然语言决策阶段
 	current_state = AgentState.DECIDING
+	is_decision_in_progress = true
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
 	var natural_decision = await _make_natural_decision(perception)
+	is_decision_in_progress = false
 	print("[AIAgent] %s 自然语言决策: %s" % [character.name, natural_decision])
 
 	# V2: 记录决策日志
@@ -322,6 +325,9 @@ func _perform_v2_cognitive_cycle():
 	print("[AIAgent] %s 决策已提交,等待协调器下发活动" % character.name)
 	# 实际活动将在下一个Click周期通过 receive_activity_sequence() 接收
 	print("[AIAgent] %s 决策已提交，等待协调器分配..." % character.name)
+
+func is_waiting_for_decision_result() -> bool:
+	return is_decision_in_progress
 
 # ============================================
 # 感知阶段

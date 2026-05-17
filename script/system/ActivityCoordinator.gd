@@ -593,6 +593,7 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			results[agent_id] = parsed_activities
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 
+	_enforce_timeline_constraints(results)
 	_normalize_dialogue_assignments(results)
 	return results
 
@@ -627,8 +628,16 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 					target_room = inferred_room
 					target_location = _get_room_default_position(target_room)
 					print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: 使用推断房间坐标 %s -> %s" % [target_room, str(target_location)])
-			elif target_room.is_empty():
-				target_room = _get_room_name_at_position(target_location)
+			else:
+				if target_room.is_empty():
+					target_room = _get_room_name_at_position(target_location)
+				if not inferred_room.is_empty() and target_room != inferred_room:
+					target_room = inferred_room
+					target_location = _get_room_default_position(target_room)
+					print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: 坐标房间与意图不一致，改用 %s -> %s" % [target_room, str(target_location)])
+
+			if target_location == Vector2.ZERO and not target_room.is_empty():
+				target_location = _get_room_default_position(target_room)
 
 			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location=%s, target_room=%s" % [str(target_location), target_room])
 			activity = Activity.create_move_to(target_location, target_room)
@@ -773,6 +782,39 @@ func _infer_dialogue_topic(agent_id: String) -> String:
 	if "课程" in decision or "上课" in decision:
 		return "课程交流"
 	return "日常交流"
+
+func _enforce_timeline_constraints(results: Dictionary) -> void:
+	"""在系统层强制执行课表约束，避免LLM把上课时间协调成自由活动"""
+	if not TimelineState.instance:
+		return
+
+	var constraints = TimelineState.instance.get_constraints()
+	if constraints.get("can_leave_room", true) and constraints.get("can_start_dialogue", true):
+		return
+
+	var expected_room = TimelineState.instance.get_expected_room()
+	if expected_room.is_empty():
+		return
+
+	for agent_id in results.keys():
+		var activities: Array[Activity] = []
+		var agent_node = _find_agent_node(agent_id)
+		var character = agent_node.get_parent() as CharacterBody2D if agent_node else null
+		var current_room = _get_current_room_name(character) if character else ""
+
+		if current_room != expected_room:
+			activities.append(Activity.create_move_to(_get_room_default_position(expected_room), expected_room))
+
+		if TimelineState.instance.is_class_time:
+			activities.append(Activity.create_listen("Teacher", Activity.FocusLevel.HIGH))
+		elif TimelineState.instance.current_period == "discussion_time":
+			activities.append(Activity.create_group_discussion(TimelineState.instance.current_subject, [], Activity.FocusLevel.HIGH))
+
+		if not activities.is_empty():
+			results[agent_id] = activities
+			print("[ActivityCoordinator] 课表约束覆盖 %s 的活动：当前时段=%s，目标房间=%s" % [
+				agent_id, TimelineState.instance.current_period, expected_room
+			])
 
 func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
 	"""获取活动类型名称"""
@@ -1154,7 +1196,7 @@ func _get_current_room_name(character: CharacterBody2D) -> String:
 				character.global_position
 			)
 			if room:
-				return room.name
+				return room.room_name
 	return "unknown"
 
 func _get_agent_role(character: CharacterBody2D) -> String:
