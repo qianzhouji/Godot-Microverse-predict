@@ -267,6 +267,14 @@ func _perform_activity_update_async():
 	perception["current_activity"] = activity_info
 
 	# 4. 决策阶段：继续/停止/更换活动
+	if _must_continue_current_activity(activity_info):
+		print("[AIAgent] %s 当前时段约束要求继续活动: %s" % [
+			character.name,
+			activity_info.get("activity_name", "")
+		])
+		current_state = AgentState.IN_ACTIVITY
+		return
+
 	current_state = AgentState.DECIDING
 	var decision = await _make_activity_decision(perception, activity_info, experience_result)
 	print("[AIAgent] %s 活动决策: %s" % [character.name, decision.get("decision_type", "unknown")])
@@ -328,6 +336,23 @@ func _perform_v2_cognitive_cycle():
 
 func is_waiting_for_decision_result() -> bool:
 	return is_decision_in_progress
+
+func _must_continue_current_activity(activity_info: Dictionary) -> bool:
+	if not TimelineState.instance:
+		return false
+
+	var constraints = TimelineState.instance.get_constraints()
+	if constraints.get("can_leave_room", true):
+		return false
+
+	var activity_type = activity_info.get("activity_type", ActivityManager.ActivityType.NONE)
+	var expected_room = TimelineState.instance.get_expected_room()
+	var current_room = _get_current_room_name()
+
+	if activity_type == ActivityManager.ActivityType.CLASS:
+		return expected_room.is_empty() or current_room == expected_room
+
+	return false
 
 # ============================================
 # 感知阶段
