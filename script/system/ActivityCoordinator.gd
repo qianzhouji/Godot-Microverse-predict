@@ -506,6 +506,15 @@ func _parse_coordination_response(response: String) -> Dictionary:
 
 	var json = JSON.new()
 	var parse_result = json.parse(json_text)
+	if parse_result != OK:
+		var repaired_json_text = _repair_common_json_issues(json_text)
+		if repaired_json_text != json_text:
+			print("[ActivityCoordinator] _parse_coordination_response: 初次JSON解析失败，尝试修正常见格式错误")
+			json = JSON.new()
+			parse_result = json.parse(repaired_json_text)
+			if parse_result == OK:
+				json_text = repaired_json_text
+				print("[ActivityCoordinator] _parse_coordination_response: JSON修正后解析成功")
 
 	if parse_result != OK:
 		push_error("[ActivityCoordinator] 无法解析响应: %s" % response)
@@ -688,11 +697,11 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 			activity = Activity.create_initiate_dialogue(range_type, initial_message, initiate_topic)
 
 		Activity.ActivityType.JOIN_DIALOGUE:
-			var join_dialogue_id = parameters.get("dialogue_id", "")
+			var join_dialogue_id = _string_parameter(parameters, "dialogue_id", "")
 			activity = Activity.create_join_dialogue(join_dialogue_id)
 
 		Activity.ActivityType.LEAVE_DIALOGUE:
-			var leave_dialogue_id = parameters.get("dialogue_id", "")
+			var leave_dialogue_id = _string_parameter(parameters, "dialogue_id", "")
 			if leave_dialogue_id.is_empty() and not _agent_has_active_dialogue(agent_id):
 				print("[ActivityCoordinator] 跳过 %s 的 LEAVE_DIALOGUE：角色当前不在对话中" % agent_id)
 				return null
@@ -705,6 +714,26 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 			activity.duration_expected = float(step_data.get("estimated_duration", activity.duration_expected))
 
 	return activity
+
+func _repair_common_json_issues(json_text: String) -> String:
+	"""修复本地小模型常见的JSON格式小错"""
+	var repaired = json_text
+	while repaired.find(",\n,") != -1:
+		repaired = repaired.replace(",\n,", ",\n")
+	while repaired.find(",\r\n,") != -1:
+		repaired = repaired.replace(",\r\n,", ",\r\n")
+
+	var trailing_comma_regex = RegEx.new()
+	if trailing_comma_regex.compile(",\\s*([}\\]])") == OK:
+		repaired = trailing_comma_regex.sub(repaired, "$1", true)
+
+	return repaired
+
+func _string_parameter(parameters: Dictionary, key: String, default_value: String = "") -> String:
+	var value = parameters.get(key, default_value)
+	if value == null:
+		return default_value
+	return str(value)
 
 func _string_to_activity_type(type_str: String) -> Activity.ActivityType:
 	"""字符串转活动类型"""
