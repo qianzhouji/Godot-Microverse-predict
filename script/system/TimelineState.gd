@@ -73,16 +73,17 @@ func update_state(game_time: float):
 		current_room = ""
 		is_class_time = false
 
-# 获取当前行为约束
+# 获取当前时段引导信息。
+# 这些字段只提供给LLM作为情境参考，不作为系统层硬性拦截条件。
 func get_constraints() -> Dictionary:
 	match current_period:
 		"class_time":
 			return {
 				"can_speak_freely": false,
-				"can_leave_room": false,
+				"can_leave_room": true,
 				"must_follow_teacher": true,
-				"can_start_dialogue": false,
-				"description": "上课时间，需遵守课堂纪律"
+				"can_start_dialogue": true,
+				"description": "上课时间，通常应优先考虑听课、问答等课堂活动"
 			}
 		"break_time":
 			return {
@@ -95,18 +96,18 @@ func get_constraints() -> Dictionary:
 		"discussion_time":
 			return {
 				"can_speak_freely": true,
-				"can_leave_room": false,
+				"can_leave_room": true,
 				"must_follow_teacher": true,
 				"can_start_dialogue": true,
-				"description": "小组讨论时间"
+				"description": "小组讨论时间，通常应优先围绕讨论任务行动"
 			}
 		"activity_time":
 			return {
 				"can_speak_freely": true,
-				"can_leave_room": false,
+				"can_leave_room": true,
 				"must_follow_teacher": true,
 				"can_start_dialogue": true,
-				"description": "活动时间，在指定场景内活动"
+				"description": "活动时间，通常应优先围绕指定活动行动"
 			}
 		_:
 			return {

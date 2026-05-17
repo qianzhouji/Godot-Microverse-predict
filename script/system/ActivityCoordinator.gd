@@ -349,9 +349,9 @@ func _build_coordination_prompt(input_data: Dictionary) -> String:
 	var prompt = coordinator_prompt_template + "\n\n"
 
 	prompt += "## 当前协调任务\n\n"
-	prompt += "请根据时间表、场景约束、角色当前位置和每个Agent的自然语言决策，分配现实可信的活动序列。\n\n"
+	prompt += "请根据时间表、场景能力、角色当前位置和每个Agent的自然语言决策，分配现实可信的活动序列。\n\n"
 	prompt += "协调规则：\n"
-	prompt += "1. 尊重当前时段约束：上课时间优先安排听课、问答或同房间内的课堂活动；休息/午餐/自由时间可安排移动、社交、自习或运动\n"
+	prompt += "1. 参考当前时间表：上课时间通常优先考虑听课、问答或同房间内的课堂活动；休息/午餐/自由时间可安排移动、社交、自习或运动\n"
 	prompt += "2. 如果Agent表达了明确社交意愿，再协调相关角色移动到同一房间/中范围，并使用INITIATE_DIALOGUE/JOIN_DIALOGUE\n"
 	prompt += "3. 不要为了对话强行聚集所有角色；没有社交意愿时，应允许角色独立学习、听课、休息或运动\n"
 	prompt += "4. 如果活动需要特定场景但角色不在该场景，先添加MOVE_TO\n\n"
@@ -593,7 +593,6 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			results[agent_id] = parsed_activities
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 
-	_enforce_timeline_constraints(results)
 	_normalize_dialogue_assignments(results)
 	return results
 
@@ -783,39 +782,6 @@ func _infer_dialogue_topic(agent_id: String) -> String:
 		return "课程交流"
 	return "日常交流"
 
-func _enforce_timeline_constraints(results: Dictionary) -> void:
-	"""在系统层强制执行课表约束，避免LLM把上课时间协调成自由活动"""
-	if not TimelineState.instance:
-		return
-
-	var constraints = TimelineState.instance.get_constraints()
-	if constraints.get("can_leave_room", true) and constraints.get("can_start_dialogue", true):
-		return
-
-	var expected_room = TimelineState.instance.get_expected_room()
-	if expected_room.is_empty():
-		return
-
-	for agent_id in results.keys():
-		var activities: Array[Activity] = []
-		var agent_node = _find_agent_node(agent_id)
-		var character = agent_node.get_parent() as CharacterBody2D if agent_node else null
-		var current_room = _get_current_room_name(character) if character else ""
-
-		if current_room != expected_room:
-			activities.append(Activity.create_move_to(_get_room_default_position(expected_room), expected_room))
-
-		if TimelineState.instance.is_class_time:
-			activities.append(Activity.create_listen("Teacher", Activity.FocusLevel.HIGH))
-		elif TimelineState.instance.current_period == "discussion_time":
-			activities.append(Activity.create_group_discussion(TimelineState.instance.current_subject, [], Activity.FocusLevel.HIGH))
-
-		if not activities.is_empty():
-			results[agent_id] = activities
-			print("[ActivityCoordinator] 课表约束覆盖 %s 的活动：当前时段=%s，目标房间=%s" % [
-				agent_id, TimelineState.instance.current_period, expected_room
-			])
-
 func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
 	"""获取活动类型名称"""
 	match activity_type:
@@ -858,16 +824,12 @@ func _get_room_default_position(room_name: String) -> Vector2:
 		return Vector2(944 + randf_range(-50, 50), 516 + randf_range(-40, 40))
 
 func _infer_target_room_for_step(agent_id: String, step_data: Dictionary) -> String:
-	"""根据Agent意图、step reason和当前时段推断目标房间"""
+	"""根据Agent意图和step reason推断目标房间"""
 	var text = "%s %s" % [
 		pending_decisions.get(agent_id, ""),
 		step_data.get("reason", "")
 	]
 	var text_lower = text.to_lower()
-
-	if TimelineState.instance and not TimelineState.instance.current_room.is_empty():
-		if TimelineState.instance.is_class_time or "上课" in text or "课" in text:
-			return TimelineState.instance.current_room
 
 	if "图书馆" in text or "library" in text_lower or "看书" in text or "自习" in text or "学习" in text:
 		return "图书馆"
@@ -877,11 +839,8 @@ func _infer_target_room_for_step(agent_id: String, step_data: Dictionary) -> Str
 		return "食堂"
 	if "讨论" in text:
 		return "教室（小组讨论区）"
-	if "教室" in text or "classroom" in text_lower:
+	if "教室" in text or "上课" in text or "课堂" in text or "classroom" in text_lower:
 		return "教室（主教学区）"
-
-	if TimelineState.instance and not TimelineState.instance.current_room.is_empty():
-		return TimelineState.instance.current_room
 
 	var agent_node = _find_agent_node(agent_id)
 	var character = agent_node.get_parent() as CharacterBody2D if agent_node else null
