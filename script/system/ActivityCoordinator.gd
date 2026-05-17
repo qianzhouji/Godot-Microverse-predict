@@ -123,7 +123,7 @@ func get_pending_count() -> int:
 
 func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	"""
-	执行协调 - 【对话测试模式】调用LLM分配活动
+	执行协调 - 调用LLM分配活动
 
 	参数:
 		game_context: 游戏上下文 {current_time, current_location, period}
@@ -131,7 +131,7 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	返回:
 		协调结果字典
 	"""
-	print("[ActivityCoordinator] execute_coordination被调用【对话测试模式 - LLM协调】")
+	print("[ActivityCoordinator] execute_coordination被调用")
 	print("[ActivityCoordinator] pending_decisions数量: %d" % pending_decisions.size())
 	print("[ActivityCoordinator] pending_decisions内容: %s" % str(pending_decisions.keys()))
 
@@ -146,7 +146,7 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	is_coordinating = true
 	coordination_started.emit(pending_decisions.size())
 
-	print("[ActivityCoordinator] 【对话测试模式】调用LLM为 %d 个Agent分配活动..." % pending_decisions.size())
+	print("[ActivityCoordinator] 调用LLM为 %d 个Agent分配活动..." % pending_decisions.size())
 
 	# 打印所有Agent的决策内容
 	print("[ActivityCoordinator] ===== 所有Agent决策内容 =====")
@@ -220,11 +220,11 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	return results
 
 # ============================================
-# 【对话测试模式】直接分配对话活动
+# 调试辅助：直接分配对话活动
 # ============================================
 func _assign_dialogue_activities_directly() -> Dictionary:
 	"""
-	【对话测试模式】直接为所有Agent分配对话活动
+	调试辅助：直接为所有Agent分配对话活动
 
 	策略：
 	1. 将所有Agent移动到同一区域（食堂中心）
@@ -349,12 +349,12 @@ func _build_coordination_prompt(input_data: Dictionary) -> String:
 	var prompt = coordinator_prompt_template + "\n\n"
 
 	prompt += "## 当前协调任务\n\n"
-	prompt += "【对话系统测试模式】当前测试对话系统，请优先促进角色间的对话交互！\n\n"
-	prompt += "对话促进规则：\n"
-	prompt += "1. 如果Agent表达了对话意愿（如'想和XX聊天'），即使对方没有明确回应，也尝试协调双方到同一位置进行对话\n"
-	prompt += "2. 优先分配INITIATE_DIALOGUE/JOIN_DIALOGUE活动，而非让角色独处\n"
-	prompt += "3. 将多个Agent协调到同一区域，创造对话机会\n"
-	prompt += "4. 食堂、走廊等场景优先安排群体对话\n\n"
+	prompt += "请根据时间表、场景约束、角色当前位置和每个Agent的自然语言决策，分配现实可信的活动序列。\n\n"
+	prompt += "协调规则：\n"
+	prompt += "1. 尊重当前时段约束：上课时间优先安排听课、问答或同房间内的课堂活动；休息/午餐/自由时间可安排移动、社交、自习或运动\n"
+	prompt += "2. 如果Agent表达了明确社交意愿，再协调相关角色移动到同一房间/中范围，并使用INITIATE_DIALOGUE/JOIN_DIALOGUE\n"
+	prompt += "3. 不要为了对话强行聚集所有角色；没有社交意愿时，应允许角色独立学习、听课、休息或运动\n"
+	prompt += "4. 如果活动需要特定场景但角色不在该场景，先添加MOVE_TO\n\n"
 
 	prompt += "请根据以下输入，为每个Agent分配活动序列：\n\n"
 	prompt += "```json\n"
@@ -593,6 +593,7 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			results[agent_id] = parsed_activities
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 
+	_normalize_dialogue_assignments(results)
 	return results
 
 func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activity:
@@ -616,10 +617,18 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 			)
 			var target_room = parameters.get("target_room", "")
 
-			# 如果LLM没有返回坐标，根据房间名自动分配
-			if target_location == Vector2.ZERO and not target_room.is_empty():
-				target_location = _get_room_default_position(target_room)
-				print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: 使用房间默认坐标 %s" % str(target_location))
+			var inferred_room = target_room
+			if inferred_room.is_empty():
+				inferred_room = _infer_target_room_for_step(agent_id, step_data)
+
+			# LLM偶尔会给出不在任何房间内的坐标；解析层兜底到可执行房间坐标。
+			if target_location == Vector2.ZERO or not _is_position_in_known_room(target_location):
+				if not inferred_room.is_empty():
+					target_room = inferred_room
+					target_location = _get_room_default_position(target_room)
+					print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: 使用推断房间坐标 %s -> %s" % [target_room, str(target_location)])
+			elif target_room.is_empty():
+				target_room = _get_room_name_at_position(target_location)
 
 			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location=%s, target_room=%s" % [str(target_location), target_room])
 			activity = Activity.create_move_to(target_location, target_room)
@@ -676,6 +685,9 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 
 		Activity.ActivityType.LEAVE_DIALOGUE:
 			var leave_dialogue_id = parameters.get("dialogue_id", "")
+			if leave_dialogue_id.is_empty() and not _agent_has_active_dialogue(agent_id):
+				print("[ActivityCoordinator] 跳过 %s 的 LEAVE_DIALOGUE：角色当前不在对话中" % agent_id)
+				return null
 			activity = Activity.create_leave_dialogue(leave_dialogue_id)
 
 
@@ -710,6 +722,57 @@ func _int_to_focus_level(level: int) -> Activity.FocusLevel:
 		65: return Activity.FocusLevel.MEDIUM
 		100: return Activity.FocusLevel.HIGH
 		_: return Activity.FocusLevel.HIGH
+
+func _normalize_dialogue_assignments(results: Dictionary) -> void:
+	"""修正LLM输出中常见的对话编排错误"""
+	var has_initiator = false
+	var join_refs: Array[Dictionary] = []
+
+	for agent_id in results.keys():
+		var activities = results[agent_id]
+		for i in range(activities.size()):
+			var activity = activities[i]
+			if not activity is Activity:
+				continue
+
+			match activity.activity_type:
+				Activity.ActivityType.INITIATE_DIALOGUE:
+					has_initiator = true
+				Activity.ActivityType.JOIN_DIALOGUE:
+					var dialogue_id = activity.parameters.get("dialogue_id", "")
+					if not dialogue_id.is_empty() and not _is_dialogue_id_available(dialogue_id):
+						print("[ActivityCoordinator] 清空 %s 的虚构 dialogue_id: %s" % [agent_id, dialogue_id])
+						activity.parameters["dialogue_id"] = ""
+					join_refs.append({"agent_id": agent_id, "index": i})
+
+	if has_initiator or join_refs.is_empty():
+		return
+
+	var first_join = join_refs[0]
+	var initiator_agent = first_join.agent_id
+	var initiator_index = first_join.index
+	var topic = _infer_dialogue_topic(initiator_agent)
+	var initiate_activity = Activity.create_initiate_dialogue(1, "", topic)
+	initiate_activity.activity_id = "%s_dialogue_initiate_%d" % [initiator_agent, Time.get_unix_time_from_system()]
+	results[initiator_agent][initiator_index] = initiate_activity
+	print("[ActivityCoordinator] 将 %s 的首个 JOIN_DIALOGUE 转为 INITIATE_DIALOGUE，避免无人发起对话" % initiator_agent)
+
+func _is_dialogue_id_available(dialogue_id: String) -> bool:
+	if dialogue_id.is_empty():
+		return true
+	if dialogue_manager and dialogue_manager.has_method("has_active_dialogue"):
+		return dialogue_manager.has_active_dialogue(dialogue_id)
+	return false
+
+func _infer_dialogue_topic(agent_id: String) -> String:
+	var decision = pending_decisions.get(agent_id, "")
+	if "吃饭" in decision or "午餐" in decision or "食堂" in decision:
+		return "一起吃饭聊天"
+	if "学习" in decision or "作业" in decision or "题" in decision:
+		return "学习讨论"
+	if "课程" in decision or "上课" in decision:
+		return "课程交流"
+	return "日常交流"
 
 func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
 	"""获取活动类型名称"""
@@ -751,6 +814,72 @@ func _get_room_default_position(room_name: String) -> Vector2:
 	else:
 		print("[ActivityCoordinator] 未知房间 '%s'，使用默认坐标" % room_name)
 		return Vector2(944 + randf_range(-50, 50), 516 + randf_range(-40, 40))
+
+func _infer_target_room_for_step(agent_id: String, step_data: Dictionary) -> String:
+	"""根据Agent意图、step reason和当前时段推断目标房间"""
+	var text = "%s %s" % [
+		pending_decisions.get(agent_id, ""),
+		step_data.get("reason", "")
+	]
+	var text_lower = text.to_lower()
+
+	if TimelineState.instance and not TimelineState.instance.current_room.is_empty():
+		if TimelineState.instance.is_class_time or "上课" in text or "课" in text:
+			return TimelineState.instance.current_room
+
+	if "图书馆" in text or "library" in text_lower or "看书" in text or "自习" in text or "学习" in text:
+		return "图书馆"
+	if "体育" in text or "运动" in text or "健身" in text or "gym" in text_lower:
+		return "体育馆"
+	if "食堂" in text or "吃饭" in text or "午餐" in text or "canteen" in text_lower or "cafeteria" in text_lower:
+		return "食堂"
+	if "讨论" in text:
+		return "教室（小组讨论区）"
+	if "教室" in text or "classroom" in text_lower:
+		return "教室（主教学区）"
+
+	if TimelineState.instance and not TimelineState.instance.current_room.is_empty():
+		return TimelineState.instance.current_room
+
+	var agent_node = _find_agent_node(agent_id)
+	var character = agent_node.get_parent() as CharacterBody2D if agent_node else null
+	if character:
+		return _get_current_room_name(character)
+
+	return "教室（主教学区）"
+
+func _is_position_in_known_room(position: Vector2) -> bool:
+	return not _get_room_name_at_position(position).is_empty()
+
+func _get_room_name_at_position(position: Vector2) -> String:
+	var tree = get_tree()
+	if not tree:
+		return ""
+
+	var room_managers = tree.get_nodes_in_group("room_manager")
+	if room_managers.size() == 0:
+		return ""
+
+	var room_manager = room_managers[0]
+	if not room_manager.has_method("get_current_room"):
+		return ""
+
+	var room = room_manager.get_current_room(room_manager.rooms, position)
+	if not room:
+		return ""
+
+	return room.room_name
+
+func _agent_has_active_dialogue(agent_id: String) -> bool:
+	if not dialogue_manager or not dialogue_manager.has_method("get_character_dialogue"):
+		return false
+
+	var agent_node = _find_agent_node(agent_id)
+	var character = agent_node.get_parent() as CharacterBody2D if agent_node else null
+	if not character:
+		return false
+
+	return not dialogue_manager.get_character_dialogue(character).is_empty()
 
 func _extract_json_from_text(text: String) -> String:
 	"""从文本中提取JSON（支持markdown代码块）"""

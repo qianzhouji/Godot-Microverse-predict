@@ -11,7 +11,9 @@ extends Node
 static var instance: Node
 
 # Demo配置
-const DEMO_MODE: bool = true  # 启用硬编码模式
+# main 默认走完整运行流程：Agent 自主决策 → ActivityCoordinator 协调 → Agent 执行。
+# 需要复现硬编码演示时，可以临时改为 true 或在调试分支开启。
+const DEMO_MODE: bool = false
 
 # ============================================
 # 角色配置
@@ -165,7 +167,7 @@ func _init():
 	print("[HardcodedDemoController] _init called, instance set")
 
 func _ready():
-	print("[HardcodedDemoController] 硬编码Demo控制器初始化完成")
+	print("[HardcodedDemoController] 硬编码Demo控制器初始化完成（默认仅作调试工具）")
 	print("[HardcodedDemoController] Demo模式: %s" % DEMO_MODE)
 	
 	if DEMO_MODE:

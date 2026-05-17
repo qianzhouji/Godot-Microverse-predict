@@ -1278,7 +1278,7 @@ func _execute_v2_sports(activity: Activity) -> void:
 		)
 
 func _execute_v2_discussion(activity: Activity) -> void:
-	"""执行小组讨论 - 【对话测试模式】启动实际对话系统"""
+	"""执行小组讨论 - 启动实际对话系统"""
 	var topic = activity.parameters.get("topic", "")
 	var members = activity.parameters.get("members", [])
 	var focus = activity.focus_level
@@ -1287,7 +1287,7 @@ func _execute_v2_discussion(activity: Activity) -> void:
 		character.name, topic, ", ".join(members), focus
 	])
 
-	# 【对话测试模式】启动实际对话系统
+	# 启动实际对话系统
 	# 注意：AutoLoad名是DialogueManager
 	var dialogue_manager = get_node_or_null("/root/DialogueManager")
 	if dialogue_manager:
@@ -1327,7 +1327,7 @@ func _execute_v2_discussion(activity: Activity) -> void:
 		)
 
 func _execute_v2_initiate_dialogue(activity: Activity) -> void:
-	"""执行发起对话 - 【对话测试模式】启动普通对话"""
+	"""执行发起对话 - 启动普通对话"""
 	var range_type = activity.parameters.get("range_type", 1)  # 默认NORMAL
 	var initial_message = activity.parameters.get("initial_message", "")
 	var topic = activity.parameters.get("topic", "")
@@ -1343,7 +1343,7 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 		character.name, range_name, topic, focus
 	])
 
-	# 【对话测试模式】启动实际对话系统
+	# 启动实际对话系统
 	# 注意：AutoLoad名是DialogueManager
 	var dialogue_manager = get_node_or_null("/root/DialogueManager")
 	print("[AIAgent] %s 尝试获取DialogueManager: %s" % [character.name, dialogue_manager])

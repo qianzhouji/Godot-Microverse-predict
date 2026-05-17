@@ -6,7 +6,7 @@ static var instance: TimingSystem
 
 # 时间配置
 const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
-const REAL_SECONDS_PER_CLICK: float = 60.0  # 【对话测试模式】60现实秒（1分钟）= 1个Click（游戏5分钟）
+const REAL_SECONDS_PER_CLICK: float = 60.0  # 60现实秒（1分钟）= 1个Click（游戏5分钟）
 # 时间比例：现实2分钟 = 游戏5分钟，即1现实秒 = 2.5游戏秒
 
 # 状态
@@ -95,7 +95,7 @@ func _trigger_click():
 	# 1. 批准并执行所有待处理请求
 	_execute_pending_requests()
 	
-		# 【硬编码Demo模式】使用HardcodedDemoController替代LLM协调
+	# 可选硬编码Demo模式：仅在 HardcodedDemoController.DEMO_MODE 开启时替代完整协调流程。
 	if HardcodedDemoController.instance and HardcodedDemoController.instance.is_running():
 		print("[TimingSystem] 使用硬编码Demo控制器")
 		
@@ -148,9 +148,8 @@ func _trigger_click():
 			print("[TimingSystem] click_triggered信号已发射")
 			
 			# V2: 等待Agent提交决策
-			# 【对话测试模式】缩短等待时间到15秒
 			print("[TimingSystem] 等待Agent提交决策...")
-			var max_wait = 15.0  # 【对话测试模式】最大等待15秒
+			var max_wait = 15.0
 			var waited = 0.0
 			while waited < max_wait:
 				await get_tree().create_timer(1.0).timeout
