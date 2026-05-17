@@ -103,6 +103,9 @@ func _initialize_activity_registry() -> void:
 	"""初始化基础活动注册表"""
 	# 注册所有基础活动类型
 	registered_activities[Activity.ActivityType.MOVE_TO] = Activity.new(Activity.ActivityType.MOVE_TO)
+	registered_activities[Activity.ActivityType.INITIATE_DIALOGUE] = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE)
+	registered_activities[Activity.ActivityType.JOIN_DIALOGUE] = Activity.new(Activity.ActivityType.JOIN_DIALOGUE)
+	registered_activities[Activity.ActivityType.LEAVE_DIALOGUE] = Activity.new(Activity.ActivityType.LEAVE_DIALOGUE)
 	registered_activities[Activity.ActivityType.NORMAL_DIALOGUE] = Activity.new(Activity.ActivityType.NORMAL_DIALOGUE)
 	registered_activities[Activity.ActivityType.WHISPER] = Activity.new(Activity.ActivityType.WHISPER)
 	registered_activities[Activity.ActivityType.LISTEN] = Activity.new(Activity.ActivityType.LISTEN)

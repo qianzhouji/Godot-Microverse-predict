@@ -228,7 +228,7 @@ func _assign_dialogue_activities_directly() -> Dictionary:
 
 	策略：
 	1. 将所有Agent移动到同一区域（食堂中心）
-	2. 分配NORMAL_DIALOGUE活动
+	2. 分配INITIATE_DIALOGUE/JOIN_DIALOGUE活动
 	"""
 	var results = {}
 
@@ -352,7 +352,7 @@ func _build_coordination_prompt(input_data: Dictionary) -> String:
 	prompt += "【对话系统测试模式】当前测试对话系统，请优先促进角色间的对话交互！\n\n"
 	prompt += "对话促进规则：\n"
 	prompt += "1. 如果Agent表达了对话意愿（如'想和XX聊天'），即使对方没有明确回应，也尝试协调双方到同一位置进行对话\n"
-	prompt += "2. 优先分配NORMAL_DIALOGUE活动，而非让角色独处\n"
+	prompt += "2. 优先分配INITIATE_DIALOGUE/JOIN_DIALOGUE活动，而非让角色独处\n"
 	prompt += "3. 将多个Agent协调到同一区域，创造对话机会\n"
 	prompt += "4. 食堂、走廊等场景优先安排群体对话\n\n"
 
@@ -371,7 +371,7 @@ func _get_builtin_prompt() -> String:
 
 你的任务：
 1. 理解每个角色的自然语言决策
-2. 将意图映射为具体活动（MOVE_TO, NORMAL_DIALOGUE, WHISPER, LISTEN, QA_TEACHER, SELF_STUDY, SPORTS）
+2. 将意图映射为具体活动（MOVE_TO, INITIATE_DIALOGUE, JOIN_DIALOGUE, LEAVE_DIALOGUE, LISTEN, QA_TEACHER, SELF_STUDY, SPORTS）
 3. 检查场景约束
 4. 为每个角色分配最多3步的活动序列
 

@@ -411,7 +411,8 @@ func get_type_string() -> String:
 # 是否为对话类活动（影响信息接收）
 func is_dialogue_activity() -> bool:
 	return activity_type in [ActivityType.INITIATE_DIALOGUE, ActivityType.JOIN_DIALOGUE,
-							 ActivityType.LEAVE_DIALOGUE, ActivityType.GROUP_DISCUSSION]
+							 ActivityType.LEAVE_DIALOGUE, ActivityType.GROUP_DISCUSSION,
+							 ActivityType.NORMAL_DIALOGUE, ActivityType.WHISPER]
 
 # 是否为专注度活动
 func is_focus_activity() -> bool:

@@ -66,10 +66,11 @@ static func perceive_gain(actual_gain: float, eta_s: float, eta_a: float) -> flo
 	return clamp(perceived, 0.0, 1.0)
 
 # 添加观测样本
-static func add_sample(agent_name: String, room_name: String, time_val: float, actual_gain: float, 
-					   eta_s: float, eta_a: float, is_depression_risk: bool = false) -> void:
+static func add_sample(agent_name: String, room_name: String, time_val: float, gain: float,
+					   eta_s: float, eta_a: float, is_depression_risk: bool = false,
+					   gain_is_already_perceived: bool = false) -> void:
 	var belief = get_belief(agent_name, room_name, is_depression_risk)
-	var perceived_gain = perceive_gain(actual_gain, eta_s, eta_a)
+	var perceived_gain = gain if gain_is_already_perceived else perceive_gain(gain, eta_s, eta_a)
 	
 	belief.samples.append({
 		"time": time_val,
