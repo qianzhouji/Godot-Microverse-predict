@@ -1403,6 +1403,9 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 	# 加入对话（需要传入current_click参数）
 	var current_click = _get_current_click()
 	var success = dialogue_manager.join_dialogue(character, dialogue_id, current_click)
+	var explicit_dialogue_is_active = true
+	if has_explicit_dialogue_id and dialogue_manager.has_method("has_active_dialogue"):
+		explicit_dialogue_is_active = dialogue_manager.has_active_dialogue(dialogue_id)
 	if not success and not has_explicit_dialogue_id and dialogue_manager.has_method("find_joinable_dialogue"):
 		var fallback_dialogue_id = dialogue_manager.find_joinable_dialogue(character)
 		if not fallback_dialogue_id.is_empty() and fallback_dialogue_id != dialogue_id:
@@ -1422,7 +1425,8 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 			logger.log_activity(character.name, "加入对话: %s" % dialogue_id, room_name)
 	else:
 		print("[AIAgent] %s 加入对话 %s 失败" % [character.name, dialogue_id])
-		current_activity_index -= 1
+		if not has_explicit_dialogue_id or explicit_dialogue_is_active:
+			current_activity_index -= 1
 
 func _get_current_room_name() -> String:
 	"""获取当前房间显示名称（用于RewardSystem查找）"""

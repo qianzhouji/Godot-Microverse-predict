@@ -238,7 +238,7 @@ func _assign_dialogue_activities_directly() -> Dictionary:
 		return results
 
 	# 选择一个中心位置（食堂中心）
-	var center_position = Vector2(600, 400)
+	var center_position = Vector2(896, 147)
 
 	# 为每个Agent分配活动
 	for i in range(agent_ids.size()):
@@ -729,28 +729,28 @@ func _get_activity_type_name(activity_type: Activity.ActivityType) -> String:
 
 func _get_room_default_position(room_name: String) -> Vector2:
 	"""根据房间名返回默认坐标（硬编码，基于School场景布局）"""
-	# 教室区域（主教学区）- 场景中央
+	# 教室区域（主教学区）
 	if "教室" in room_name or "classroom" in room_name.to_lower():
-		return Vector2(1000 + randf_range(-50, 50), 400 + randf_range(-50, 50))
+		return Vector2(944 + randf_range(-50, 50), 516 + randf_range(-40, 40))
 	# 图书馆
 	elif "图书馆" in room_name or "library" in room_name.to_lower():
-		return Vector2(600 + randf_range(-50, 50), 300 + randf_range(-50, 50))
+		return Vector2(175 + randf_range(-45, 45), 136 + randf_range(-45, 45))
 	# 体育馆
 	elif "体育馆" in room_name or "gym" in room_name.to_lower():
-		return Vector2(1400 + randf_range(-50, 50), 600 + randf_range(-50, 50))
+		return Vector2(486 + randf_range(-50, 50), 330 + randf_range(-40, 40))
 	# 食堂
 	elif "食堂" in room_name or "cafeteria" in room_name.to_lower():
-		return Vector2(800 + randf_range(-50, 50), 700 + randf_range(-50, 50))
+		return Vector2(896 + randf_range(-60, 60), 147 + randf_range(-45, 45))
 	# 操场
 	elif "操场" in room_name or "playground" in room_name.to_lower():
 		return Vector2(1200 + randf_range(-100, 100), 800 + randf_range(-100, 100))
 	# 走廊
 	elif "走廊" in room_name or "corridor" in room_name.to_lower():
-		return Vector2(1000 + randf_range(-100, 100), 200 + randf_range(-50, 50))
+		return Vector2(901 + randf_range(-80, 80), 350 + randf_range(-35, 35))
 	# 默认：教室中央
 	else:
 		print("[ActivityCoordinator] 未知房间 '%s'，使用默认坐标" % room_name)
-		return Vector2(1000 + randf_range(-50, 50), 400 + randf_range(-50, 50))
+		return Vector2(944 + randf_range(-50, 50), 516 + randf_range(-40, 40))
 
 func _extract_json_from_text(text: String) -> String:
 	"""从文本中提取JSON（支持markdown代码块）"""

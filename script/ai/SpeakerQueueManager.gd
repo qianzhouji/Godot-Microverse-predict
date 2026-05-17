@@ -382,9 +382,6 @@ func update_topic(new_topic: String):
 func record_message(speaker: CharacterBody2D, message: String):
 	"""记录发言内容"""
 	last_message = message
-	if speaker_states.has(speaker):
-		var state = speaker_states[speaker]
-		state.on_speak(current_turn)
 
 # ============================================
 # 查询接口

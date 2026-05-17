@@ -916,13 +916,11 @@ func find_joinable_dialogue(character: CharacterBody2D) -> String:
 
 	var char_room = _get_character_room(character)
 	var char_medium = _get_character_medium_range(character)
-	if not _get_active_dialogue_for_character(character).is_empty():
-		return _get_active_dialogue_for_character(character)
 
 	for dialogue_id in active_dialogues.keys():
 		var dialogue_data = active_dialogues[dialogue_id]
 		if dialogue_data.participants.has(character):
-			return dialogue_id
+			continue
 		if dialogue_data.range_type == RangeType.WHISPER:
 			continue
 

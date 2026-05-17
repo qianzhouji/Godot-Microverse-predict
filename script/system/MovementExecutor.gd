@@ -27,6 +27,7 @@ var move_speed: float = 100.0  # 像素/秒
 # 导航引用
 var navigation_agent: NavigationAgent2D = null
 var character: CharacterBody2D = null
+var delegated_to_character_controller: bool = false
 
 # 回调
 var on_arrived: Callable = Callable()
@@ -82,9 +83,17 @@ func _start_movement() -> bool:
 	"""开始移动"""
 	if not character:
 		return false
-	
+
 	current_state = MoveState.MOVING
-	
+
+	if character.has_method("move_to"):
+		delegated_to_character_controller = true
+		character.move_to(target_position)
+		print("[MovementExecutor] %s 委托角色导航移动至 %s" % [character.name, target_position])
+		return true
+
+	delegated_to_character_controller = false
+
 	# 使用NavigationAgent2D或简单移动
 	if navigation_agent and navigation_agent.is_enabled():
 		# 使用导航
@@ -113,7 +122,10 @@ func update(delta: float) -> void:
 	if distance < 5.0:  # 5像素内视为到达
 		_arrived()
 		return
-	
+
+	if delegated_to_character_controller:
+		return
+
 	# 执行移动
 	if navigation_agent and navigation_agent.is_enabled():
 		# 使用导航代理
@@ -148,6 +160,7 @@ func _update_direct_movement(delta: float) -> void:
 func _arrived() -> void:
 	"""到达目标"""
 	current_state = MoveState.ARRIVED
+	delegated_to_character_controller = false
 	character.velocity = Vector2.ZERO
 	print("[MovementExecutor] %s 已到达目标位置 %s" % [character.name, target_position])
 	
@@ -157,6 +170,7 @@ func _arrived() -> void:
 func _failed(reason: String) -> void:
 	"""移动失败"""
 	current_state = MoveState.FAILED
+	delegated_to_character_controller = false
 	character.velocity = Vector2.ZERO
 	print("[MovementExecutor] %s 移动失败: %s" % [character.name, reason])
 	
@@ -176,6 +190,7 @@ func has_arrived() -> bool:
 func stop_movement() -> void:
 	"""停止移动"""
 	current_state = MoveState.IDLE
+	delegated_to_character_controller = false
 	if character:
 		character.velocity = Vector2.ZERO
 	print("[MovementExecutor] %s 移动已停止" % (character.name if character else "Unknown"))

@@ -32,11 +32,11 @@ var agent_dialogue_ids: Dictionary = {}  # 记录每个角色的对话ID
 # ============================================
 # 场景位置配置（硬编码坐标）
 # ============================================
-const CLASSROOM_MAIN: Vector2 = Vector2(400, 300)      # 教室主教学区
-const CLASSROOM_GROUP: Vector2 = Vector2(600, 300)     # 教室小组讨论区
-const CAFETERIA: Vector2 = Vector2(200, 500)           # 食堂
-const GYM: Vector2 = Vector2(800, 400)                 # 体育馆
-const LIBRARY: Vector2 = Vector2(100, 200)             # 图书馆
+const CLASSROOM_MAIN: Vector2 = Vector2(944, 516)      # 教室主教学区
+const CLASSROOM_GROUP: Vector2 = Vector2(528, 516)     # 教室小组讨论区
+const CAFETERIA: Vector2 = Vector2(896, 147)           # 食堂
+const GYM: Vector2 = Vector2(486, 330)                 # 体育馆
+const LIBRARY: Vector2 = Vector2(175, 136)             # 图书馆
 
 # ============================================
 # 对话范围类型
