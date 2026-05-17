@@ -1,9 +1,11 @@
 # 对话系统Demo调试日志
 
-> **项目**: Godot-Microverse-predict  
-> **分支**: test/dialogue-system  
-> **目标**: 硬编码Demo测试多Agent对话系统  
+> **项目**: Godot-Microverse-predict
+> **分支**: test/dialogue-system
+> **目标**: 硬编码Demo测试多Agent对话系统
 > **创建时间**: 2026-04-22
+>
+> **历史说明**: 本文是当时的调试记录，不代表当前 `main` 分支的最终架构。当前 AutoLoad 单例名为 `DialogueManager`，正确访问路径是 `/root/DialogueManager`；硬编码 Demo 控制器仍保留，但默认关闭，正式流程走 AIAgent 自主决策与 ActivityCoordinator 协调。
 
 ---
 
@@ -21,7 +23,7 @@
 
 ### 问题1: class_name与AutoLoad冲突
 
-**时间**: 2026-04-22 17:11  
+**时间**: 2026-04-22 17:11
 **错误信息**: `Class "HardcodedDemoController" hides an autoload singleton`
 
 **原因**: 同时使用 `class_name` 和 AutoLoad 配置
@@ -43,7 +45,7 @@ extends Node
 
 ### 问题2: Activity缺少step_index属性
 
-**时间**: 2026-04-22 17:21  
+**时间**: 2026-04-22 17:21
 **错误信息**: `Invalid assignment of property or key 'step_index'`
 
 **原因**: `Activity.gd` 中没有定义 `step_index` 属性
@@ -60,7 +62,7 @@ var step_index: int = 0  # 在活动序列中的步骤索引
 
 ### 问题3: 类型不匹配 - 普通Array vs Array[Activity]
 
-**时间**: 2026-04-22 17:33  
+**时间**: 2026-04-22 17:33
 **错误信息**: `The array of argument 1 (Array) does not have the same element type as the expected typed array`
 
 **原因**: `receive_activity_sequence` 期望 `Array[Activity]`，但传递的是普通 `Array`
@@ -81,7 +83,7 @@ assignments[agent_id] = activity_array
 
 ### 问题4: Dictionary vs Vector2 类型错误
 
-**时间**: 2026-04-22 17:35  
+**时间**: 2026-04-22 17:35
 **错误信息**: `Trying to assign value of type 'Dictionary' to a variable of type 'Vector2'`
 
 **原因**: `MovementExecutor` 期望 `target_location` 是 `Vector2`，但传递的是 Dictionary `{"x": ..., "y": ...}`
@@ -109,20 +111,19 @@ activity.parameters = {
 
 ---
 
-### 问题5: DialogManager路径错误（最严重）
+### 问题5: DialogueManager路径错误（历史问题）
 
-**时间**: 2026-04-22 17:46-21:52  
+**时间**: 2026-04-22 17:46-21:52
 **错误信息**: `DialogueManager未找到，无法启动对话`
 
 **根本原因**:
 - 脚本文件名: `DialogueManager.gd`（类名也是DialogueManager）
-- project.godot中AutoLoad名: `DialogManager`（没有"ue"）
-- 代码中使用: `/root/DialogueManager` ❌
-- 正确路径: `/root/DialogManager` ✅
+- project.godot中当前AutoLoad名: `DialogueManager`
+- 正确路径: `/root/DialogueManager`
 
 **影响**: Click 2的INITIATE_DIALOGUE活动执行失败，无法创建对话，导致Click 3无法加入对话
 
-**修复**: 批量替换所有 `/root/DialogueManager` 为 `/root/DialogManager`
+**最终状态**: 当前 main 已统一使用 `/root/DialogueManager`
 
 **涉及的方法**:
 - `_execute_v2_initiate_dialogue`
@@ -134,14 +135,14 @@ activity.parameters = {
 
 **提交**: `9f5fb00`
 
-**教训**: 
+**教训**:
 1. 修改代码前务必先检查project.godot中的AutoLoad配置
 2. 节点路径必须与AutoLoad名完全一致（包括拼写）
 3. 添加注释说明AutoLoad名，避免混淆文件名和AutoLoad名
 
 **检查方法**:
 ```bash
-grep "DialogManager" project.godot  # 查看AutoLoad名
+grep "DialogueManager" project.godot  # 查看AutoLoad名
 grep "DialogueManager" script/ai/AIAgent.gd  # 检查代码中的路径
 ```
 
@@ -153,7 +154,7 @@ grep "DialogueManager" script/ai/AIAgent.gd  # 检查代码中的路径
 
 Click 2:
 ```
-[AIAgent] StudentXiaoming 尝试获取DialogManager: DialogueManager:<Node#44761613804>
+[AIAgent] StudentXiaoming 尝试获取DialogueManager: DialogueManager:<Node#44761613804>
 [DialogueManager] 普通对话开始: dlg_StudentXiaoming_485
 [AIAgent] StudentXiaoming 成功启动普通对话，对话ID: dlg_StudentXiaoming_485
 [HardcodedDemoController] 记录小明的对话ID: dlg_StudentXiaoming_485
@@ -177,7 +178,7 @@ Click 3:
 |------|------|
 | `script/system/HardcodedDemoController.gd` | 新增硬编码Demo控制器 |
 | `script/system/TimingSystem.gd` | 添加Demo模式支持 |
-| `script/ai/AIAgent.gd` | 添加Demo模式检测、JOIN_DIALOGUE处理、修复DialogManager路径 |
+| `script/ai/AIAgent.gd` | 添加Demo模式检测、JOIN_DIALOGUE处理、修复DialogueManager路径 |
 | `script/system/Activity.gd` | 添加step_index属性 |
 | `project.godot` | 添加HardcodedDemoController为AutoLoad |
 
@@ -189,7 +190,7 @@ Click 3:
 bf3d609 修复AIAgent中dialog_service引用错误（手动编辑版）
 4e44499 修复：移除DialogueManager的class_name避免与AutoLoad冲突
 10b59b2 修复：统一使用DialogueManager命名
-a6547ac 添加调试日志：打印DialogManager获取结果
+a6547ac 添加调试日志：打印DialogueManager获取结果
 1f881d2 添加对话系统Demo调试日志
 05c723d 添加硬编码Demo控制器
 5247855 更新Demo控制器注释
@@ -198,18 +199,18 @@ a6547ac 添加调试日志：打印DialogManager获取结果
 8560ed3 修复TimingSystem的Agent查找逻辑
 bb404fd 修复：使用类型化的Array[Activity]
 9a8e451 修复：MOVE_TO活动的target_location使用Vector2
-9f5fb00 修复：AIAgent中DialogManager路径错误
+9f5fb00 修复：AIAgent中DialogueManager路径错误
 ```
 
 ---
 
 ## 后续建议
 
-1. **统一命名**: 考虑将project.godot中的AutoLoad名改为DialogueManager，与脚本文件名保持一致
-2. **添加检查**: 在代码中添加运行时检查，如果DialogManager未找到，打印明确的错误信息
-3. **文档化**: 在DialogueManager.gd顶部添加注释，说明AutoLoad名是DialogManager
+1. **统一命名**: 当前已统一为DialogueManager，与脚本文件名保持一致
+2. **添加检查**: 在代码中添加运行时检查，如果DialogueManager未找到，打印明确的错误信息
+3. **文档化**: 在DialogueManager.gd顶部添加注释，说明AutoLoad名是DialogueManager
 
 ---
 
-*维护者：百舟楫*  
+*维护者：百舟楫*
 *最后更新：2026-04-22*

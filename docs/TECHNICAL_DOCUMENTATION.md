@@ -1,7 +1,7 @@
 # Godot-Microverse-predict 技术文档
 
-> **项目**: 抑郁风险学生校园情境模拟系统  
-> **仓库**: https://github.com/qianzhouji/Godot-Microverse-predict  
+> **项目**: 抑郁风险学生校园情境模拟系统
+> **仓库**: https://github.com/qianzhouji/Godot-Microverse-predict
 > **最后更新**: 2026-04-15
 
 ---
@@ -92,7 +92,7 @@ log(T) = log[η_s · log(S)] − log(ρ_base) − β_effort · effort − η_a �
 │  ├─ RoomArea：定义情境参数 (S, a, E)                              │
 │  ├─ RewardSystem：计算客观收益 G(t) = (S/a)[1 - exp(-at)]         │
 │  ├─ RoomManager：房间管理与中范围划分                             │
-│  └─ TimelineState：课程表与行为约束                               │
+│  └─ TimelineState：课程表与时段引导                               │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -131,7 +131,7 @@ ActivityCoordinator LLM协调
 ─────────        ─────────
   2分钟     =     5分钟 (1 Click)
   1秒       =     2.5秒
-  
+
 一天时长：约22现实分钟（8:00-17:30）
 ```
 
@@ -488,7 +488,7 @@ Layer 4: PerceptionSystem - 从奖赏推断情境
 
 ### 5.4 TimelineState.gd
 
-**核心职责**：课程表管理，行为约束。
+**核心职责**：课程表管理，为 LLM 提供时段上下文和主观行动引导。
 
 ---
 
@@ -497,29 +497,21 @@ Layer 4: PerceptionSystem - 从奖赏推断情境
 ### 6.1 架构设计
 
 ```
-MultiAgentDialogueIntegration (统一集成接口)
+DialogueManager (AutoLoad: /root/DialogueManager)
     │
-    ├── GroupDialogueManager - 群组对话管理（2-7人）
-    │       ├── 三种范围：WHISPER(50px)/NORMAL(200px)/BROADCAST(全房间)
-    │       └── 与中范围系统对接
-    │
-    ├── DialogueInterruptionManager - 对话打断/插入机制
-    │       └── 四种模式：礼貌/紧急/随意/旁听
-    │
-    ├── DialogueContextManager - 对话上下文同步
-    │       └── 确保多方对话内容一致性
-    │
-    └── SpeakerQueueManager - 智能发言队列
-            └── 基于优先级的发言管理
+    ├── 对话生命周期：发起、加入、离开、结束
+    ├── 三种范围：WHISPER / NORMAL / BROADCAST
+    ├── 范围校验：房间、中范围、人数限制
+    └── SpeakerQueueManager：智能发言队列
 ```
 
 ### 6.2 对话范围
 
-| 范围 | 距离 | 人数 | 特点 |
+| 范围 | 边界 | 人数 | 特点 |
 |------|------|------|------|
-| WHISPER | 50px | 2-3人 | 私密，不允许第三方加入 |
-| NORMAL | 200px | 2-7人 | 中范围内可加入 |
-| BROADCAST | 全房间 | 2-7人 | 跨中范围，公开讨论 |
+| WHISPER | 发起者附近小范围 | 最多3人 | 私密，不允许第三方随意加入 |
+| NORMAL | 发起者所在中范围 | 最多7人 | 中范围内可加入 |
+| BROADCAST | 发起者所在RoomArea | 无上限 | 跨中范围，公开讨论 |
 
 ### 6.3 发言队列优先级
 
@@ -549,7 +541,7 @@ func calculate_objective_gain(S: float, a: float, time: float) -> float:
 #### 主观效用函数
 ```gdscript
 # U = G^α - β_effort × E
-func calculate_utility(gain: float, effort: float, 
+func calculate_utility(gain: float, effort: float,
                        alpha: float, beta_effort: float) -> float:
     var gain_utility = pow(max(gain, 0.0), alpha)
     var effort_cost = beta_effort * effort
@@ -589,17 +581,21 @@ func calculate_optimal_time(perceived_S, perceived_a, effort,
 
 | 顺序 | 脚本路径 | 单例名 |
 |------|---------|--------|
-| 1 | `script/RoomManager.gd` | RoomManager |
-| 2 | `script/system/RewardSystem.gd` | RewardSystem |
-| 3 | `script/ai/APIManager.gd` | APIManager |
-| 4 | `script/ai/memory/MemoryManager.gd` | MemoryManager |
-| 5 | `script/CharacterManager.gd` | CharacterManager |
-| 6 | `script/system/TimingSystem.gd` | TimingSystem |
-| 7 | `script/system/TimelineState.gd` | TimelineState |
-| 8 | `script/system/ActivityManager.gd` | ActivityManager |
-| 9 | `script/system/ActivityCoordinator.gd` | ActivityCoordinator |
-| 10 | `script/ai/DialogueManager.gd` | DialogueManager |
-| 11 | `script/ai/memory/MemorySystem.gd` | MemorySystem |
+| 1 | `script/ui/SettingsManager.gd` | SettingsManager |
+| 2 | `script/system/HardcodedDemoController.gd` | HardcodedDemoController |
+| 3 | `script/system/TimingSystem.gd` | TimingSystemAuto |
+| 4 | `script/system/TimelineState.gd` | TimelineStateAuto |
+| 5 | `script/system/ActivityManager.gd` | ActivityManagerAuto |
+| 6 | `script/system/ActivityCoordinator.gd` | ActivityCoordinatorAuto |
+| 7 | `script/system/RewardSystem.gd` | RewardSystem |
+| 8 | `script/ai/APIManager.gd` | APIManager |
+| 9 | `script/ai/memory/MemorySystem.gd` | MemorySystem |
+| 10 | `script/ai/memory/MemoryManager.gd` | MemoryManager |
+| 11 | `script/ai/DialogueManager.gd` | DialogueManager |
+| 12 | `script/CharacterManager.gd` | CharacterManager |
+| 13 | `script/GameSaveManager.gd` | GameSaveManager |
+| 14 | `scene/ui/SaveLoadUIManager.tscn` | SaveLoadUIManager |
+| 15 | `script/system/Logger.gd` | Logger |
 
 ### LLM配置
 
@@ -617,7 +613,7 @@ func calculate_optimal_time(perceived_S, perceived_a, effort,
 | 文件 | 路径 | 说明 |
 |------|------|------|
 | TimingSystem.gd | `script/system/TimingSystem.gd` | 中央时序系统 |
-| TimelineState.gd | `script/system/TimelineState.gd` | 课程表管理 |
+| TimelineState.gd | `script/system/TimelineState.gd` | 课程表与时段引导 |
 | ActivityManager.gd | `script/system/ActivityManager.gd` | 活动生命周期 |
 | ActivityCoordinator.gd | `script/system/ActivityCoordinator.gd` | 活动协调器 |
 | Activity.gd | `script/system/Activity.gd` | 活动数据结构 |
@@ -654,11 +650,8 @@ func calculate_optimal_time(perceived_S, perceived_a, effort,
 | 文件 | 路径 | 说明 |
 |------|------|------|
 | DialogueManager.gd | `script/ai/DialogueManager.gd` | 对话管理器 |
-| GroupDialogueManager.gd | `script/ai/GroupDialogueManager.gd` | 群组对话管理 |
-| DialogueInterruptionManager.gd | `script/ai/DialogueInterruptionManager.gd` | 打断/插入机制 |
 | DialogueContextManager.gd | `script/ai/DialogueContextManager.gd` | 上下文同步 |
 | SpeakerQueueManager.gd | `script/ai/SpeakerQueueManager.gd` | 发言队列管理 |
-| MultiAgentDialogueIntegration.gd | `script/ai/MultiAgentDialogueIntegration.gd` | 统一集成器 |
 
 ### 辅助工具
 
@@ -671,5 +664,5 @@ func calculate_optimal_time(perceived_S, perceived_a, effort,
 
 ---
 
-*文档维护者：百舟楫*  
+*文档维护者：百舟楫*
 *最后更新：2026-04-15*

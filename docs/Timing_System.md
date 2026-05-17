@@ -36,7 +36,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                    第一层：时序系统                            │
 │  ├─ TimingSystem.gd      - 全局时钟 + Click触发              │
-│  ├─ TimelineState.gd     - 课程表 + 行为约束                 │
+│  ├─ TimelineState.gd     - 课程表 + 时段引导                 │
 │  └─ ActivityManager.gd   - 活动生命周期 + 奖赏计算            │
 └─────────────────────────────────────────────────────────────┘
                               ↓
@@ -58,7 +58,7 @@
 | **V2协调器** | 自然语言决策 + LLM活动分配 |
 | **活动中决策** | 每次Click都可决策继续/停止/更换 |
 | **累积奖赏** | 活动收益随时间累积计算 |
-| **课程表驱动** | 6节课的时间安排和行为约束 |
+| **课程表上下文** | 6节课的时间安排和给 LLM 的时段引导 |
 | **放学机制** | 17:00后只接受结束请求，17:30强制结束 |
 
 ---
@@ -256,11 +256,11 @@ func get_constraints() -> Dictionary
 **返回值**:
 | 键 | 类型 | 说明 |
 |----|------|------|
-| `can_speak_freely` | bool | 是否可以自由发言 |
-| `can_leave_room` | bool | 是否可以离开场景 |
-| `must_follow_teacher` | bool | 是否必须跟随教师 |
-| `can_start_dialogue` | bool | 是否可以开始对话 |
-| `description` | String | 约束描述 |
+| `can_speak_freely` | bool | 当前时段是否倾向于自由发言 |
+| `can_leave_room` | bool | 当前时段是否倾向于允许离开场景；现行 main 中不作为硬拦截 |
+| `must_follow_teacher` | bool | 当前时段是否倾向于跟随教师/课堂任务 |
+| `can_start_dialogue` | bool | 当前时段是否倾向于允许开始对话；现行 main 中不作为硬拦截 |
+| `description` | String | 给 LLM 的时段说明 |
 
 ---
 
@@ -500,18 +500,20 @@ func _ready():
     TimingSystem.instance.day_ended.connect(_on_day_end)
 
 func _on_click(game_time: float, day: int, click_num: int):
-    print("Click #%d, 时间: %s" % [click_num, 
+    print("Click #%d, 时间: %s" % [click_num,
         TimingSystem.instance.format_time(game_time)])
 ```
 
-### 8.3 获取当前约束
+### 8.3 获取当前时段引导
 
 ```gdscript
 func _make_decision(perception: Dictionary):
     var constraints = TimelineState.instance.get_constraints()
-    if not constraints.can_start_dialogue:
-        return  # 上课时间不能开始对话
+    var description = constraints.get("description", "")
+    # 将 description 放入 prompt，由 LLM 主观判断是否遵守课堂/活动安排
 ```
+
+`TimelineState` 当前只提供课表上下文和主观引导，不强制阻止移动、离开房间或开始对话。是否遵守课堂纪律由 AIAgent prompt 和 LLM 决策承担；系统层只保留活动解析、房间可达性和对话范围等客观校验。
 
 ### 8.4 开始活动
 

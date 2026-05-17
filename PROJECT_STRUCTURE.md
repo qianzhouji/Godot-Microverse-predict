@@ -21,8 +21,8 @@
 
 ## 一、项目概述
 
-**项目名称**: Godot-Microverse-predict  
-**核心目标**: 基于努力决策理论和边际价值定理(MVT)，模拟抑郁风险学生与健康学生在校园情境中的行为差异  
+**项目名称**: Godot-Microverse-predict
+**核心目标**: 基于努力决策理论和边际价值定理(MVT)，模拟抑郁风险学生与健康学生在校园情境中的行为差异
 **技术栈**: Godot 4.x, GDScript, LLM API
 
 ---
@@ -75,7 +75,7 @@ res://
 | ActivityCoordinator.gd | 单例 | LLM协调器，活动分配 |
 | ActivityManager.gd | AutoLoad | 活动生命周期管理 |
 | RewardSystem.gd | 单例 | 奖赏发放中介，客观收益计算 |
-| TimelineState.gd | AutoLoad | 课程表与行为约束 |
+| TimelineState.gd | AutoLoad | 课程表与时段引导信息 |
 | Logger.gd | AutoLoad | 游戏日志系统（活动/移动/对话） |
 
 ### 3.3 角色系统 (script/)
@@ -183,7 +183,7 @@ res://
 **关键属性：**
 ```gdscript
 @export var initial_reward_rate: float = 0.5  # S: 初始收益率
-@export var reward_decay_rate: float = 0.5    # a: 收益衰减率  
+@export var reward_decay_rate: float = 0.5    # a: 收益衰减率
 @export var effort_level: float = 0.5         # E: 努力成本
 ```
 
@@ -236,7 +236,7 @@ const DEPRESSION_PRIOR_S_VAR = 0.15
 **核心公式实现：**
 ```gdscript
 # U(G) = G^α - β_effort × E
-static func calculate_utility(gain: float, effort: float, 
+static func calculate_utility(gain: float, effort: float,
                               alpha: float, beta_effort: float) -> float:
     var gain_utility = pow(max(gain, 0.0), alpha)
     var effort_cost = beta_effort * effort
@@ -254,7 +254,7 @@ const DEPRESSION_BETA_EFFORT = 0.8  # 抑郁Agent（努力放大）
 **最优停留时间计算：**
 ```gdscript
 # log(T) = log[ηS·log(S)] − log(ρbase) − βeffort·effort − ηa·log(a) + ε
-static func calculate_optimal_time(perceived_S, perceived_a, effort, 
+static func calculate_optimal_time(perceived_S, perceived_a, effort,
                                    alpha, beta_effort, p_base, eta_s, eta_a):
     var term1 = log(eta_s * log(perceived_S))
     var term2 = -log(p_base)
@@ -284,11 +284,11 @@ static func calculate_optimal_time(perceived_S, perceived_a, effort,
 func _check_mvt_leave_decision(room_name, time_in_room, personality, is_depression):
     var params = UtilitySystem.get_agent_utility_params(personality)
     var optimal_time = UtilitySystem.calculate_optimal_time(
-        perceived_S, perceived_a, effort, 
-        params.alpha, params.beta_effort, 
+        perceived_S, perceived_a, effort,
+        params.alpha, params.beta_effort,
         params.p_base, params.eta_s, params.eta_a
     )
-    
+
     var should_leave = time_in_room >= optimal_time
     return {
         "should_leave": should_leave,
@@ -475,7 +475,7 @@ PerceptionSystem.add_sample(time=5, gain=0.71)
 贝叶斯更新 → Ŝ=0.74, â=0.32
 
 [效用层]
-UtilitySystem.calculate_optimal_time(Ŝ=0.74, â=0.32, E=0.2, 
+UtilitySystem.calculate_optimal_time(Ŝ=0.74, â=0.32, E=0.2,
                                      α=0.55, β=0.8, p_base=0.4)
     ↓
 计算得最优时间 T* = 13秒
@@ -508,12 +508,20 @@ CharacterController执行移动/交互
 
 | 脚本路径 | 单例名 | 用途 |
 |---------|-------|------|
-| script/ai/APIManager.gd | APIManager | API调用管理 |
-| script/ai/memory/MemoryManager.gd | MemoryManager | 记忆系统 |
-| script/ai/DialogManager.gd | DialogManager | 对话管理 |
-| script/CharacterManager.gd | CharacterManager | 角色管理 |
+| script/ui/SettingsManager.gd | SettingsManager | 设置管理 |
+| script/system/HardcodedDemoController.gd | HardcodedDemoController | 硬编码Demo调试工具（默认关闭） |
+| script/system/TimingSystem.gd | TimingSystemAuto | 中央时序系统 |
+| script/system/TimelineState.gd | TimelineStateAuto | 课程表与时段引导信息 |
+| script/system/ActivityManager.gd | ActivityManagerAuto | 活动生命周期管理 |
+| script/system/ActivityCoordinator.gd | ActivityCoordinatorAuto | LLM活动协调 |
 | script/system/RewardSystem.gd | RewardSystem | 奖赏系统 |
-| script/system/TimelineState.gd | TimelineState | 课程表与行为约束 |
+| script/ai/APIManager.gd | APIManager | API调用管理 |
+| script/ai/memory/MemorySystem.gd | MemorySystem | 自然语言记忆系统 |
+| script/ai/memory/MemoryManager.gd | MemoryManager | 记忆兼容管理 |
+| script/ai/DialogueManager.gd | DialogueManager | 统一对话管理 |
+| script/CharacterManager.gd | CharacterManager | 角色管理 |
+| script/GameSaveManager.gd | GameSaveManager | 游戏存档管理 |
+| scene/ui/SaveLoadUIManager.tscn | SaveLoadUIManager | 存档UI管理 |
 | script/system/Logger.gd | Logger | 日志系统 |
 
 ---
@@ -551,7 +559,7 @@ func _calculate_objective_gain(S: float, a: float, time: float) -> float:
 ### 9.2 主观效用函数（UtilitySystem.gd）
 ```gdscript
 # U(G) = G^α - β_effort × E
-static func calculate_utility(gain: float, effort: float, 
+static func calculate_utility(gain: float, effort: float,
                               alpha: float, beta_effort: float) -> float:
     var gain_utility = pow(max(gain, 0.0), alpha)
     var effort_cost = beta_effort * effort

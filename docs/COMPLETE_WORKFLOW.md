@@ -1,7 +1,7 @@
 # Godot-Microverse-predict 完整运行流程与实现逻辑
 
 > **视角**：以学生"小明"（StudentXiaoming）的第一人称视角，带你完整体验整个系统的运行流程
-> 
+>
 > **文档位置**：`docs/COMPLETE_WORKFLOW.md`
 
 ---
@@ -80,16 +80,18 @@
 当游戏启动时：
 
 1. **School.tscn 场景加载**
+   - 当前主场景资源是 `scene/maps/School.tscn`，根节点名为 `Office`
    - 加载地图、房间区域、导航网格
-   - 实例化12个角色（包括我）
+   - 实例化当前场景中的角色（包括我）
    - 每个角色包含：CharacterBody2D + AIAgent脚本
 
 2. **AutoLoad单例初始化**（按顺序）
    ```
-   RoomManager → RewardSystem → APIManager → MemoryManager
-   → CharacterManager → TimingSystem → TimelineState
-   → ActivityManager → ActivityCoordinator → DialogueManager
-   → MemorySystem
+   SettingsManager → HardcodedDemoController → TimingSystemAuto
+   → TimelineStateAuto → ActivityManagerAuto → ActivityCoordinatorAuto
+   → RewardSystem → APIManager → MemorySystem → MemoryManager
+   → DialogueManager → CharacterManager → GameSaveManager
+   → SaveLoadUIManager → Logger
    ```
 
 3. **我的初始化**（AIAgent._ready()）
@@ -97,17 +99,17 @@
    func _ready():
        # 获取父节点（我的角色实体）
        character = get_parent() as CharacterBody2D
-       
+
        # 创建感知层组件
        _create_reward_receiver()
        _create_information_receiver()
-       
+
        # 连接时序系统信号
        _connect_to_timing_system()
-       
+
        # 添加到ai_agents组
        add_to_group("ai_agents")
-       
+
        print("[AIAgent] StudentXiaoming 初始化完成")
    ```
 
@@ -220,9 +222,10 @@ func _perceive() -> Dictionary:
         ],
         "dialogue_behaviors": [],          # 观察到的对话行为
         "audible_contents": [],            # 听到的对话内容
-        "time_constraints": {              # 时间约束
-            "can_leave": true,
-            "can_dialogue": true
+        "time_constraints": {              # 时段引导信息，供LLM参考
+            "can_leave_room": true,
+            "can_start_dialogue": true,
+            "description": "上课时间，通常应优先考虑听课、问答等课堂活动"
         }
     }
     return perception
@@ -274,18 +277,16 @@ ActivityCoordinator收集所有Agent的决策，然后：
 3. **解析响应**：将JSON转换为Activity对象
 4. **下发活动**：每个Agent收到自己的活动序列
 
-### 5.2 对话测试模式
+### 5.2 Demo调试模式与正式流程
 
-在测试模式下，Prompt被简化为：
-```markdown
-## 协调规则
+`HardcodedDemoController` 是保留的调试工具，默认 `DEMO_MODE = false`。正式流程不会使用硬编码日程或强制聚集对话，而是：
 
-**核心任务：让所有角色聚在一起对话**
+1. AIAgent 根据感知、记忆、人格和时间表上下文生成自然语言意图
+2. ActivityCoordinator 调用 LLM 协调多Agent活动
+3. 解析为 `MOVE_TO`、`INITIATE_DIALOGUE`、`JOIN_DIALOGUE`、`LISTEN` 等活动
+4. AIAgent 在后续 Click 执行缓存活动
 
-1. 如果角色不在一起 → 安排他们移动到同一位置
-2. 安排**一个**角色发起对话（INITIATE_DIALOGUE）
-3. 安排**其他**角色加入对话（JOIN_DIALOGUE）
-```
+Demo模式只用于快速验证移动、对话、加入、离开等动作链路，不代表 main 分支正式运行逻辑。
 
 ### 5.3 我的活动执行
 
@@ -296,12 +297,12 @@ func _execute_v2_initiate_dialogue(activity):
     # 获取对话参数
     var range_type = activity.parameters["range_type"]  # 1 = NORMAL
     var topic = activity.parameters["topic"]            # "日常闲聊"
-    
+
     # 调用DialogueManager启动对话
     var dialogue_id = DialogueManager.start_dialogue(
         character, range_type, topic, "", "", click, time
     )
-    
+
     # 更新状态
     current_state = AgentState.IN_DIALOGUE
     current_activity = "普通对话"
@@ -330,7 +331,7 @@ func _execute_v2_initiate_dialogue(activity):
          ↓
 [DialogueManager] 创建对话，生成dialogue_id
          ↓
-[其他Agent] JOIN_DIALOGUE (使用dialogue_id加入)
+[其他Agent] JOIN_DIALOGUE (使用真实dialogue_id，或由系统查找当前位置可加入的对话)
          ↓
 [SpeakerQueueManager] 管理发言顺序
          ↓
@@ -466,5 +467,5 @@ U = G^α - β_effort × E
 
 ---
 
-*文档完成时间：2026-04-21*  
+*文档完成时间：2026-04-21*
 *维护者：百舟楫*

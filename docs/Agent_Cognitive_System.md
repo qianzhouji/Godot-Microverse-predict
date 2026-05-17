@@ -38,8 +38,8 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 | 体验阶段 | ✅ 已完成 | 奖赏接收 + 贝叶斯更新 |
 | 决策阶段 | ✅ 已完成 | LLM决策 + MVT参数注入 |
 | 行动执行 | ✅ 已完成 | 8种行动类型 + 两步缓存 |
-| ActivityManager | ❌ 待实现 | 活动注册与奖赏闭环 |
-| DialogueManager | ❌ 待实现 | 对话生命周期管理 |
+| ActivityManager | ✅ 已完成 | 活动注册、活动追踪与奖赏闭环 |
+| DialogueManager | ✅ 已完成 | 对话生命周期管理 |
 
 ### 架构位置
 
@@ -48,8 +48,8 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 │  系统层（System Layer）                                       │
 │  ├─ TimingSystem         - 触发认知循环                      │
 │  ├─ RewardSystem         - 发放客观奖赏                      │
-│  ├─ TimelineState        - 提供时间约束                      │
-│  └─ ActivityManager      - 活动管理（待实现）                 │
+│  ├─ TimelineState        - 提供时间表与时段引导                │
+│  └─ ActivityManager      - 活动生命周期管理                    │
 └─────────────────────────────────────────────────────────────┘
                               ↓ click_triggered 信号
 ┌─────────────────────────────────────────────────────────────┐
@@ -69,7 +69,7 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 ┌─────────────────────────────────────────────────────────────┐
 │  执行层（Execution Layer）                                    │
 │  ├─ CharacterController  - 角色移动控制                      │
-│  └─ DialogueManager      - 对话管理（待实现）                 │
+│  └─ DialogueManager      - 对话生命周期管理                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -83,8 +83,8 @@ Agent认知系统是 Godot-Microverse-predict 项目的核心AI组件，负责�
 | **两步缓存** | 支持复杂行动计划的缓存和验证 | ✅ 已实现 |
 | **中范围划分** | 精确的空间感知和移动定位 | ✅ 已实现 |
 | **活动状态感知** | 感知其他Agent的活动状态 | ✅ 已实现 |
-| **活动管理闭环** | 活动注册、追踪、奖赏发放 | ❌ 待实现 |
-| **对话管理** | 对话生命周期、优先级队列 | ❌ 待实现 |
+| **活动管理闭环** | 活动注册、追踪、奖赏发放 | ✅ 已实现 |
+| **对话管理** | 对话生命周期、发言队列 | ✅ 已实现 |
 
 ---
 
@@ -594,7 +594,7 @@ Click N: 执行Step1（移动）
             └─ 是否上课了？ → 否
         │
         └── 全部通过 → 执行Step2（开始对话）
-        
+
         任一检查失败 → 重新决策
 ```
 
@@ -614,7 +614,7 @@ func _ready():
 func _on_click_triggered(game_time: float, day: int, click_num: int):
     if is_player_controlled:
         return
-    
+
     # 执行认知循环
     _perform_cognitive_cycle()
 ```
@@ -626,14 +626,14 @@ func _on_click_triggered(game_time: float, day: int, click_num: int):
 func _make_decision(perception: Dictionary) -> ActionRequest:
     var personality = CharacterPersonality.get_personality(character.name)
     var is_depression = personality.get("role_type", "") == "depression_risk_student"
-    
+
     # 获取感知参数
     var perceived_params = PerceptionSystem.get_perceived_params(
         character.name,
         perception.current_room,
         is_depression
     )
-    
+
     # 构建包含感知参数的Prompt
     var prompt = PromptBuilder.build_decision_prompt(self, perception)
     # ...
@@ -648,9 +648,9 @@ func _execute_move(request: ActionRequest):
     if cached_request and cached_request.cached_step2:
         if cached_request.cached_step2.action_type == ActionRequest.ActionType.START_WHISPER:
             is_whisper = true
-    
+
     var target_pos = _calculate_move_target(request.target_id, is_whisper)
-    
+
     if character.has_method("move_to"):
         character.move_to(target_pos)
         _is_moving = true
@@ -664,18 +664,18 @@ func _check_mvt_leave_decision(room_name: String, time_in_room: float,
                                personality: Dictionary, is_depression: bool) -> Dictionary:
     # 获取认知参数
     var params = UtilitySystem.get_agent_utility_params(personality)
-    
+
     # 获取感知参数
     var perceived_params = PerceptionSystem.get_perceived_params(
         character.name, room_name, is_depression
     )
-    
+
     # 获取情境努力成本
     var effort = 0.5
     if RewardSystem.instance:
         var room_data = RewardSystem.instance._get_room_objective_params(room_name)
         effort = room_data.get("E", 0.5)
-    
+
     # 计算最优停留时间
     var optimal_time = UtilitySystem.calculate_optimal_time(
         perceived_params.S,
@@ -687,10 +687,10 @@ func _check_mvt_leave_decision(room_name: String, time_in_room: float,
         params.eta_s,
         params.eta_a
     )
-    
+
     # 决策：是否离开
     var should_leave = time_in_room >= optimal_time
-    
+
     return {
         "should_leave": should_leave,
         "optimal_time": optimal_time,
@@ -707,34 +707,34 @@ func _get_characters_in_medium_range_description() -> String:
     var desc = "\n\n【场景内角色】"
     var current_room = _get_current_room()
     var room_characters = get_room_characters(current_room)
-    
+
     # 按中范围分组
     var characters_by_range = {}
-    
+
     for char in room_characters:
         var char_medium_range = _get_medium_range_description(current_room, char.global_position)
         var char_personality = CharacterPersonality.get_personality(char.name)
         var position = char_personality.get("position", "未知职位")
-        
+
         # 获取活动状态
         var activity_status = _get_character_activity_status(char)
-        
+
         var char_info = {
             "name": char.name,
             "position": position,
             "activity_status": activity_status  // 如："正在与 B 对话"
         }
-        
+
         if not characters_by_range.has(char_medium_range):
             characters_by_range[char_medium_range] = []
         characters_by_range[char_medium_range].append(char_info)
-    
+
     # 输出格式示例：
     # 【同一中范围内(可普通对话)】
     # - A(学生)：未在进行活动
     # - B(学生)：正在与 C 对话
     # - C(学生)：正在与 B 对话
-    
+
     return desc
 ```
 
@@ -752,16 +752,8 @@ func _get_characters_in_medium_range_description() -> String:
 | UtilitySystem | `script/ai/UtilitySystem.gd` | MVT效用计算、最优停留时间 |
 | PromptBuilder | `script/ai/PromptBuilder.gd` | Prompt构建 |
 | TimingSystem | `script/system/TimingSystem.gd` | Click触发 |
-| TimelineState | `script/system/TimelineState.gd` | 时间约束 |
+| TimelineState | `script/system/TimelineState.gd` | 时间表与时段引导 |
 | RewardSystem | `script/system/RewardSystem.gd` | 奖赏发放 |
-
-### 待实现 ❌
-
-| 组件 | 文件 | 功能 | 优先级 |
-|------|------|------|--------|
-| ActivityManager | `script/system/ActivityManager.gd` | 活动注册、追踪、奖赏闭环 | P0 |
-| DialogueManager | `script/ai/DialogueManager.gd` | 对话生命周期管理 | P0 |
-| PriorityQueue | `script/ai/PriorityQueue.gd` | 发言优先级队列 | P1 |
 
 ---
 
