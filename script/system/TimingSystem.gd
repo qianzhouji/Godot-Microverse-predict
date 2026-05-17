@@ -6,7 +6,7 @@ static var instance: TimingSystem
 
 # 时间配置
 const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
-const REAL_SECONDS_PER_CLICK: float = 120.0  # 120现实秒（2分钟）= 1个Click（游戏5分钟）
+const REAL_SECONDS_PER_CLICK: float = 60.0  # 【对话测试模式】60现实秒（1分钟）= 1个Click（游戏5分钟）
 # 时间比例：现实2分钟 = 游戏5分钟，即1现实秒 = 2.5游戏秒
 
 # 状态
@@ -95,44 +95,94 @@ func _trigger_click():
 	# 1. 批准并执行所有待处理请求
 	_execute_pending_requests()
 	
-	# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
-	# V2: 等待所有Agent提交决策，然后执行协调
-	print("[TimingSystem] ActivityCoordinator.instance = %s" % ActivityCoordinator.instance)
-	if ActivityCoordinator.instance:
-		print("[TimingSystem] 开始触发Agent决策收集...")
-		# 先触发Agent决策收集
+		# 【硬编码Demo模式】使用HardcodedDemoController替代LLM协调
+	if HardcodedDemoController.instance and HardcodedDemoController.instance.is_running():
+		print("[TimingSystem] 使用硬编码Demo控制器")
+		
+		# 触发Agent准备（让Agent进入等待状态）
 		click_triggered.emit(current_game_time, current_day, click_count)
-		print("[TimingSystem] click_triggered信号已发射")
 		
-		# V2: 等待Agent提交决策
-		# 最大等待时间：6秒(延迟) + 30秒(LLM超时) + 缓冲 = 40秒
-		print("[TimingSystem] 等待Agent提交决策...")
-		var max_wait = 40.0  # 最大等待40秒
-		var waited = 0.0
-		while waited < max_wait:
-			await get_tree().create_timer(1.0).timeout
-			waited += 1.0
-			var pending_count = ActivityCoordinator.instance.get_pending_count()
-			print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
-			# 如果所有Agent都提交了，提前结束等待
-			if pending_count >= 12:  # 假设有12个Agent
-				print("[TimingSystem] 所有Agent已提交，提前结束等待")
-				break
+		# 等待一小段时间让Agent准备好
+		await get_tree().create_timer(0.5).timeout
 		
-		# V2: 执行协调
-		var game_context = {
-			"current_time": format_time(current_game_time),
-			"current_location": "学校",
-			"period": _get_current_period()
-		}
-		print("[TimingSystem] 开始执行协调...")
-		var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
+		# 执行硬编码的Click逻辑
+		var demo_assignments = HardcodedDemoController.instance.execute_hardcoded_click(click_count, current_game_time)
 		
-		if not coordination_results.is_empty():
-			print("[TimingSystem] 协调完成，%d 个Agent收到活动分配" % coordination_results.size())
+		# 将分配的活动下发给Agent
+		if not demo_assignments.is_empty():
+			print("[TimingSystem] Demo分配 %d 个角色活动" % demo_assignments.size())
+			for agent_id in demo_assignments.keys():
+				var activities = demo_assignments[agent_id]
+				print("[TimingSystem] 尝试查找Agent: %s" % agent_id)
+				var agent = _get_agent(agent_id)
+				if agent:
+					print("[TimingSystem] 找到Agent %s，准备分配 %d 个活动" % [agent_id, activities.size()])
+					if agent.has_method("receive_activity_sequence"):
+						agent.receive_activity_sequence(activities)
+						print("[TimingSystem] 已分配 %d 个活动给 %s" % [activities.size(), agent_id])
+					else:
+						print("[TimingSystem] 警告: Agent %s 没有receive_activity_sequence方法" % agent_id)
+				else:
+					print("[TimingSystem] 警告: 未找到Agent %s" % agent_id)
+			
+			# 等待一下让Agent接收活动
+			await get_tree().create_timer(0.5).timeout
+			
+			# 触发Agent执行活动
+			print("[TimingSystem] 触发Agent执行活动...")
+			for agent_id in demo_assignments.keys():
+				var agent = _get_agent(agent_id)
+				if agent and agent.has_method("execute_demo_activity"):
+					print("[TimingSystem] 触发 %s 执行活动" % agent_id)
+					agent.execute_demo_activity()
+				else:
+					print("[TimingSystem] 警告: 无法触发 %s 执行活动" % agent_id)
 	else:
-		# V1: 直接触发Agent决策
-		click_triggered.emit(current_game_time, current_day, click_count)
+		# V2: 2. 触发所有Agent的感知+决策（提交到协调器）
+		# V2: 等待所有Agent提交决策，然后执行协调
+		print("[TimingSystem] ActivityCoordinator.instance = %s" % ActivityCoordinator.instance)
+		if ActivityCoordinator.instance:
+			print("[TimingSystem] 开始触发Agent决策收集...")
+			# 先触发Agent决策收集
+			click_triggered.emit(current_game_time, current_day, click_count)
+			print("[TimingSystem] click_triggered信号已发射")
+			
+			# V2: 等待Agent提交决策
+			# 【对话测试模式】缩短等待时间到15秒
+			print("[TimingSystem] 等待Agent提交决策...")
+			var max_wait = 15.0  # 【对话测试模式】最大等待15秒
+			var waited = 0.0
+			while waited < max_wait:
+				await get_tree().create_timer(1.0).timeout
+				waited += 1.0
+				var pending_count = ActivityCoordinator.instance.get_pending_count()
+				print("[TimingSystem] 已等待%.0f秒，%d个Agent已提交决策" % [waited, pending_count])
+				# 如果所有Agent都提交了，提前结束等待
+				# 动态获取场景中的Agent数量
+				var expected_agents = get_tree().get_nodes_in_group("character").size()
+				if pending_count >= expected_agents:
+					print("[TimingSystem] 所有Agent已提交（%d/%d），提前结束等待" % [pending_count, expected_agents])
+					break
+			
+			# V2: 执行协调
+			var game_context = {
+				"current_time": format_time(current_game_time),
+				"current_location": "学校",
+				"period": _get_current_period()
+			}
+			print("[TimingSystem] 开始执行协调...")
+			var coordination_results = await ActivityCoordinator.instance.execute_coordination(game_context)
+			
+			if not coordination_results.is_empty():
+				print("[TimingSystem] 协调完成，%d 个Agent收到活动分配" % coordination_results.size())
+		else:
+			# V1: 直接触发Agent决策
+			click_triggered.emit(current_game_time, current_day, click_count)
+	
+	# 触发对话系统更新（选择发言者、生成内容）
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager and dialogue_manager.has_method("on_click_tick"):
+		dialogue_manager.on_click_tick(click_count, current_game_time)
 	
 	after_click.emit(current_game_time)
 	
@@ -201,6 +251,9 @@ func format_time(minutes: float) -> String:
 	var m = int(fmod(minutes, 60))
 	return "%02d:%02d" % [h, m]
 
+func get_current_click() -> int:
+	return click_count
+
 # 获取当前时段类型
 func get_current_period() -> String:
 	var hour = current_game_time / 60.0
@@ -223,7 +276,16 @@ func _get_agent(agent_id: String):
 	# TODO: 集成AgentManager
 	var agents = get_tree().get_nodes_in_group("ai_agents")
 	for agent in agents:
+		# AIAgent的name可能不是角色名，需要检查character.name
 		if agent.name == agent_id:
+			return agent
+		# 检查agent是否有character引用
+		if agent.has_method("get_character"):
+			var char_node = agent.get_character()
+			if char_node and char_node.name == agent_id:
+				return agent
+		# 直接检查agent.get_parent().name（AIAgent的父节点是CharacterBody2D）
+		if agent.get_parent() and agent.get_parent().name == agent_id:
 			return agent
 	return null
 

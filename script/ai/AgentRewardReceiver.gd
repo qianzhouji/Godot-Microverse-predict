@@ -71,8 +71,8 @@ func _on_reward_received(agent_name: String, room_name: String,
 		reward_history.pop_front()
 	
 	# 传递给感知系统进行贝叶斯更新
-	PerceptionSystem.add_sample(agent_name, room_name, time, 
-								perceived_gain, eta_s, eta_a, is_depression)
+	PerceptionSystem.add_sample(agent_name, room_name, time,
+								perceived_gain, eta_s, eta_a, is_depression, true)
 	
 	print("[AgentRewardReceiver] %s 接收奖赏: 客观=%.3f → 感知=%.3f @ %s" % 
 		  [agent_name, gain, perceived_gain, room_name])

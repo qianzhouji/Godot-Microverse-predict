@@ -62,6 +62,7 @@ var parameters: Dictionary = {}   # 活动特定参数
 var duration_expected: float = 0.0     # 预期持续时间（游戏分钟）
 var is_interruptible: bool = true      # 是否可中断
 var created_at: float = 0.0            # 创建时间戳
+var step_index: int = 0                # 在活动序列中的步骤索引
 
 # ============================================
 # 构造函数
@@ -410,7 +411,8 @@ func get_type_string() -> String:
 # 是否为对话类活动（影响信息接收）
 func is_dialogue_activity() -> bool:
 	return activity_type in [ActivityType.INITIATE_DIALOGUE, ActivityType.JOIN_DIALOGUE,
-							 ActivityType.LEAVE_DIALOGUE, ActivityType.GROUP_DISCUSSION]
+							 ActivityType.LEAVE_DIALOGUE, ActivityType.GROUP_DISCUSSION,
+							 ActivityType.NORMAL_DIALOGUE, ActivityType.WHISPER]
 
 # 是否为专注度活动
 func is_focus_activity() -> bool:

@@ -398,10 +398,8 @@ func save_all() -> void:
 # ============================================
 
 func _get_current_game_time() -> float:
-	# 从 TimingSystem 获取当前游戏时间
-	if TimingSystem.instance:
-		return TimingSystem.instance.current_game_time
-	return 8.0 * 60.0  # 默认 8:00
+	# 使用TimeUtils统一获取游戏时间
+	return TimeUtils.get_game_time_minutes()
 
 func _event_type_to_memory_type(event_type: String) -> int:
 	match event_type:
@@ -446,7 +444,7 @@ func _connect_to_timing_system() -> void:
 	# 等待一帧确保 TimingSystem 已初始化
 	await get_tree().process_frame
 	
-	var timing_system = get_node_or_null("/root/TimingSystem")
+	var timing_system = TimingSystem.instance
 	if timing_system:
 		# 监听 Click 触发信号
 		timing_system.click_triggered.connect(_on_click_triggered)

@@ -8,7 +8,9 @@ const DIALOG_DISTANCE = 100.0  # 触发对话的距离阈值
 var god_ui: Control = null
 
 func _ready():
-	dialog_manager = get_node("/root/DialogManager")  # 获取对话管理器引用
+	dialog_manager = get_node_or_null("/root/DialogueManager")  # 获取对话管理器引用
+	if not dialog_manager:
+		push_warning("[CharacterManager] DialogueManager未找到")
 	# 获取所有可控制的角色
 	for character in get_tree().get_nodes_in_group("controllable_characters"):
 		character.set_selected(false)

@@ -76,6 +76,7 @@ static func conduct_daily_reflection(character: Node) -> Dictionary:
     # 步骤7: 记录反思记忆
     _record_reflection_memory(character, reflection_report, applied_adjustments, phq9_assessment)
     
+    # 步骤8: 输出到日志文件
     var result = {
         "reflection_report": reflection_report,
         "adjustments": applied_adjustments,
@@ -83,8 +84,36 @@ static func conduct_daily_reflection(character: Node) -> Dictionary:
         "timestamp": Time.get_unix_time_from_system()
     }
     
+    # 调用Logger输出每日反思日志
+    _log_daily_reflection(character, result)
+    
     print("[DailyReflectionSystem] %s 每日反思完成" % character.name)
     return result
+
+# ============================================
+# 输出每日反思到日志文件
+# ============================================
+static func _log_daily_reflection(character: Node, result: Dictionary) -> void:
+    """将每日反思结果输出到日志文件"""
+    var logger = _get_logger()
+    if logger:
+        logger.log_daily_reflection(character.name, result)
+        
+        # 同时记录当前认知参数到认知参数日志
+        var current_traits = DynamicPersonality.get_dynamic_traits(character)
+        logger.log_cognitive_params(character.name, current_traits, "每日反思后记录")
+
+static func _get_logger() -> Node:
+    """获取Logger节点"""
+    # 尝试从场景树获取
+    var tree = Engine.get_main_loop()
+    if tree:
+        var root = tree.get_root()
+        if root:
+            var logger = root.get_node_or_null("/root/Logger")
+            if logger:
+                return logger
+    return null
 
 # ============================================
 # 步骤1: 收集当日记忆

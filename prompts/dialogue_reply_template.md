@@ -9,6 +9,12 @@
 ## 基本信息
 {{basic_info}}
 
+## 故事背景
+{{story_background}}
+
+## 社会规则
+{{social_rules}}
+
 ## 大五人格特质
 {{big_five_traits}}
 

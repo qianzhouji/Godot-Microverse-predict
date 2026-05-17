@@ -103,6 +103,9 @@ func _initialize_activity_registry() -> void:
 	"""初始化基础活动注册表"""
 	# 注册所有基础活动类型
 	registered_activities[Activity.ActivityType.MOVE_TO] = Activity.new(Activity.ActivityType.MOVE_TO)
+	registered_activities[Activity.ActivityType.INITIATE_DIALOGUE] = Activity.new(Activity.ActivityType.INITIATE_DIALOGUE)
+	registered_activities[Activity.ActivityType.JOIN_DIALOGUE] = Activity.new(Activity.ActivityType.JOIN_DIALOGUE)
+	registered_activities[Activity.ActivityType.LEAVE_DIALOGUE] = Activity.new(Activity.ActivityType.LEAVE_DIALOGUE)
 	registered_activities[Activity.ActivityType.NORMAL_DIALOGUE] = Activity.new(Activity.ActivityType.NORMAL_DIALOGUE)
 	registered_activities[Activity.ActivityType.WHISPER] = Activity.new(Activity.ActivityType.WHISPER)
 	registered_activities[Activity.ActivityType.LISTEN] = Activity.new(Activity.ActivityType.LISTEN)
@@ -213,24 +216,27 @@ func _update_activity_on_click(agent_id: String, record: ActivityRecord, game_ti
 	_distribute_click_reward(agent_id, room_name, record.total_duration, click_duration, adjusted_effort, focus_level)
 
 # 计算累积收益（使用MVT公式）
-func _calculate_cumulative_gain(agent_id: String, room_name: String, total_time: float) -> float:
+func _calculate_cumulative_gain(agent_id: String, room_name: String, total_time_minutes: float) -> float:
 	if not RewardSystem.instance:
 		return 0.0
 	
 	# 获取房间参数
 	var room_data = RewardSystem.instance._get_room_objective_params(room_name)
 	if room_data.is_empty():
+		push_warning("[ActivityManager] 未找到房间参数: %s，收益为0" % room_name)
 		return 0.0
 	
 	var S = room_data.get("S", 0.5)
 	var a = room_data.get("a", 0.5)
 	
-	# 计算累积收益 G(t) = (S/a)[1 - exp(-at)]
-	if a < 0.001:
-		a = 0.001
+	# 使用TimeUtils统一计算（内部会处理分钟到秒的转换）
+	var gain = TimeUtils.calculate_mvt_gain(S, a, total_time_minutes)
 	
-	var gain = (S / a) * (1.0 - exp(-a * total_time / 60.0))  # 时间转换为秒
-	return clamp(gain, 0.0, 1.0)
+	print("[ActivityManager] 收益计算: 房间=%s, S=%.2f, a=%.2f, 时间=%.1f分钟, 收益=%.3f" % [
+		room_name, S, a, total_time_minutes, gain
+	])
+	
+	return gain
 
 # V2: 发放本次Click的奖赏增量（支持专注度）
 func _distribute_click_reward(agent_id: String, room_name: String, total_time: float, click_duration: float, effort: float, focus_level: float = 1.0):
@@ -255,7 +261,8 @@ func _distribute_click_reward(agent_id: String, room_name: String, total_time: f
 		"adjusted_gain": adjusted_incremental_gain
 	}
 	
-	RewardSystem.instance.distribute_reward_with_context(agent_id, room_name, total_time / 60.0, reward_context)
+	# 传递时间给RewardSystem（使用游戏时间分钟，RewardSystem内部会处理单位转换）
+	RewardSystem.instance.distribute_reward_with_context(agent_id, room_name, total_time, reward_context)
 
 # ============================================
 # 公共接口：活动管理
