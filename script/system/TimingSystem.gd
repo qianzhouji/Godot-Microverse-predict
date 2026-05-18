@@ -7,6 +7,8 @@ static var instance: TimingSystem
 # 时间配置
 const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
 const REAL_SECONDS_PER_CLICK: float = 30.0  # 30现实秒 = 1个Click（游戏5分钟）
+const AUTO_START_NEXT_DAY: bool = true  # 日终后自动进入下一天
+const NEXT_DAY_DELAY_SECONDS: float = 2.0  # 日终收尾日志/存档后再开新一天
 # 时间比例：现实1分钟 = 游戏10分钟，即1现实秒 = 10游戏秒
 
 # 状态
@@ -16,6 +18,8 @@ var current_day: int = 1
 var click_count: int = 0
 var _start_time_ms: int = 0  # 记录开始时间的毫秒数
 var _last_click_time_ms: int = 0  # 上次Click的时间
+var _after_school_phase_entered: bool = false
+var _is_scheduling_next_day: bool = false
 
 # 信号
 signal click_triggered(game_time: float, day: int, click_num: int)
@@ -39,6 +43,8 @@ func start_day(day: int = 1):
 	current_game_time = 8.0 * 60.0  # 8:00
 	click_count = 0
 	is_running = true
+	_after_school_phase_entered = false
+	_is_scheduling_next_day = false
 	_start_time_ms = Time.get_ticks_msec()
 	_last_click_time_ms = _start_time_ms
 	
@@ -53,6 +59,8 @@ func end_day():
 	is_running = false
 	day_ended.emit(current_day, current_game_time)
 	print("[TimingSystem] 第%d天结束，时间：%s" % [current_day, format_time(current_game_time)])
+	if AUTO_START_NEXT_DAY:
+		_schedule_next_day()
 
 # 主循环
 func _process(delta: float):
@@ -73,7 +81,7 @@ func _process(delta: float):
 		_trigger_click()
 	
 	# 检查是否到达17:00（放学时间）
-	if current_game_time >= 17.0 * 60.0 and current_game_time < 17.5 * 60.0:
+	if not _after_school_phase_entered and current_game_time >= 17.0 * 60.0 and current_game_time < 17.5 * 60.0:
 		_enter_after_school_phase()
 	
 	# 检查是否到达17:30（强制结束）
@@ -233,6 +241,7 @@ func submit_action_request(agent_id: String, request: ActionRequest) -> bool:
 
 # 进入放学阶段（17:00-17:30）
 func _enter_after_school_phase():
+	_after_school_phase_entered = true
 	print("[TimingSystem] 进入放学阶段（17:00-17:30）")
 	print("[TimingSystem] 只接受结束请求，不接受开始请求")
 
@@ -246,6 +255,19 @@ func _force_end_day():
 			agent.force_end_current_activity()
 	
 	end_day()
+
+# 自动进入下一天
+func _schedule_next_day() -> void:
+	if _is_scheduling_next_day:
+		return
+
+	_is_scheduling_next_day = true
+	var next_day = current_day + 1
+	print("[TimingSystem] 将在 %.1f 秒后自动进入第%d天" % [NEXT_DAY_DELAY_SECONDS, next_day])
+	await get_tree().create_timer(NEXT_DAY_DELAY_SECONDS).timeout
+
+	if not is_running:
+		start_day(next_day)
 
 # 格式化时间显示
 func format_time(minutes: float) -> String:
