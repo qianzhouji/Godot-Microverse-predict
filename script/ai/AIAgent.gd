@@ -1025,6 +1025,8 @@ func _execute_v2_activity(activity: Activity) -> void:
 			_execute_v2_initiate_dialogue(activity)
 		Activity.ActivityType.JOIN_DIALOGUE:
 			_execute_v2_join_dialogue(activity)
+		Activity.ActivityType.LEAVE_DIALOGUE:
+			_execute_v2_leave_dialogue(activity)
 		_:
 			print("[AIAgent] %s 未知活动类型: %s" % [character.name, activity.activity_type])
 
@@ -1433,6 +1435,37 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 		print("[AIAgent] %s 加入对话 %s 失败" % [character.name, dialogue_id])
 		if not has_explicit_dialogue_id or explicit_dialogue_is_active:
 			current_activity_index -= 1
+
+func _execute_v2_leave_dialogue(activity: Activity) -> void:
+	"""执行离开对话"""
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if not dialogue_manager:
+		print("[AIAgent] %s DialogueManager未找到，无法离开对话" % character.name)
+		return
+
+	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	if dialogue_id.is_empty() and dialogue_manager.has_method("get_character_dialogue"):
+		dialogue_id = dialogue_manager.get_character_dialogue(character)
+
+	if dialogue_id.is_empty():
+		print("[AIAgent] %s 当前不在任何对话中，跳过离开对话" % character.name)
+		current_state = AgentState.IDLE
+		current_activity = ""
+		return
+
+	var success = dialogue_manager.leave_dialogue(character, dialogue_id)
+	if success:
+		print("[AIAgent] %s 成功离开对话 %s" % [character.name, dialogue_id])
+		current_state = AgentState.IDLE
+		current_activity = ""
+		remove_meta("dialogue_partner")
+		remove_meta("whisper_partner")
+
+		if logger:
+			var room_name = _get_current_room_name()
+			logger.log_activity(character.name, "离开对话: %s" % dialogue_id, room_name)
+	else:
+		print("[AIAgent] %s 离开对话 %s 失败" % [character.name, dialogue_id])
 
 func _get_current_room_name() -> String:
 	"""获取当前房间显示名称（用于RewardSystem查找）"""

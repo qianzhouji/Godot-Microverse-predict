@@ -611,6 +611,7 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 
 	_normalize_dialogue_assignments(results)
+	_normalize_activity_order(results)
 	return results
 
 func _store_agent_activities(results: Dictionary, agent_id: String, activities: Array[Activity]) -> void:
@@ -634,6 +635,48 @@ func _requeue_current_decisions() -> void:
 	for agent_id in current_coordination_decisions.keys():
 		if not pending_decisions.has(agent_id):
 			pending_decisions[agent_id] = current_coordination_decisions[agent_id]
+
+func _normalize_activity_order(results: Dictionary) -> void:
+	"""修正LLM偶发的活动顺序错误，避免到达目标前先执行对话"""
+	for agent_id in results.keys():
+		var activities = results[agent_id]
+		if not activities is Array or activities.size() < 2:
+			continue
+
+		var sorted_activities: Array[Activity] = []
+		var changed = false
+		for activity in activities:
+			if activity is Activity and activity.activity_type == Activity.ActivityType.LEAVE_DIALOGUE:
+				sorted_activities.append(activity)
+		for activity in activities:
+			if activity is Activity and activity.activity_type == Activity.ActivityType.MOVE_TO:
+				sorted_activities.append(activity)
+		for activity in activities:
+			if activity is Activity and not (activity.activity_type in [
+				Activity.ActivityType.LEAVE_DIALOGUE,
+				Activity.ActivityType.MOVE_TO,
+				Activity.ActivityType.INITIATE_DIALOGUE,
+				Activity.ActivityType.JOIN_DIALOGUE
+			]):
+				sorted_activities.append(activity)
+		for activity in activities:
+			if activity is Activity and activity.activity_type in [
+				Activity.ActivityType.INITIATE_DIALOGUE,
+				Activity.ActivityType.JOIN_DIALOGUE
+			]:
+				sorted_activities.append(activity)
+
+		if sorted_activities.size() != activities.size():
+			continue
+
+		for i in range(activities.size()):
+			if activities[i] != sorted_activities[i]:
+				changed = true
+				break
+
+		if changed:
+			results[agent_id] = sorted_activities
+			print("[ActivityCoordinator] 调整 %s 的活动顺序，确保离开对话/移动先于新对话" % agent_id)
 
 func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activity:
 	"""将步骤数据解析为Activity对象"""
