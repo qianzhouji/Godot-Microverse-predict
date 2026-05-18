@@ -1371,7 +1371,7 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 			current_activity = range_name
 
 			# 【Demo模式】通知Demo控制器记录对话ID
-			if HardcodedDemoController.instance and character.name == "StudentXiaoming":
+			if HardcodedDemoController.instance and HardcodedDemoController.instance.is_running() and character.name == "StudentXiaoming":
 				HardcodedDemoController.instance.set_xiaoming_dialogue_id(dialogue_id)
 		else:
 			print("[AIAgent] %s 启动%s失败" % [character.name, range_name])

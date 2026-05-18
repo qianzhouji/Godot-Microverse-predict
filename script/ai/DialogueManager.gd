@@ -30,7 +30,8 @@ enum EndReason {
 	SILENCE,      # 全员沉默
 	TIMEOUT,      # 超时(45分钟)
 	MANUAL,       # 手动结束
-	EMPTY         # 人数不足
+	EMPTY,        # 人数不足
+	DAY_END       # 一天结束
 }
 
 # 对话数据类
@@ -424,6 +425,19 @@ func end_dialogue(dialogue_id: String, reason: int = EndReason.MANUAL):
 	"""
 	_end_dialogue(dialogue_id, reason)
 
+func end_all_dialogues(reason: int = EndReason.MANUAL) -> void:
+	"""结束所有活跃对话，用于日终等全局状态切换。"""
+	if active_dialogues.is_empty():
+		return
+
+	_pending_message_generations.clear()
+	var dialogue_ids: Array[String] = []
+	for dialogue_id in active_dialogues.keys():
+		dialogue_ids.append(dialogue_id)
+
+	for dialogue_id in dialogue_ids:
+		_end_dialogue(dialogue_id, reason)
+
 func _end_dialogue(dialogue_id: String, reason: int):
 	"""内部结束对话"""
 	if not active_dialogues.has(dialogue_id):
@@ -455,6 +469,8 @@ func _end_dialogue(dialogue_id: String, reason: int):
 		for p in dialogue_data.participants.keys():
 			if is_instance_valid(p):
 				participant_names.append(p.name)
+		if participant_names.is_empty() and is_instance_valid(dialogue_data.initiator):
+			participant_names.append(dialogue_data.initiator.name)
 		var participants_str = ", ".join(participant_names)
 		logger.log_dialogue("系统", "群聊", "=== 对话结束（%s），参与者：%s，持续时间：%.1f分钟 ===" % [reason_str, participants_str, duration_minutes], dialogue_data.room_name)
 		logger.log_conversation_end(participants_str, "群聊")
@@ -1201,5 +1217,7 @@ func _get_end_reason_string(reason: int) -> String:
 			return "手动结束"
 		EndReason.EMPTY:
 			return "人数不足"
+		EndReason.DAY_END:
+			return "一天结束"
 		_:
 			return "未知"
