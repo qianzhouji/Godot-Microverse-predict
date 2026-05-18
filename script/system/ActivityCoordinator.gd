@@ -26,6 +26,7 @@ var llm_max_tokens: int = 2000
 var is_coordinating: bool = false
 var pending_decisions: Dictionary = {}  # {agent_id: decision_string}
 var coordination_results: Dictionary = {}  # {agent_id: Array[Activity]}
+var current_coordination_decisions: Dictionary = {}  # 当前LLM协调轮次的决策快照
 
 # 对话管理器引用（使用Node类型避免循环依赖）
 var dialogue_manager: Node = null
@@ -111,6 +112,7 @@ func submit_decision(agent_id: String, decision: String) -> void:
 func clear_decisions() -> void:
 	"""清空所有待处理决策"""
 	pending_decisions.clear()
+	current_coordination_decisions.clear()
 	coordination_results.clear()
 
 func get_pending_count() -> int:
@@ -144,14 +146,16 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 		return {}
 
 	is_coordinating = true
-	coordination_started.emit(pending_decisions.size())
+	current_coordination_decisions = pending_decisions.duplicate()
+	pending_decisions.clear()
+	coordination_started.emit(current_coordination_decisions.size())
 
-	print("[ActivityCoordinator] 调用LLM为 %d 个Agent分配活动..." % pending_decisions.size())
+	print("[ActivityCoordinator] 调用LLM为 %d 个Agent分配活动..." % current_coordination_decisions.size())
 
 	# 打印所有Agent的决策内容
 	print("[ActivityCoordinator] ===== 所有Agent决策内容 =====")
-	for agent_id in pending_decisions.keys():
-		var decision = pending_decisions[agent_id]
+	for agent_id in current_coordination_decisions.keys():
+		var decision = current_coordination_decisions[agent_id]
 		var display_decision = decision
 		if display_decision.length() > 200:
 			display_decision = display_decision.substr(0, 200) + "..."
@@ -159,7 +163,7 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	print("[ActivityCoordinator] ===== 决策内容结束 =====")
 
 	# 构建输入数据
-	var input_data = _build_coordination_input(game_context)
+	var input_data = _build_coordination_input(game_context, current_coordination_decisions)
 
 	# 构建Prompt
 	var prompt = _build_coordination_prompt(input_data)
@@ -167,7 +171,7 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	# 记录协调输入
 	_log_coordination("COORDINATION_INPUT", {
 		"game_context": game_context,
-		"agent_count": pending_decisions.size(),
+		"agent_count": current_coordination_decisions.size(),
 		"agents": input_data.get("agents", [])
 	})
 
@@ -183,6 +187,8 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	if response.is_empty():
 		coordination_failed.emit("LLM调用失败")
 		is_coordinating = false
+		_requeue_current_decisions()
+		current_coordination_decisions.clear()
 		return {}
 
 	# 打印完整LLM响应
@@ -215,7 +221,7 @@ func execute_coordination(game_context: Dictionary = {}) -> Dictionary:
 	coordination_completed.emit(results)
 
 	is_coordinating = false
-	pending_decisions.clear()
+	current_coordination_decisions.clear()
 
 	return results
 
@@ -269,7 +275,7 @@ func _assign_dialogue_activities_directly() -> Dictionary:
 # 输入构建
 # ============================================
 
-func _build_coordination_input(game_context: Dictionary) -> Dictionary:
+func _build_coordination_input(game_context: Dictionary, decisions: Dictionary = {}) -> Dictionary:
 	"""构建协调输入数据"""
 	var input = {
 		"game_context": game_context,
@@ -278,10 +284,12 @@ func _build_coordination_input(game_context: Dictionary) -> Dictionary:
 		"scene_constraints": _get_scene_constraints()
 	}
 
+	var decision_source = decisions if not decisions.is_empty() else pending_decisions
+
 	# 构建Agent信息
-	for agent_id in pending_decisions.keys():
+	for agent_id in decision_source.keys():
 		var agent_info = _get_agent_info(agent_id)
-		agent_info["decision"] = pending_decisions[agent_id]
+		agent_info["decision"] = decision_source[agent_id]
 		input.agents.append(agent_info)
 
 	return input
@@ -560,7 +568,7 @@ func _parse_coordination_response(response: String) -> Dictionary:
 				else:
 					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
 
-			results[agent_id] = activities
+			_store_agent_activities(results, agent_id, activities)
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, activities.size()])
 
 	elif not agents.is_empty():
@@ -599,11 +607,33 @@ func _parse_coordination_response(response: String) -> Dictionary:
 				else:
 					print("[ActivityCoordinator] _parse_coordination_response: 解析step失败, step_data=%s" % str(step_data))
 
-			results[agent_id] = parsed_activities
+			_store_agent_activities(results, agent_id, parsed_activities)
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 
 	_normalize_dialogue_assignments(results)
 	return results
+
+func _store_agent_activities(results: Dictionary, agent_id: String, activities: Array[Activity]) -> void:
+	"""保存单个Agent活动；弱模型输出重复agent时避免空分配覆盖有效计划"""
+	if not results.has(agent_id):
+		results[agent_id] = activities
+		return
+
+	var existing = results[agent_id]
+	var existing_count = existing.size() if existing is Array else 0
+	if existing_count == 0 and not activities.is_empty():
+		results[agent_id] = activities
+		print("[ActivityCoordinator] 用 %s 的非空重复分配替换空分配" % agent_id)
+	elif activities.is_empty():
+		print("[ActivityCoordinator] 忽略 %s 的空重复分配，保留已有 %d 个活动" % [agent_id, existing_count])
+	else:
+		print("[ActivityCoordinator] 忽略 %s 的重复分配，保留首个 %d 个活动" % [agent_id, existing_count])
+
+func _requeue_current_decisions() -> void:
+	"""LLM协调失败时，将本轮快照放回待协调队列，不覆盖期间产生的新决策"""
+	for agent_id in current_coordination_decisions.keys():
+		if not pending_decisions.has(agent_id):
+			pending_decisions[agent_id] = current_coordination_decisions[agent_id]
 
 func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activity:
 	"""将步骤数据解析为Activity对象"""
@@ -802,7 +832,7 @@ func _is_dialogue_id_available(dialogue_id: String) -> bool:
 	return false
 
 func _infer_dialogue_topic(agent_id: String) -> String:
-	var decision = pending_decisions.get(agent_id, "")
+	var decision = _get_decision_for_agent(agent_id)
 	if "吃饭" in decision or "午餐" in decision or "食堂" in decision:
 		return "一起吃饭聊天"
 	if "学习" in decision or "作业" in decision or "题" in decision:
@@ -855,7 +885,7 @@ func _get_room_default_position(room_name: String) -> Vector2:
 func _infer_target_room_for_step(agent_id: String, step_data: Dictionary) -> String:
 	"""根据Agent意图和step reason推断目标房间"""
 	var text = "%s %s" % [
-		pending_decisions.get(agent_id, ""),
+		_get_decision_for_agent(agent_id),
 		step_data.get("reason", "")
 	]
 	var text_lower = text.to_lower()
@@ -877,6 +907,11 @@ func _infer_target_room_for_step(agent_id: String, step_data: Dictionary) -> Str
 		return _get_current_room_name(character)
 
 	return "教室（主教学区）"
+
+func _get_decision_for_agent(agent_id: String) -> String:
+	if current_coordination_decisions.has(agent_id):
+		return str(current_coordination_decisions[agent_id])
+	return str(pending_decisions.get(agent_id, ""))
 
 func _is_position_in_known_room(position: Vector2) -> bool:
 	return not _get_room_name_at_position(position).is_empty()
