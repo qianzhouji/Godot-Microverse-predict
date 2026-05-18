@@ -82,6 +82,7 @@ var logger: Node = null                        # Logger节点引用
 # ============================================
 var _dialogue_check_timer: float = 0.0
 const DIALOGUE_CHECK_INTERVAL: float = 1.0     # 每秒检查一次对话状态
+const JOIN_DIALOGUE_MAX_RETRIES: int = 2       # 避免空JOIN_DIALOGUE无限占住Agent
 
 # ============================================
 # 初始化
@@ -1387,8 +1388,10 @@ func _execute_v2_initiate_dialogue(activity: Activity) -> void:
 # ============================================
 func _execute_v2_join_dialogue(activity: Activity) -> void:
 	"""执行加入对话"""
-	var dialogue_id = activity.parameters.get("dialogue_id", "")
+	var raw_dialogue_id = activity.parameters.get("dialogue_id", "")
+	var dialogue_id = "" if raw_dialogue_id == null else str(raw_dialogue_id)
 	var has_explicit_dialogue_id = not dialogue_id.is_empty()
+	var retry_count = int(activity.parameters.get("join_retry_count", 0))
 
 	# 获取对话管理器（AutoLoad名是DialogueManager）
 	var dialogue_manager = get_node_or_null("/root/DialogueManager")
@@ -1402,8 +1405,18 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 			activity.parameters["dialogue_id"] = dialogue_id
 
 	if dialogue_id.is_empty():
-		print("[AIAgent] %s 暂未找到可加入的对话，下一Click重试" % character.name)
-		current_activity_index -= 1
+		if retry_count < JOIN_DIALOGUE_MAX_RETRIES:
+			activity.parameters["join_retry_count"] = retry_count + 1
+			print("[AIAgent] %s 暂未找到可加入的对话，下一Click重试 (%d/%d)" % [
+				character.name,
+				retry_count + 1,
+				JOIN_DIALOGUE_MAX_RETRIES
+			])
+			current_activity_index -= 1
+		else:
+			print("[AIAgent] %s 多次未找到可加入的对话，跳过JOIN_DIALOGUE" % character.name)
+			if logger:
+				logger.log_activity(character.name, "跳过加入对话: 未找到可加入的对话", _get_current_room_name())
 		return
 
 	print("[AIAgent] %s 尝试加入对话，ID: %s" % [character.name, dialogue_id])
@@ -1424,6 +1437,7 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 
 	if success:
 		print("[AIAgent] %s 成功加入对话 %s" % [character.name, dialogue_id])
+		activity.parameters.erase("join_retry_count")
 		current_state = AgentState.IN_DIALOGUE
 		current_activity = "加入对话"
 
@@ -1434,7 +1448,22 @@ func _execute_v2_join_dialogue(activity: Activity) -> void:
 	else:
 		print("[AIAgent] %s 加入对话 %s 失败" % [character.name, dialogue_id])
 		if not has_explicit_dialogue_id or explicit_dialogue_is_active:
-			current_activity_index -= 1
+			if retry_count < JOIN_DIALOGUE_MAX_RETRIES:
+				activity.parameters["join_retry_count"] = retry_count + 1
+				print("[AIAgent] %s 加入对话失败，下一Click重试 (%d/%d)" % [
+					character.name,
+					retry_count + 1,
+					JOIN_DIALOGUE_MAX_RETRIES
+				])
+				current_activity_index -= 1
+			else:
+				print("[AIAgent] %s 多次加入对话失败，跳过JOIN_DIALOGUE" % character.name)
+				if logger:
+					logger.log_activity(character.name, "跳过加入对话: 加入失败 %s" % dialogue_id, _get_current_room_name())
+		else:
+			print("[AIAgent] %s 指定对话已不存在，跳过JOIN_DIALOGUE" % character.name)
+			if logger:
+				logger.log_activity(character.name, "跳过加入对话: 对话不存在 %s" % dialogue_id, _get_current_room_name())
 
 func _execute_v2_leave_dialogue(activity: Activity) -> void:
 	"""执行离开对话"""
