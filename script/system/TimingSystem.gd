@@ -6,8 +6,8 @@ static var instance: TimingSystem
 
 # 时间配置
 const CLICK_INTERVAL_MINUTES: float = 5.0  # 游戏时间5分钟一个Click
-const REAL_SECONDS_PER_CLICK: float = 60.0  # 60现实秒（1分钟）= 1个Click（游戏5分钟）
-# 时间比例：现实2分钟 = 游戏5分钟，即1现实秒 = 2.5游戏秒
+const REAL_SECONDS_PER_CLICK: float = 30.0  # 30现实秒 = 1个Click（游戏5分钟）
+# 时间比例：现实1分钟 = 游戏10分钟，即1现实秒 = 10游戏秒
 
 # 状态
 var is_running: bool = false
@@ -60,12 +60,12 @@ func _process(delta: float):
 		return
 	
 	# 更新游戏时间
-	# 现实2分钟 = 游戏5分钟，所以游戏时间流逝速度是现实的2.5倍
-	# delta(现实秒) * (5/120) = 游戏分钟
+	# 现实30秒 = 游戏5分钟，所以游戏时间流逝速度是现实的10倍
+	# delta(现实秒) * (5/30) = 游戏分钟
 	var game_delta = delta * (CLICK_INTERVAL_MINUTES / REAL_SECONDS_PER_CLICK)
 	current_game_time += game_delta
 	
-	# 检查是否到达Click时刻（现实2分钟触发一次）
+	# 检查是否到达Click时刻（现实30秒触发一次）
 	var current_time_ms = Time.get_ticks_msec()
 	var elapsed_real_seconds = (current_time_ms - _last_click_time_ms) / 1000.0
 	if elapsed_real_seconds >= REAL_SECONDS_PER_CLICK:
