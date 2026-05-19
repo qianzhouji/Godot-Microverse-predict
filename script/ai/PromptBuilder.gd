@@ -451,6 +451,9 @@ static func build_dialogue_response_prompt(agent: AIAgent,
 	"""
 	var agent_name = agent.character.name
 	var personality = CharacterPersonality.get_personality(agent_name)
+	var effective_topic = topic.strip_edges()
+	if effective_topic.is_empty():
+		effective_topic = "当前校园生活"
 	
 	var prompt = "你正在参与一场%s。\n\n" % range_type_name
 	prompt += "你的信息：\n"
@@ -459,20 +462,24 @@ static func build_dialogue_response_prompt(agent: AIAgent,
 	prompt += "- 性格：%s\n" % personality.get("personality", "普通")
 	prompt += "- 说话风格：%s\n" % personality.get("speaking_style", "自然")
 	
-	if not topic.is_empty():
-		prompt += "\n讨论主题：%s\n" % topic
+	prompt += "\n讨论主题：%s\n" % effective_topic
 	
 	if not other_participants.is_empty():
 		prompt += "其他参与者：%s\n" % ", ".join(other_participants)
 	
 	if not dialogue_history.is_empty():
 		prompt += "\n对话历史：\n%s\n" % dialogue_history
+	else:
+		prompt += "\n对话历史：对话刚开始，你可以自然开场。\n"
 	
 	prompt += "\n现在轮到你发言。\n"
 	prompt += "要求：\n"
+	prompt += "- 只扮演%s，不要替其他角色说话，也不要把自己介绍成别人\n" % agent_name
+	prompt += "- 必须围绕讨论主题或回应上一句，不要突然换话题\n"
 	prompt += "- 保持自然，像真人一样说话\n"
-	prompt += "- 可以回应其他人的观点\n"
-	prompt += "- 对话长度控制在1-3句话，50字以内\n"
+	prompt += "- 对话刚开始时可以开场，但不要说“请开始吧”“我准备好了”\n"
+	prompt += "- 如果不是第一次见面，不要自我介绍；不要说“你好，我叫%s”\n" % agent_name
+	prompt += "- 对话长度控制在1句话，40字以内\n"
 	prompt += "- 只返回你要说的话，不要加任何前缀或解释\n"
 	prompt += "- 不要写成旁白或剧本格式，不要使用“你对大家说”“他说”“她说”\n"
 	prompt += "- 不要重复之前说过的话\n"
