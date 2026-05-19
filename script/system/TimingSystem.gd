@@ -58,6 +58,7 @@ func start_day(day: int = 1):
 func end_day():
 	is_running = false
 	_end_active_dialogues_for_day()
+	_end_active_activities_for_day()
 	day_ended.emit(current_day, current_game_time)
 	print("[TimingSystem] 第%d天结束，时间：%s" % [current_day, format_time(current_game_time)])
 	if AUTO_START_NEXT_DAY:
@@ -274,6 +275,10 @@ func _end_active_dialogues_for_day() -> void:
 	var dialogue_manager = get_node_or_null("/root/DialogueManager")
 	if dialogue_manager and dialogue_manager.has_method("end_all_dialogues"):
 		dialogue_manager.end_all_dialogues(dialogue_manager.EndReason.DAY_END)
+
+func _end_active_activities_for_day() -> void:
+	if ActivityManager.instance and ActivityManager.instance.has_method("end_all_activities"):
+		ActivityManager.instance.end_all_activities("一天结束")
 
 # 格式化时间显示
 func format_time(minutes: float) -> String:

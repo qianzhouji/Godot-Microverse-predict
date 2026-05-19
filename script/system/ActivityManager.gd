@@ -93,6 +93,7 @@ func _ready():
 	await get_tree().create_timer(0.5).timeout
 	if TimingSystem.instance:
 		TimingSystem.instance.click_triggered.connect(_on_click_triggered)
+		TimingSystem.instance.day_ended.connect(_on_day_ended)
 		print("[ActivityManager] 已连接到TimingSystem")
 
 # ============================================
@@ -354,6 +355,21 @@ func end_activity(agent_id: String, reason: String = "") -> Dictionary:
 	agent_activities.erase(agent_id)
 	
 	return result
+
+func end_all_activities(reason: String = "批量结束") -> void:
+	"""结束所有活跃活动，用于日终等全局状态切换。"""
+	if agent_activities.is_empty():
+		return
+
+	var agent_ids: Array[String] = []
+	for agent_id in agent_activities.keys():
+		agent_ids.append(agent_id)
+
+	for agent_id in agent_ids:
+		end_activity(agent_id, reason)
+
+func _on_day_ended(_day: int, _end_time: float) -> void:
+	end_all_activities("一天结束")
 
 # 中断活动（被外部事件打断）
 func interrupt_activity(agent_id: String, reason: String):

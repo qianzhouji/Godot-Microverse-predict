@@ -47,6 +47,7 @@ var movement_executor: MovementExecutor = null # 移动执行器
 # ============================================
 var last_natural_decision: String = ""         # 上次自然语言决策
 var is_decision_in_progress: bool = false      # 当前Click是否还在等待LLM决策
+var _lifecycle_generation: int = 0             # 跨天/强制收尾时失效旧异步链路
 
 # ============================================
 # 信息接收系统
@@ -238,6 +239,8 @@ func _perform_activity_update():
 	await _perform_activity_update_async()
 
 func _perform_activity_update_async():
+	var guard = _make_async_guard()
+
 	# 1. 获取当前活动信息
 	var activity_info = ActivityManager.instance.get_activity_info(character.name)
 	if not activity_info.has_activity:
@@ -254,7 +257,10 @@ func _perform_activity_update_async():
 
 	# 2. 体验阶段：接收累积奖赏（ActivityManager已在Click时触发RewardSystem）
 	current_state = AgentState.EXPERIENCING
-	var experience_result = await _experience_current_activity(activity_info)
+	var experience_result = await _experience_current_activity(activity_info, guard)
+	if not _is_async_guard_valid(guard):
+		print("[AIAgent] %s 活动体验结果已过期，丢弃" % character.name)
+		return
 	print("[AIAgent] %s 体验完成: 累计时长%.1f分钟, 收益%.3f" % [
 		character.name,
 		activity_info.duration,
@@ -270,6 +276,9 @@ func _perform_activity_update_async():
 	# 4. 决策阶段：继续/停止/更换活动
 	current_state = AgentState.DECIDING
 	var decision = await _make_activity_decision(perception, activity_info, experience_result)
+	if not _is_async_guard_valid(guard):
+		print("[AIAgent] %s 活动决策结果已过期，丢弃" % character.name)
+		return
 	print("[AIAgent] %s 活动决策: %s" % [character.name, decision.get("decision_type", "unknown")])
 
 	# 5. 执行决策
@@ -280,6 +289,7 @@ func _perform_activity_update_async():
 # ============================================
 func _perform_v2_cognitive_cycle():
 	print("[AIAgent] %s _perform_v2_cognitive_cycle开始执行" % character.name)
+	var guard = _make_async_guard()
 
 	# 1. 感知阶段
 	current_state = AgentState.PERCEIVING
@@ -310,7 +320,10 @@ func _perform_v2_cognitive_cycle():
 	current_state = AgentState.DECIDING
 	is_decision_in_progress = true
 	print("[AIAgent] %s 开始自然语言决策..." % character.name)
-	var natural_decision = await _make_natural_decision(perception)
+	var natural_decision = await _make_natural_decision(perception, guard)
+	if not _is_async_guard_valid(guard):
+		print("[AIAgent] %s 自然语言决策结果已过期，丢弃" % character.name)
+		return
 	is_decision_in_progress = false
 	print("[AIAgent] %s 自然语言决策: %s" % [character.name, natural_decision])
 
@@ -329,6 +342,20 @@ func _perform_v2_cognitive_cycle():
 
 func is_waiting_for_decision_result() -> bool:
 	return is_decision_in_progress
+
+func _make_async_guard() -> Dictionary:
+	return {
+		"generation": _lifecycle_generation,
+		"day": _get_current_day()
+	}
+
+func _is_async_guard_valid(guard: Dictionary) -> bool:
+	return int(guard.get("generation", -1)) == _lifecycle_generation and int(guard.get("day", -1)) == _get_current_day()
+
+func _get_current_day() -> int:
+	if TimingSystem.instance:
+		return TimingSystem.instance.current_day
+	return -1
 
 # ============================================
 # 感知阶段
@@ -428,7 +455,7 @@ func _experience(previous_activity: String) -> float:
 # ============================================
 # 体验当前活动（新时序逻辑）
 # ============================================
-func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
+func _experience_current_activity(activity_info: Dictionary, guard: Dictionary = {}) -> Dictionary:
 	# 从奖赏接收器获取最近接收的奖赏（ActivityManager已在Click时触发）
 	if not reward_receiver:
 		return {"cumulative_gain": 0.0, "perceived_gain": 0.0}
@@ -452,7 +479,9 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 	)
 
 	# 新增：情感评估与记忆记录
-	await _evaluate_activity_emotion(activity_info)
+	await _evaluate_activity_emotion(activity_info, guard)
+	if not guard.is_empty() and not _is_async_guard_valid(guard):
+		return {"cumulative_gain": 0.0, "perceived_gain": 0.0}
 
 	return {
 		"cumulative_gain": objective_gain,
@@ -465,7 +494,7 @@ func _experience_current_activity(activity_info: Dictionary) -> Dictionary:
 # ============================================
 # 新增：活动情感评估（自然语言记忆）
 # ============================================
-func _evaluate_activity_emotion(activity_info: Dictionary) -> void:
+func _evaluate_activity_emotion(activity_info: Dictionary, guard: Dictionary = {}) -> void:
 	"""
 	在活动体验阶段，使用LLM评估情感并生成自然语言记忆
 	"""
@@ -474,6 +503,8 @@ func _evaluate_activity_emotion(activity_info: Dictionary) -> void:
 
 	# 调用LLM生成情感评估
 	var emotional_record = await _call_llm_for_emotion(prompt)
+	if not guard.is_empty() and not _is_async_guard_valid(guard):
+		return
 
 	# 记录到记忆系统（自然语言）
 	if MemorySystem.instance and not emotional_record.is_empty():
@@ -870,7 +901,7 @@ func _string_to_action_type(type_str: String) -> ActionRequest.ActionType:
 # ============================================
 # V2: 自然语言决策
 # ============================================
-func _make_natural_decision(perception: Dictionary) -> String:
+func _make_natural_decision(perception: Dictionary, guard: Dictionary = {}) -> String:
 	"""
 	V2: 生成自然语言决策描述
 
@@ -887,6 +918,8 @@ func _make_natural_decision(perception: Dictionary) -> String:
 	var total_delay = fixed_delay + random_delay
 	print("[AIAgent] %s 等待 %.2f 秒以避免并发 (固定%.2f + 随机%.2f)..." % [character.name, total_delay, fixed_delay, random_delay])
 	await get_tree().create_timer(total_delay).timeout
+	if not guard.is_empty() and not _is_async_guard_valid(guard):
+		return ""
 
 	# V2: 使用PromptBuilder从文件加载模板
 	var prompt = PromptBuilder.build_natural_decision_prompt(self, perception)
@@ -898,6 +931,8 @@ func _make_natural_decision(perception: Dictionary) -> String:
 
 	# 调用LLM
 	var response = await _call_local_llm(prompt)
+	if not guard.is_empty() and not _is_async_guard_valid(guard):
+		return ""
 	print("[AIAgent] %s LLM响应: %s" % [character.name, response.substr(0, 50)])
 
 	# 提取决策文本
@@ -973,6 +1008,42 @@ func execute_demo_activity() -> void:
 		_execute_next_cached_activity()
 	else:
 		print("[AIAgent] %s Demo模式：无活动可执行" % character.name)
+
+func force_end_current_activity() -> void:
+	"""日终强制收尾：结束活跃活动并清空跨天不应保留的执行状态。"""
+	_lifecycle_generation += 1
+
+	if movement_executor and movement_executor.has_method("stop_movement") and movement_executor.is_moving():
+		movement_executor.stop_movement()
+
+	if ActivityManager.instance and character and ActivityManager.instance.has_activity(character.name):
+		ActivityManager.instance.end_activity(character.name, "一天结束")
+
+	var dialogue_manager = get_node_or_null("/root/DialogueManager")
+	if dialogue_manager and character and dialogue_manager.has_method("get_character_dialogue"):
+		var dialogue_id = dialogue_manager.get_character_dialogue(character)
+		if not dialogue_id.is_empty() and dialogue_manager.has_method("leave_dialogue"):
+			dialogue_manager.leave_dialogue(character, dialogue_id)
+
+	activity_cache.clear()
+	current_activity_index = 0
+	current_state = AgentState.IDLE
+	current_activity = ""
+	activity_start_time = 0.0
+	last_activity = ""
+	cached_request = null
+	is_waiting_execution = false
+	is_decision_in_progress = false
+	_is_moving = false
+	remove_meta("dialogue_partner")
+	remove_meta("whisper_partner")
+
+	if character:
+		character.remove_meta("current_dialogue_id")
+		character.remove_meta("in_dialogue")
+		character.remove_meta("dialogue_range_type")
+
+	print("[AIAgent] %s 日终状态已重置" % (character.name if character else name))
 
 # ============================================
 # V2: 执行缓存的下一个活动
