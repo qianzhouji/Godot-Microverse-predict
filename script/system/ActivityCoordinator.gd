@@ -611,6 +611,7 @@ func _parse_coordination_response(response: String) -> Dictionary:
 			print("[ActivityCoordinator] %s 分配到 %d 个活动" % [agent_id, parsed_activities.size()])
 
 	_normalize_dialogue_assignments(results)
+	_remove_redundant_self_joins(results)
 	_normalize_activity_order(results)
 	return results
 
@@ -889,6 +890,38 @@ func _normalize_dialogue_assignments(results: Dictionary) -> void:
 	initiate_activity.activity_id = "%s_dialogue_initiate_%d" % [initiator_agent, Time.get_unix_time_from_system()]
 	results[initiator_agent][initiator_index] = initiate_activity
 	print("[ActivityCoordinator] 将 %s 的首个 JOIN_DIALOGUE 转为 INITIATE_DIALOGUE，避免无人发起对话" % initiator_agent)
+
+func _remove_redundant_self_joins(results: Dictionary) -> void:
+	"""移除同一Agent在发起对话后又加入空dialogue_id的冗余步骤"""
+	for agent_id in results.keys():
+		var activities = results[agent_id]
+		if not activities is Array or activities.size() < 2:
+			continue
+
+		var filtered_activities: Array[Activity] = []
+		var has_initiated_dialogue = false
+		var removed_count = 0
+
+		for activity in activities:
+			if not activity is Activity:
+				continue
+
+			if activity.activity_type == Activity.ActivityType.INITIATE_DIALOGUE:
+				has_initiated_dialogue = true
+				filtered_activities.append(activity)
+				continue
+
+			if activity.activity_type == Activity.ActivityType.JOIN_DIALOGUE and has_initiated_dialogue:
+				var dialogue_id = activity.parameters.get("dialogue_id", "")
+				if dialogue_id.is_empty():
+					removed_count += 1
+					continue
+
+			filtered_activities.append(activity)
+
+		if removed_count > 0:
+			results[agent_id] = filtered_activities
+			print("[ActivityCoordinator] 移除 %s 的 %d 个冗余JOIN_DIALOGUE（同一序列已发起对话）" % [agent_id, removed_count])
 
 func _is_dialogue_id_available(dialogue_id: String) -> bool:
 	if dialogue_id.is_empty():
