@@ -678,13 +678,19 @@ func _normalize_activity_order(results: Dictionary) -> void:
 			results[agent_id] = sorted_activities
 			print("[ActivityCoordinator] 调整 %s 的活动顺序，确保离开对话/移动先于新对话" % agent_id)
 
-func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activity:
+func _parse_step_to_activity(step_data: Variant, agent_id: String) -> Activity:
 	"""将步骤数据解析为Activity对象"""
-	var activity_type_str = step_data.get("activity_type", "MOVE_TO")
+	if not (step_data is Dictionary):
+		print("[ActivityCoordinator] 跳过非字典step: %s" % str(step_data))
+		return null
+
+	var step: Dictionary = step_data
+	var activity_type_str = step.get("activity_type", "MOVE_TO")
 	var activity_type = _string_to_activity_type(activity_type_str)
 
-	var parameters = step_data.get("parameters", {})
-	var focus_level = step_data.get("focus_level", 100)
+	var raw_parameters = step.get("parameters", {})
+	var parameters: Dictionary = _normalize_activity_parameters(raw_parameters, agent_id, activity_type_str)
+	var focus_level = step.get("focus_level", 100)
 
 	var activity: Activity = null
 
@@ -692,6 +698,9 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 		Activity.ActivityType.MOVE_TO:
 			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: parameters=%s" % str(parameters))
 			var target_location_dict = parameters.get("target_location", {})
+			if not (target_location_dict is Dictionary):
+				print("[ActivityCoordinator] %s MOVE_TO target_location不是字典，使用默认坐标: %s" % [agent_id, str(target_location_dict)])
+				target_location_dict = {}
 			print("[ActivityCoordinator] _parse_step_to_activity MOVE_TO: target_location_dict=%s" % str(target_location_dict))
 			var target_location = Vector2(
 				target_location_dict.get("x", 0),
@@ -701,7 +710,7 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 
 			var inferred_room = target_room
 			if inferred_room.is_empty():
-				inferred_room = _infer_target_room_for_step(agent_id, step_data)
+				inferred_room = _infer_target_room_for_step(agent_id, step)
 
 			# LLM偶尔会给出不在任何房间内的坐标；解析层兜底到可执行房间坐标。
 			if target_location == Vector2.ZERO or not _is_position_in_known_room(target_location):
@@ -782,11 +791,25 @@ func _parse_step_to_activity(step_data: Dictionary, agent_id: String) -> Activit
 
 
 	if activity:
-		activity.activity_id = "%s_step%d_%d" % [agent_id, step_data.get("step", 1), Time.get_unix_time_from_system()]
-		if step_data.has("estimated_duration"):
-			activity.duration_expected = float(step_data.get("estimated_duration", activity.duration_expected))
+		activity.activity_id = "%s_step%d_%d" % [agent_id, step.get("step", 1), Time.get_unix_time_from_system()]
+		if step.has("estimated_duration"):
+			activity.duration_expected = float(step.get("estimated_duration", activity.duration_expected))
 
 	return activity
+
+func _normalize_activity_parameters(raw_parameters: Variant, agent_id: String, activity_type: String) -> Dictionary:
+	if raw_parameters is Dictionary:
+		return raw_parameters
+	if raw_parameters == null:
+		return {}
+	if raw_parameters is String and raw_parameters.strip_edges().is_empty():
+		return {}
+	print("[ActivityCoordinator] %s 的 %s 参数不是字典，已按空参数处理: %s" % [
+		agent_id,
+		activity_type,
+		str(raw_parameters)
+	])
+	return {}
 
 func _repair_common_json_issues(json_text: String) -> String:
 	"""修复本地小模型常见的JSON格式小错"""
